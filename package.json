@@ -11,10 +11,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@rollup/rollup-win32-x64-msvc": "^4.63.4",
     "@vitejs/plugin-react": "^5.0.4",
     "lucide-react": "^0.468.0",
-    "magic-string": "^0.30.21",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "typescript": "~5.9.2",
