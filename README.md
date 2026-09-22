@@ -1,94 +1,60 @@
-# NA Barbearia · site público
+# NA Barbearia
 
-Landing page pública da NA Barbearia, em Santos/SP. A raiz do projeto apresenta a marca, informações públicas verificadas, localização, horários publicados e o caminho oficial para agendamento.
+Plataforma de atendimento e gestão da NA Barbearia em Santos/SP. O projeto reúne uma landing page pública e uma área operacional autenticada, conectadas a um backend Rust/Axum com SQLite.
 
-## O que está público
+## Rotas
 
-- Hero editorial azul/ciano com CTA **Agendar horário**.
-- Conteúdo factual configurado em `src/config/siteConfig.ts`.
-- Blocos de experiência, como agendar e localização.
-- Telefone, endereço e horários publicados sem incluir o sábado, cujo horário de origem é ambíguo.
-- Link direto para o Instagram oficial: https://www.instagram.com/nabarbeariaa/.
-- CTA para a página oficial do Trinks: https://www.trinks.com/na-barbearia.
+- `/`: apresentação pública, localização e entrada para a agenda;
+- `/painel`: autenticação, cadastro de clientes, agenda e gestão operacional;
+- `/agendar`: atalho para a plataforma de agendamento.
 
-O site não publica serviços, preços, duração, equipe, fotos, avaliações exatas, WhatsApp ou pagamentos sem dados/configuração confirmados.
+## Executar localmente
 
-## Limite entre site público, Trinks e demo interna
+Requisitos: Node.js, npm e Rust estável.
 
-O site público **não possui agenda própria, login, painel operacional ou API**. O botão de agendamento abre o Trinks em nova aba com `noopener noreferrer`. Disponibilidade, confirmação, remarcação e cancelamento são realizados no próprio Trinks; isso não é uma integração de API.
+1. Gere um token local para o backend, mantendo-o fora do Git:
 
-O MVP de operação anterior foi preservado somente para inspeção interna em:
-
-```text
-/demo-interno
+```powershell
+$taskRng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$taskBytes = New-Object byte[] 32
+$taskRng.GetBytes($taskBytes)
+$taskRng.Dispose()
+$env:NABARBEARIA_BOOTSTRAP_TOKEN = [Convert]::ToBase64String($taskBytes).TrimEnd('=').Replace('+','-').Replace('/','_')
+cargo run --manifest-path backend/Cargo.toml
 ```
 
-Essa rota mostra explicitamente um ambiente fictício, sem autenticação e sem backend. Ela não tem link na navegação pública e não representa dados reais da NA Barbearia. O `demoRepository` continua separado de `siteConfig` para impedir que dados de demonstração vazem para a home.
+2. Em outro terminal, instale as dependências e inicie o frontend:
 
-## Stack
-
-- React 19 + TypeScript
-- Vite 7
-- CSS responsivo com tokens azul/ciano/branco
-- Lucide React para ícones
-- Vitest para regras do demo interno
-
-## Como executar
-
-Requer Node.js 20+ e npm.
-
-```bash
+```powershell
 npm install
 npm run dev
 ```
 
-Abra `/` para o site público. Para inspecionar o fluxo legado isolado, abra `/demo-interno` diretamente.
+O frontend usa `http://127.0.0.1:5173` e encaminha `/api` para a API em `http://127.0.0.1:3001`.
 
-Verificações:
+## Credenciais de demonstração
 
-```bash
+As credenciais abaixo são exemplos documentais, não devem ser usadas em produção:
+
+| Perfil | E-mail | Senha |
+| --- | --- | --- |
+| Proprietário | `dono@example.test` | `Exemplo123!` |
+| Barbeiro | `barbeiro@example.test` | `Exemplo123!` |
+| Cliente | `cliente@example.test` | `Exemplo123!` |
+
+O banco SQLite versionado em `backend/data/` é um snapshot de demonstração desta máquina. Ele foi incluído intencionalmente neste repositório conforme o escopo do projeto; não use esse arquivo como banco de produção.
+
+## Verificações
+
+```powershell
 npm test
 npm run build
+cargo fmt --manifest-path backend/Cargo.toml --check
+cargo test --manifest-path backend/Cargo.toml
+cargo clippy --manifest-path backend/Cargo.toml -- -D warnings
 git diff --check
 ```
 
-## Estrutura
+## Segurança e operação
 
-```text
-src/
-  App.tsx                  # roteamento mínimo: público na raiz, demo em /demo-interno
-  PublicSite.tsx           # landing pública sem agenda local ou dashboards
-  DemoApp.tsx              # superfície interna fictícia herdada do MVP
-  config/siteConfig.ts     # fatos públicos tipados e links oficiais
-  styles.css               # tokens, landing, demo isolado e acessibilidade
-  data/demoRepository.ts   # dados locais exclusivamente do demo interno
-  domain/booking.ts        # regras/testes do demo interno
-```
-
-## Dados públicos configurados
-
-Os dados abaixo estão centralizados em `siteConfig` e podem ser substituídos quando houver nova fonte confirmada:
-
-- Nome: NA Barbearia.
-- Cidade: Santos/SP.
-- Endereço: Avenida Affonso Penna, 261, Macuco, Santos, SP, 11020-001.
-- Telefone: (13) 97404-0190.
-- Horários publicados: domingo 10:00–19:00; segunda e terça 10:00–20:30; quarta a sexta 10:00–20:00.
-- Trinks: `https://www.trinks.com/na-barbearia`.
-- Instagram: `https://www.instagram.com/nabarbeariaa/`.
-
-O horário de sábado foi deliberadamente omitido. Endereço, horários e canais não devem ser copiados para outros projetos sem nova verificação.
-
-## Acessibilidade e design
-
-A home é mobile-first, usa sans-serif pesada em títulos editoriais, azul/ciano e branco, cartões com raio de 12–16px, container de aproximadamente 1160px, foco visível, alvos de toque de pelo menos 44px, links externos seguros e suporte a `prefers-reduced-motion`. O hero usa composição nativa em CSS/HTML; não há imagem quebrada nem foto alegada como sendo da barbearia.
-
-## Limites e próximos passos
-
-1. Validar com a equipe qualquer serviço, preço, duração, equipe, fotos e avaliações antes de publicar.
-2. Se necessário, adicionar CMS/configuração para conteúdo público, mantendo uma fonte de verdade revisável.
-3. Considerar autenticação e backend somente em uma superfície operacional separada.
-4. Se o Trinks oferecer uma integração oficial autorizada, documentá-la antes de substituir o redirecionamento.
-5. Adicionar consentimento/LGPD, logs e observabilidade caso dados pessoais ou integrações sejam introduzidos.
-
-Não há alegação de integração com Trinks além do redirecionamento para a URL oficial.
+O backend usa sessão em cookie `HttpOnly`, proteção CSRF, validação estrita de `Origin`, isolamento por negócio, Argon2id e transações SQLite para impedir conflitos de horário. O token de bootstrap, arquivos `.env` reais e demais segredos devem permanecer fora do repositório.

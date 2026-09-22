@@ -1,5 +1,9 @@
-node_modules
-dist
-.vite
-*.local
-*.tsbuildinfo
+# Dependências e artefatos de compilação não são código-fonte e excedem os
+# limites práticos do GitHub quando versionados.
+node_modules/
+backend/target/
+
+# Segredos locais; o arquivo de exemplo permanece versionado.
+.env
+.env.*
+!*.env.example

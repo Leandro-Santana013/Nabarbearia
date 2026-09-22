@@ -1,0 +1,29 @@
+[package]
+name = "nabarbearia-backend"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+argon2 = "0.6"
+axum = "0.8.9"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["clock", "serde"] }
+chrono-tz = "0.10"
+cookie = "0.18.1"
+http = "1"
+rand = { version = "0.9", features = ["os_rng"] }
+rusqlite = { version = "0.40.2", features = ["bundled", "chrono"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+thiserror = "2"
+tokio = { version = "1.53.1", features = ["macros", "rt-multi-thread", "net", "signal"] }
+tower-http = { version = "0.7.1", features = ["trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+uuid = { version = "1.26.1", features = ["serde", "v7"] }
+
+[dev-dependencies]
+http-body-util = "0.1"
+tower = { version = "0.5", features = ["util"] }
