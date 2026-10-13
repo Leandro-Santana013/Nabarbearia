@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { ApiError, api, type AuthResponse, type AvailabilitySlot, type RevenueReport, type UserSession } from './services/api'
 import type { Appointment, AppointmentStatus, Barber, Service, UserRole } from './types'
+import { BarberPhoto } from './components/BarberPhoto'
 
 const roleLabels: Record<UserRole, string> = {
   client: 'Cliente',
@@ -214,7 +215,8 @@ function Workspace({ session, onLogout }: { session: AuthResponse; onLogout: () 
       setServices(serviceList)
       setBarbers(barberList)
       setAppointments(appointmentList)
-      if (role === 'owner') setReport(await api.getRevenueReport())
+      if (role !== 'client') setReport(await api.getRevenueReport())
+      else setReport(null)
     } catch (error) {
       showNotice(getErrorMessage(error), 'error')
     } finally {
@@ -267,8 +269,8 @@ function Workspace({ session, onLogout }: { session: AuthResponse; onLogout: () 
       <main className="platform-main">
         <div className="platform-heading">
           <div>
-            <span className="section-eyebrow">{role === 'owner' ? 'Visão do negócio' : role === 'barber' ? 'Sua agenda' : 'Sua jornada'}</span>
-            <h1>{role === 'owner' ? 'Operação da NA Barbearia' : role === 'barber' ? 'Atendimentos de hoje' : 'Agende seu próximo horário'}</h1>
+            <span className="section-eyebrow">{role === 'owner' ? 'Visão do negócio' : role === 'barber' ? 'Sua operação' : 'Sua jornada'}</span>
+            <h1>{role === 'owner' ? 'Operação da NA Barbearia' : role === 'barber' ? 'Agenda e financeiro' : 'Agende seu próximo horário'}</h1>
             <p className="muted">Dados sincronizados com a plataforma operacional.</p>
           </div>
           <div className="connection-status"><span /> API conectada</div>
@@ -277,7 +279,7 @@ function Workspace({ session, onLogout }: { session: AuthResponse; onLogout: () 
         {loading ? <LoadingScreen label="Carregando dados" /> : (
           <>
             {role === 'client' && <ClientWorkspace services={services} barbers={barbers} appointments={appointments} onRefresh={load} onAction={handleAction} />}
-            {role === 'barber' && <ProfessionalWorkspace role="barber" appointments={appointments} onAction={handleAction} />}
+            {role === 'barber' && <ProfessionalWorkspace appointments={appointments} report={report} onAction={handleAction} />}
             {role === 'owner' && <OwnerWorkspace services={services} barbers={barbers} appointments={appointments} report={report} onRefresh={load} onAction={handleAction} onNotice={showNotice} />}
           </>
         )}
@@ -407,7 +409,7 @@ function BookingOptionPanels({ services, barbers, serviceId, barberId, onService
         <button className="barber-slide-arrow" type="button" onClick={() => moveBarber(-1)} aria-label="Ver barbeiros anteriores" disabled={barberSlide === 0}><ChevronLeft size={19} /></button>
         <div className="barber-card-viewport">
           {visibleBarbers.map((barber) => <button className={barberId === barber.id ? 'barber-option is-selected' : 'barber-option'} type="button" key={barber.id} onClick={() => onBarberChange(barber.id)} aria-pressed={barberId === barber.id}>
-            {barber.photoUrl ? <img src={barber.photoUrl} alt={`Foto de ${barber.name}`} /> : <span className="barber-option-avatar">{barber.initials}</span>}
+            <BarberPhoto src={barber.photoUrl} alt={`Foto de ${barber.name}`} initials={barber.initials} className="barber-option-avatar" fallbackClassName="barber-option-avatar" />
             <span className="barber-option-info"><strong>{barber.name}</strong><small>{barber.specialty ?? 'Barbeiro(a)'}</small>{barber.id ? <span className="barber-option-rating"><Star size={14} fill="currentColor" /> {barber.recommendations ? `${barber.recommendations} recomendacoes` : 'Sem recomendacoes ainda'}</span> : <span className="barber-option-rating">Escolha automatica</span>}</span>
             {barberId === barber.id && <CheckCircle2 className="barber-option-check" size={20} />}
           </button>)}
@@ -418,7 +420,7 @@ function BookingOptionPanels({ services, barbers, serviceId, barberId, onService
       <div className="barber-slider" aria-label="Profissionais disponíveis">
         <button className="barber-slide-arrow" type="button" onClick={() => moveBarber(-1)} aria-label="Ver barbeiro anterior" disabled={barberOptions.length < 2}><ChevronLeft size={19} /></button>
         <button className={barberId === visibleBarber.id ? 'barber-option is-selected' : 'barber-option'} type="button" onClick={() => onBarberChange(visibleBarber.id)} aria-pressed={barberId === visibleBarber.id}>
-          {visibleBarber.photoUrl ? <img src={visibleBarber.photoUrl} alt={`Foto de ${visibleBarber.name}`} /> : <span className="barber-option-avatar">{visibleBarber.initials}</span>}
+          <BarberPhoto src={visibleBarber.photoUrl} alt={`Foto de ${visibleBarber.name}`} initials={visibleBarber.initials} className="barber-option-avatar" fallbackClassName="barber-option-avatar" />
           <span className="barber-option-info"><strong>{visibleBarber.name}</strong><small>{visibleBarber.specialty ?? 'Barbeiro(a)'}</small>{visibleBarber.id ? <span className="barber-option-rating"><Star size={14} fill="currentColor" /> {visibleBarber.recommendations ? `${visibleBarber.recommendations} recomendações` : 'Sem recomendações ainda'}</span> : <span className="barber-option-rating">Escolha automática</span>}</span>
           {barberId === visibleBarber.id && <CheckCircle2 className="barber-option-check" size={20} />}
         </button>
@@ -430,7 +432,7 @@ function BookingOptionPanels({ services, barbers, serviceId, barberId, onService
           <span className="barber-option-avatar">NA</span><span><strong>Qualquer profissional</strong><small>Primeiro horário disponível</small></span>
         </button>
         {barbers.map((barber) => <button className={barberId === barber.id ? 'barber-option is-selected' : 'barber-option'} type="button" key={barber.id} onClick={() => onBarberChange(barber.id)} aria-pressed={barberId === barber.id}>
-          {barber.photoUrl ? <img src={barber.photoUrl} alt={`Foto de ${barber.name}`} /> : <span className="barber-option-avatar">{barber.initials}</span>}
+          <BarberPhoto src={barber.photoUrl} alt={`Foto de ${barber.name}`} initials={barber.initials} className="barber-option-avatar" fallbackClassName="barber-option-avatar" />
           <span><strong>{barber.name}</strong><small>{barber.specialty ?? 'Barbeiro(a)'}</small></span>
         </button>)}
       </div>
@@ -438,8 +440,11 @@ function BookingOptionPanels({ services, barbers, serviceId, barberId, onService
   </div>
 }
 
-function ProfessionalWorkspace({ role, appointments, onAction }: { role: 'barber'; appointments: Appointment[]; onAction: (action: () => Promise<void>, success: string) => Promise<void> }) {
-  return <section className="panel-card" aria-labelledby="agenda-title"><div className="card-heading"><div><span className="section-eyebrow">Agenda operacional</span><h2 id="agenda-title">Atendimentos atribuídos a você</h2></div><Scissors size={22} /></div><AppointmentList appointments={appointments} onAction={onAction} professional emptyTitle="Nenhum atendimento encontrado." /></section>
+function ProfessionalWorkspace({ appointments, report, onAction }: { appointments: Appointment[]; report: RevenueReport | null; onAction: (action: () => Promise<void>, success: string) => Promise<void> }) {
+  return <div className="owner-layout">
+    <RevenueMetrics report={report} personal />
+    <section className="panel-card" aria-labelledby="financial-dashboard-title"><div className="card-heading"><div><span className="section-eyebrow">Dashboard financeiro</span><h2 id="financial-dashboard-title">Seu resultado e sua agenda</h2></div><DollarSign size={22} /></div><AppointmentList appointments={appointments} onAction={onAction} professional emptyTitle="Nenhum atendimento encontrado." /></section>
+  </div>
 }
 
 function OwnerWorkspace({ services, barbers, appointments, report, onRefresh, onAction, onNotice }: {
@@ -488,12 +493,16 @@ function OwnerWorkspace({ services, barbers, appointments, report, onRefresh, on
 
   return (
     <div className="owner-layout">
-      <div className="metric-grid"><Metric label="Receita realizada" value={formatCurrency(report?.revenue_cents ?? 0)} icon={<DollarSign size={18} />} /><Metric label="Atendimentos concluídos" value={String(report?.completed_count ?? 0)} icon={<Check size={18} />} /><Metric label="Comissões" value={report?.commission_pending_count ? `${report.commission_pending_count} pendente(s)` : formatCurrency(report?.commission_cents ?? 0)} icon={<Users size={18} />} /></div>
+      <RevenueMetrics report={report} />
       <section className="panel-card"><div className="card-heading"><div><span className="section-eyebrow">Configuração</span><h2>Catálogo e equipe</h2></div><ShieldCheck size={22} /></div><div className="management-actions"><button className="secondary-button" type="button" onClick={() => setShowServiceForm(!showServiceForm)}><Plus size={16} /> Novo serviço</button><button className="secondary-button" type="button" onClick={() => setShowBarberForm(!showBarberForm)}><Plus size={16} /> Novo barbeiro</button><button className="secondary-button" type="button" onClick={() => setShowScheduleForm(!showScheduleForm)}><Plus size={16} /> Nova escala</button></div>{showServiceForm && <form className="inline-form" onSubmit={saveService}><input placeholder="Nome do serviço" value={service.name} onChange={(event) => setService({ ...service, name: event.target.value })} required /><input placeholder="Categoria" value={service.category} onChange={(event) => setService({ ...service, category: event.target.value })} /><input placeholder="Descrição (opcional)" value={service.description} onChange={(event) => setService({ ...service, description: event.target.value })} /><input placeholder="Preço em reais" inputMode="decimal" value={service.price} onChange={(event) => setService({ ...service, price: event.target.value })} required /><input type="number" min="5" max="720" placeholder="Duração em minutos" value={service.duration} onChange={(event) => setService({ ...service, duration: event.target.value })} required /><button className="primary-button" type="submit">Salvar serviço</button></form>}{showBarberForm && <form className="inline-form" onSubmit={saveBarber}><input placeholder="Nome do barbeiro" value={barber.name} onChange={(event) => setBarber({ ...barber, name: event.target.value })} required /><input type="email" placeholder="E-mail de acesso" value={barber.email} onChange={(event) => setBarber({ ...barber, email: event.target.value })} required /><input type="password" minLength={8} placeholder="Senha inicial" value={barber.password} onChange={(event) => setBarber({ ...barber, password: event.target.value })} required /><input type="url" placeholder="URL pública da foto (opcional)" value={barber.photoUrl} onChange={(event) => setBarber({ ...barber, photoUrl: event.target.value })} /><button className="primary-button" type="submit">Cadastrar barbeiro</button></form>}{showScheduleForm && <form className="inline-form" onSubmit={saveSchedule}><select value={schedule.barberId} onChange={(event) => setSchedule({ ...schedule, barberId: event.target.value })} required><option value="">Escolha o barbeiro</option>{barbers.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select><select value={schedule.weekday} onChange={(event) => setSchedule({ ...schedule, weekday: event.target.value })}>{['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map((day, index) => <option value={index} key={day}>{day}</option>)}</select><input type="time" value={schedule.start} onChange={(event) => setSchedule({ ...schedule, start: event.target.value })} required /><input type="time" value={schedule.end} onChange={(event) => setSchedule({ ...schedule, end: event.target.value })} required /><button className="primary-button" type="submit">Salvar escala</button></form>}<div className="catalog-summary"><div><strong>{services.length}</strong><span>serviços ativos</span></div><div><strong>{barbers.length}</strong><span>barbeiros ativos</span></div></div></section>
-      <section className="panel-card"><div className="card-heading"><div><span className="section-eyebrow">Equipe</span><h2>Profissionais cadastrados</h2></div><Users size={22} /></div><div className="barber-directory">{barbers.map((item) => <article className="barber-card" key={item.id}>{item.photoUrl ? <img src={item.photoUrl} alt={`Foto de ${item.name}`} /> : <span className="barber-avatar">{item.initials}</span>}<div><strong>{item.name}</strong><small>{item.specialty ?? 'Barbeiro'}</small></div></article>)}</div></section>
+      <section className="panel-card"><div className="card-heading"><div><span className="section-eyebrow">Equipe</span><h2>Profissionais cadastrados</h2></div><Users size={22} /></div><div className="barber-directory">{barbers.map((item) => <article className="barber-card" key={item.id}><BarberPhoto src={item.photoUrl} alt={`Foto de ${item.name}`} initials={item.initials} className="barber-avatar" fallbackClassName="barber-avatar" /><div><strong>{item.name}</strong><small>{item.specialty ?? 'Barbeiro'}</small></div></article>)}</div></section>
       <section className="panel-card"><div className="card-heading"><div><span className="section-eyebrow">Agenda</span><h2>Todos os atendimentos</h2></div><CalendarDays size={22} /></div><AppointmentList appointments={appointments} onAction={onAction} professional emptyTitle="Nenhum atendimento registrado." /></section>
     </div>
   )
+}
+
+function RevenueMetrics({ report, personal = false }: { report: RevenueReport | null; personal?: boolean }) {
+  return <div className="metric-grid"><Metric label={personal ? 'Faturamento dos seus atendimentos' : 'Receita realizada'} value={formatCurrency(report?.revenue_cents ?? 0)} icon={<DollarSign size={18} />} /><Metric label="Atendimentos concluídos" value={String(report?.completed_count ?? 0)} icon={<Check size={18} />} /><Metric label={personal ? 'Sua comissão' : 'Comissões'} value={report?.commission_pending_count ? `${report.commission_pending_count} pendente(s)` : formatCurrency(report?.commission_cents ?? 0)} icon={<Users size={18} />} /></div>
 }
 
 function Metric({ label, value, icon }: { label: string; value: string; icon: React.ReactNode }) {

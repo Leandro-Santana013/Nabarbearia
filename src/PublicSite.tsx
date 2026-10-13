@@ -14,6 +14,7 @@ import {
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { siteConfig } from './config/siteConfig'
+import { BarberPhoto } from './components/BarberPhoto'
 
 interface PublicSiteProps {
   onNavigate?: (path: string) => void
@@ -81,8 +82,8 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
               </div>
             </div>
             <div className="public-team-grid">
-              {siteConfig.team.map((member) => <article className="public-team-card" key={member.name}>
-                <div className="public-team-photo"><img src={member.photoUrl} alt={`Foto de ${member.name}`} loading="lazy" /><span>★ {member.recommendations ? `${member.recommendations} recomendações` : 'Novo no time'}</span></div>
+              {siteConfig.team.map((member, index) => <article className="public-team-card" key={member.name}>
+                <div className="public-team-photo"><BarberPhoto src={member.photoUrl} alt={`Foto de ${member.name}`} initials={member.name.slice(0, 2).toUpperCase()} loading="eager" fetchPriority={index < 4 ? 'high' : 'auto'} className="public-team-photo-image" fallbackClassName="public-team-photo-fallback" /><span className="public-team-recommendations">★ {member.recommendations ? `${member.recommendations} recomendações` : 'Novo no time'}</span></div>
                 <div className="public-team-copy"><strong>{member.name}</strong><span>{member.role}</span><small>{member.specialty}</small></div>
               </article>)}
             </div>

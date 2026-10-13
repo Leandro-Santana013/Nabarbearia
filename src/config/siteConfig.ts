@@ -56,10 +56,10 @@ export const siteConfig = {
   ],
   team: [
     { name: 'Nailton', role: 'Barbeiro(a)', specialty: 'Acabamento · Barba · Cabelo', photoUrl: 'https://d39p7gjvbgwtet.cloudfront.net/Pessoas/original/p_foto_000412294.jpg?v=20241202131500', recommendations: 30 },
-    { name: 'Sorriso', role: 'Barbeiro(a)', specialty: 'Acabamento · Barba · Cabelo', photoUrl: 'https://d39p7gjvbgwtet.cloudfront.net/Pessoas/original/p_foto_000638145.jpg?v=20251208164800', recommendations: 29 },
-    { name: 'Bolacha', role: 'Barbeiro(a)', specialty: 'Acabamento · Barba · Cabelo', photoUrl: 'https://d39p7gjvbgwtet.cloudfront.net/Pessoas/original/p_foto_000412300.jpg?v=20231009183300', recommendations: 26 },
+    { name: 'Sorriso', role: 'Barbeiro(a)', specialty: 'Acabamento · Barba · Cabelo', photoUrl: 'https://www.trinks.com/imagens?path=Pessoas/original/p_foto_000638145.jpg?v=20251208164800', recommendations: 29 },
+    { name: 'Bolacha', role: 'Barbeiro(a)', specialty: 'Acabamento · Barba · Cabelo', photoUrl: 'https://www.trinks.com/imagens?path=Pessoas/original/p_foto_000412300.jpg?v=20231009183300', recommendations: 26 },
     { name: 'Pedrinho', role: 'Barbeiro(a)', specialty: 'Acabamento · Cabelo', photoUrl: 'https://d39p7gjvbgwtet.cloudfront.net/Pessoas/original/p_foto_000716922.jpg?v=20260108195100', recommendations: 22 },
-    { name: 'JAILSON', role: 'Barbeiro(a)', specialty: 'Acabamento · Barba · Cabelo', photoUrl: 'https://d39p7gjvbgwtet.cloudfront.net/Pessoas/original/p_foto_000533829.jpg?v=20251201222100', recommendations: 16 },
+    { name: 'JAILSON', role: 'Barbeiro(a)', specialty: 'Acabamento · Barba · Cabelo', photoUrl: 'https://www.trinks.com/imagens?path=Pessoas/original/p_foto_000533829.jpg?v=20251201222100', recommendations: 16 },
     { name: 'Luizão', role: 'Barbeiro(a)', specialty: 'Acabamento · Cabelo', photoUrl: 'https://d39p7gjvbgwtet.cloudfront.net/Pessoas/original/p_foto_000717914.jpg?v=20260113155100', recommendations: 7 },
     { name: 'Guilherme', role: 'Barbeiro(a)', specialty: 'Acabamento · Barba · Cabelo', photoUrl: 'https://d39p7gjvbgwtet.cloudfront.net/Pessoas/original/p_foto_000603949.jpg?v=20260728204700', recommendations: 0 },
   ],

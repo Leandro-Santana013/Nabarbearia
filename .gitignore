@@ -2,6 +2,7 @@
 # limites práticos do GitHub quando versionados.
 node_modules/
 backend/target/
+portable/release/
 
 # Segredos locais; o arquivo de exemplo permanece versionado.
 .env

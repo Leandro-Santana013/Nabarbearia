@@ -12,6 +12,7 @@ use thiserror::Error;
 pub struct Config {
     pub bind_addr: SocketAddr,
     pub db_path: PathBuf,
+    pub frontend_dir: PathBuf,
     pub bootstrap_token: String,
     pub allowed_origins: HashSet<String>,
     pub secure_cookies: bool,
@@ -25,6 +26,7 @@ impl fmt::Debug for Config {
             .debug_struct("Config")
             .field("bind_addr", &self.bind_addr)
             .field("db_path", &self.db_path)
+            .field("frontend_dir", &self.frontend_dir)
             .field("bootstrap_token", &"[REDACTED]")
             .field("allowed_origins", &self.allowed_origins)
             .field("secure_cookies", &self.secure_cookies)
@@ -127,10 +129,14 @@ impl Config {
         let db_path = env::var("NABARBEARIA_DB_PATH")
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("backend/data/nabarbearia.db"));
+        let frontend_dir = env::var("NABARBEARIA_FRONTEND_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("dist"));
 
         Ok(Self {
             bind_addr,
             db_path,
+            frontend_dir,
             bootstrap_token,
             allowed_origins,
             secure_cookies,

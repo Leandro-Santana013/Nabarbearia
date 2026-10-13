@@ -32,6 +32,26 @@ npm run dev
 
 O frontend usa `http://127.0.0.1:5173` e encaminha `/api` para a API em `http://127.0.0.1:3001`.
 
+## Pacote portátil para Windows
+
+Para gerar uma pasta que já contém o frontend compilado, o backend Rust e o banco SQLite, execute:
+
+```powershell
+.\portable\Build-Portable.ps1
+```
+
+Depois, abra `portable\release\NA-Barbearia\Start-NA-Barbearia.cmd`. O computador de destino não precisa instalar Node.js, Rust ou um banco separado. As instruções completas ficam em `portable\README.md`.
+
+## Pacote portátil para Linux
+
+Para gerar o pacote Linux com frontend compilado, backend Rust, banco SQLite e todos os registros:
+
+```powershell
+.\portable\Build-Portable-Linux.ps1
+```
+
+O resultado é `portable\release\NA-Barbearia-linux.tar.gz`. No Linux, extraia o arquivo e execute `bash ./Install-NA-Barbearia.sh`; ele instala as ferramentas de compilação, instala o Rust estável quando necessário e compila o backend nativamente. Depois, use `bash ./Start-NA-Barbearia.sh` para subir a aplicação. Normalmente ela abre em `http://127.0.0.1:3001`; se essa porta estiver ocupada, o script escolhe uma porta livre próxima e mostra o endereço correto.
+
 ## Credenciais de demonstração
 
 As credenciais abaixo são exemplos documentais, não devem ser usadas em produção:

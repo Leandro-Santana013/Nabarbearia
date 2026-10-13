@@ -31,6 +31,7 @@ Todas as datas de entrada são RFC 3339 em UTC, alinhadas ao minuto. Valores mon
 | Agenda | `GET/POST /appointments`, `PATCH /appointments/{id}/reschedule`, `POST /appointments/{id}/cancel` |
 | Execução | `POST /appointments/{id}/start`, `POST /appointments/{id}/complete`, `POST /appointments/{id}/no-show`, `POST /appointments/{id}/rating` |
 | Proprietário | `/admin/services`, `/admin/appointments`, `/admin/barbers`, `/admin/schedules`, `/admin/blocks`, `/admin/commission-rules`, `/admin/reports/revenue` |
+| Relatórios autenticados | `GET /reports/revenue` — proprietário vê o negócio; barbeiro vê apenas seus atendimentos |
 
 Mutações autenticadas exigem cookie de sessão, `Origin` permitido e `X-CSRF-Token`. A criação de agendamento também exige `Idempotency-Key` de 16 a 128 caracteres. Os IDs de negócio e cliente são derivados da sessão, nunca aceitos do navegador.
 

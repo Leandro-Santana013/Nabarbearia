@@ -30,6 +30,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "original_barber_photos",
         include_str!("../migrations/0005_original_barber_photos.sql"),
     ),
+    (
+        6,
+        "direct_barber_photo_urls",
+        include_str!("../migrations/0006_direct_barber_photo_urls.sql"),
+    ),
 ];
 
 #[derive(Debug, Error)]

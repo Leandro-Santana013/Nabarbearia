@@ -103,13 +103,14 @@ pub fn router(state: AppState) -> Router {
             post(create_commission_rule),
         )
         .route("/api/v1/admin/reports/revenue", get(revenue_report))
+        .route("/api/v1/reports/revenue", get(revenue_report))
         .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
         .layer(middleware::map_response(add_security_headers))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
 
-async fn add_security_headers(mut response: Response) -> Response {
+pub async fn add_security_headers(mut response: Response) -> Response {
     let headers = response.headers_mut();
     headers.insert("cache-control", HeaderValue::from_static("no-store"));
     headers.insert(
@@ -124,7 +125,7 @@ async fn add_security_headers(mut response: Response) -> Response {
     );
     headers.insert(
         "content-security-policy",
-        HeaderValue::from_static("default-src 'none'; frame-ancestors 'none'; base-uri 'none'"),
+        HeaderValue::from_static("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https://d39p7gjvbgwtet.cloudfront.net https://www.trinks.com data:; font-src 'self' data:; connect-src 'self'; frame-src https://www.google.com https://maps.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"),
     );
     response
 }
@@ -2289,7 +2290,13 @@ async fn revenue_report(
     Query(query): Query<DateRangeQuery>,
 ) -> ApiResult<Json<RevenueReport>> {
     let context = authenticate(&state, &headers).await?;
-    require_role(&context, Role::Owner)?;
+    let barber_user_id = if is_owner(&context) {
+        None
+    } else if context.user.roles.contains(&Role::Barber) {
+        Some(context.user.id.clone())
+    } else {
+        return Err(AppError::forbidden());
+    };
     let from = query.from.as_deref().map(parse_input_utc).transpose()?;
     let to = query.to.as_deref().map(parse_input_utc).transpose()?;
     if to.is_some_and(|end| {
@@ -2309,32 +2316,36 @@ async fn revenue_report(
         .with_conn(move |connection| -> Result<_, AppError> {
             let completed_count: i64 = connection.query_row(
                 "SELECT COUNT(*) FROM appointments WHERE business_id = ?1 AND status = 'completed'
-                 AND (?2 IS NULL OR completed_at_utc >= ?2) AND (?3 IS NULL OR completed_at_utc < ?3)",
-                params![business_id, from, to],
+                 AND (?2 IS NULL OR completed_at_utc >= ?2) AND (?3 IS NULL OR completed_at_utc < ?3)
+                 AND (?4 IS NULL OR barber_user_id = ?4)",
+                params![business_id, from, to, barber_user_id],
                 |row| row.get(0),
             )?;
             let revenue_cents: i64 = connection.query_row(
                 "SELECT COALESCE(SUM(f.amount_cents), 0) FROM financial_entries f
                  JOIN appointments a ON a.id = f.appointment_id AND a.business_id = f.business_id
                  WHERE f.business_id = ?1 AND f.kind = 'revenue' AND f.status = 'posted' AND a.status = 'completed'
-                   AND (?2 IS NULL OR a.completed_at_utc >= ?2) AND (?3 IS NULL OR a.completed_at_utc < ?3)",
-                params![business_id, from, to],
+                   AND (?2 IS NULL OR a.completed_at_utc >= ?2) AND (?3 IS NULL OR a.completed_at_utc < ?3)
+                   AND (?4 IS NULL OR a.barber_user_id = ?4)",
+                params![business_id, from, to, barber_user_id],
                 |row| row.get(0),
             )?;
             let commission_cents: i64 = connection.query_row(
                 "SELECT COALESCE(SUM(f.amount_cents), 0) FROM financial_entries f
                  JOIN appointments a ON a.id = f.appointment_id AND a.business_id = f.business_id
                  WHERE f.business_id = ?1 AND f.kind = 'commission' AND f.status = 'posted' AND a.status = 'completed'
-                   AND (?2 IS NULL OR a.completed_at_utc >= ?2) AND (?3 IS NULL OR a.completed_at_utc < ?3)",
-                params![business_id, from, to],
+                   AND (?2 IS NULL OR a.completed_at_utc >= ?2) AND (?3 IS NULL OR a.completed_at_utc < ?3)
+                   AND (?4 IS NULL OR a.barber_user_id = ?4)",
+                params![business_id, from, to, barber_user_id],
                 |row| row.get(0),
             )?;
             let commission_pending_count: i64 = connection.query_row(
                 "SELECT COUNT(*) FROM commission_snapshots c
                  JOIN appointments a ON a.id = c.appointment_id AND a.business_id = c.business_id
                  WHERE c.business_id = ?1 AND c.status = 'pending_configuration' AND a.status = 'completed'
-                   AND (?2 IS NULL OR a.completed_at_utc >= ?2) AND (?3 IS NULL OR a.completed_at_utc < ?3)",
-                params![business_id, from, to],
+                   AND (?2 IS NULL OR a.completed_at_utc >= ?2) AND (?3 IS NULL OR a.completed_at_utc < ?3)
+                   AND (?4 IS NULL OR a.barber_user_id = ?4)",
+                params![business_id, from, to, barber_user_id],
                 |row| row.get(0),
             )?;
             Ok(RevenueReport { completed_count, revenue_cents, commission_cents, commission_pending_count })
@@ -2362,6 +2373,7 @@ mod tests {
         let config = Config {
             bind_addr: "127.0.0.1:3001".parse::<SocketAddr>().unwrap(),
             db_path: ":memory:".into(),
+            frontend_dir: "dist".into(),
             bootstrap_token: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
                 .into(),
             allowed_origins: HashSet::from(["http://127.0.0.1:5173".into()]),
@@ -2641,5 +2653,32 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(report["revenue_cents"], 5000);
         assert_eq!(report["commission_pending_count"], 1);
+
+        let (status, _, barber_report) = request_json(
+            &app,
+            "GET",
+            "/api/v1/reports/revenue",
+            json!({}),
+            Some(&barber_cookie),
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(barber_report["completed_count"], 1);
+        assert_eq!(barber_report["revenue_cents"], 5000);
+        assert_eq!(barber_report["commission_pending_count"], 1);
+
+        let (status, _, _) = request_json(
+            &app,
+            "GET",
+            "/api/v1/reports/revenue",
+            json!({}),
+            Some(&client_cookie),
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
     }
 }

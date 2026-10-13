@@ -234,7 +234,7 @@ class ApiService {
   }
 
   async getRevenueReport(): Promise<RevenueReport> {
-    return this.request('/admin/reports/revenue')
+    return this.request('/reports/revenue')
   }
 }
 

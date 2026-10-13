@@ -7,11 +7,13 @@ mod security;
 
 use std::sync::Arc;
 
+use axum::middleware;
 use config::Config;
 use db::Db;
 use security::RateLimiter;
 use thiserror::Error;
 use tokio::net::TcpListener;
+use tower_http::services::{ServeDir, ServeFile};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(Clone)]
@@ -48,7 +50,12 @@ async fn main() -> Result<(), StartupError> {
         db,
         limiter: RateLimiter::default(),
     };
-    let app = handlers::router(state);
+    let frontend_dir = config.frontend_dir.clone();
+    let app = handlers::router(state)
+        .fallback_service(
+            ServeDir::new(&frontend_dir).fallback(ServeFile::new(frontend_dir.join("index.html"))),
+        )
+        .layer(middleware::map_response(handlers::add_security_headers));
     let listener = TcpListener::bind(config.bind_addr).await?;
     tracing::info!(address = %config.bind_addr, "backend listening");
     axum::serve(listener, app)
