@@ -1,3 +1,4 @@
+mod owner;
 use std::{collections::HashSet, str::FromStr, time::Duration};
 
 use axum::{
@@ -83,6 +84,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/appointments/{id}/cancel", post(cancel_appointment))
         .route("/api/v1/appointments/{id}/start", post(start_execution))
         .route(
+            "/api/v1/appointments/{id}/details",
+            patch(update_appointment_details),
+        )
+        .route(
             "/api/v1/appointments/{id}/complete",
             post(complete_appointment),
         )
@@ -92,8 +97,24 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/appointments/{id}/rating", post(create_rating))
         .route("/api/v1/consents", post(record_consent))
-        .route("/api/v1/admin/services", post(create_service))
+        .route(
+            "/api/v1/admin/services",
+            get(owner::services).post(create_service),
+        )
+        .route("/api/v1/admin/summary", get(owner::summary))
+        .route("/api/v1/admin/payouts", post(owner::payout))
+        .route(
+            "/api/v1/admin/my-barber-profile",
+            post(owner::enable_hybrid),
+        )
+        .route("/api/v1/admin/barbers/{id}", put(owner::edit_barber))
+        .route("/api/v1/admin/agenda/bulk", post(owner::bulk_agenda))
         .route("/api/v1/admin/appointments", post(create_admin_appointment))
+        .route("/api/v1/barber/walk-ins", post(create_admin_appointment))
+        .route(
+            "/api/v1/barber/blocks",
+            get(list_own_blocks).post(create_block),
+        )
         .route("/api/v1/admin/services/{id}", put(update_service))
         .route("/api/v1/admin/barbers", post(create_barber))
         .route("/api/v1/admin/schedules", post(create_schedule))
@@ -1088,6 +1109,35 @@ async fn create_schedule(
     ))
 }
 
+async fn list_own_blocks(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<DateRangeQuery>,
+) -> ApiResult<Json<Vec<serde_json::Value>>> {
+    let context = authenticate(&state, &headers).await?;
+    require_role(&context, Role::Barber)?;
+    let from = query
+        .from
+        .as_deref()
+        .map(parse_input_utc)
+        .transpose()?
+        .map(utc_text);
+    let to = query
+        .to
+        .as_deref()
+        .map(parse_input_utc)
+        .transpose()?
+        .map(utc_text);
+    let business = context.user.business_id;
+    let barber = context.user.id;
+    let blocks = state.db.with_conn(move |connection| -> Result<_, AppError> {
+        let mut statement = connection.prepare("SELECT id, starts_at_utc, ends_at_utc, reason FROM availability_blocks WHERE business_id=?1 AND barber_user_id=?2 AND active=1 AND (?3 IS NULL OR ends_at_utc > ?3) AND (?4 IS NULL OR starts_at_utc < ?4) ORDER BY starts_at_utc LIMIT 500")?;
+        let rows = statement.query_map(params![business,barber,from,to], |row| Ok(json!({ "id":row.get::<_,String>(0)?, "starts_at":row.get::<_,String>(1)?, "ends_at":row.get::<_,String>(2)?, "reason":row.get::<_,Option<String>>(3)? })))?.collect::<Result<Vec<_>,_>>()?;
+        Ok(rows)
+    }).await?;
+    Ok(Json(blocks))
+}
+
 async fn create_block(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1095,11 +1145,18 @@ async fn create_block(
 ) -> ApiResult<(StatusCode, Json<MessageResponse>)> {
     let context = authenticate(&state, &headers).await?;
     require_mutation(&state, &headers, &context)?;
-    require_role(&context, Role::Owner)?;
     let barber_id = valid_id(&request.barber_user_id)?;
+    if !is_owner(&context)
+        && !(context.user.roles.contains(&Role::Barber) && barber_id == context.user.id)
+    {
+        return Err(AppError::forbidden());
+    }
     let starts_at = parse_input_utc(&request.starts_at_utc)?;
     let ends_at = parse_input_utc(&request.ends_at_utc)?;
-    if ends_at <= starts_at || ends_at - starts_at > ChronoDuration::days(366) {
+    if starts_at <= Utc::now()
+        || ends_at <= starts_at
+        || ends_at - starts_at > ChronoDuration::days(366)
+    {
         return Err(AppError::bad_request(
             "INVALID_BLOCK",
             "Block interval is invalid",
@@ -1130,6 +1187,8 @@ async fn create_block(
             if overlap != 0 {
                 return Err(AppError::conflict("BLOCK_OVERLAP", "Block overlaps an existing block"));
             }
+            let booked: i64 = transaction.query_row("SELECT EXISTS(SELECT 1 FROM appointments WHERE business_id = ?1 AND barber_user_id = ?2 AND status = 'confirmed' AND starts_at_utc < ?3 AND ends_at_utc > ?4)", params![business_id, barber_id, ends_text, starts_text], |row| row.get(0))?;
+            if booked != 0 { return Err(AppError::conflict("APPOINTMENT_OVERLAP", "A pausa coincide com um atendimento confirmado.")); }
             let block_id = new_id();
             transaction.execute(
                 "INSERT INTO availability_blocks(id, business_id, barber_user_id, starts_at_utc, ends_at_utc, reason, created_by_user_id, created_at_utc)
@@ -1215,11 +1274,23 @@ async fn create_commission_rule(
             }
             let now = utc_text(Utc::now());
             transaction.execute(
+                "UPDATE commission_rules SET active=0, updated_at_utc=?1 WHERE business_id=?2 AND barber_user_id IS ?3 AND service_id IS ?4 AND priority=?5 AND valid_from_utc IS ?6 AND valid_until_utc IS ?7 AND active=1",
+                params![now,business_id,barber_id,service_id,priority,valid_from,valid_until],
+            )?;
+            transaction.execute(
                 "INSERT INTO commission_rules(id, business_id, barber_user_id, service_id, rule_type, amount, priority, valid_from_utc, valid_until_utc, created_at_utc, updated_at_utc)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)",
                 params![rule_id, business_id, barber_id, service_id, rule_type, request.amount, priority, valid_from, valid_until, now],
             )?;
             insert_audit(&transaction, &business_id, Some(&actor_id), "commission_rule.created", "commission_rule", &rule_id, "{}")?;
+            let pending = {
+                let mut statement = transaction.prepare("SELECT appointment_id FROM commission_snapshots WHERE business_id=?1 AND status='pending_configuration'")?;
+                statement.query_map(params![business_id], |row| row.get::<_, String>(0))?.collect::<Result<Vec<_>,_>>()?
+            };
+            for id in pending {
+                let appointment = get_appointment(&transaction, &business_id, &id)?;
+                settle_commission(&transaction, &appointment, &now)?;
+            }
             transaction.commit()?;
             Ok(())
         })
@@ -1480,6 +1551,9 @@ async fn create_appointment(
                 client_display_name: None,
                 barber_display_name: None,
                 service_name: None,
+                rating: None,
+                client_phone: None, payment_method: None, client_note: None, execution_started: false,
+                commission_cents: None,
             };
             let response_json = serde_json::to_string(&response).map_err(|_| AppError::Internal)?;
             transaction.execute(
@@ -1501,10 +1575,62 @@ async fn create_admin_appointment(
 ) -> ApiResult<(StatusCode, Json<AppointmentResponse>)> {
     let context = authenticate(&state, &headers).await?;
     require_mutation(&state, &headers, &context)?;
-    require_role(&context, Role::Owner)?;
     let idempotency_key = idempotency_key(&headers)?;
-    let client_id = valid_id(&request.client_user_id)?;
+    let walk_in = request.client_user_id.is_none();
+    let client_id = request
+        .client_user_id
+        .as_deref()
+        .map(valid_id)
+        .transpose()?
+        .unwrap_or_else(new_id);
+    let client_name = if walk_in {
+        Some(required_text(
+            request.client_name.as_deref().unwrap_or(""),
+            2,
+            120,
+            "INVALID_NAME",
+            "Informe o nome do cliente.",
+        )?)
+    } else {
+        None
+    };
+    let client_phone = optional_text(
+        request.client_phone.as_deref(),
+        20,
+        "INVALID_PHONE",
+        "Telefone inválido",
+    )?;
+    if !client_phone.is_empty() {
+        let phone = &client_phone;
+        if !phone.chars().all(|c| c.is_ascii_digit()) || !(10..=13).contains(&phone.len()) {
+            return Err(AppError::bad_request(
+                "INVALID_PHONE",
+                "Informe DDD e telefone, somente números.",
+            ));
+        }
+    }
+    let client_note = optional_text(
+        request.client_note.as_deref(),
+        500,
+        "INVALID_NOTE",
+        "Observação muito longa",
+    )?;
+    let payment_method = request.payment_method.clone();
+    if payment_method
+        .as_deref()
+        .is_some_and(|p| !["Pix", "Cartão", "Presencial"].contains(&p))
+    {
+        return Err(AppError::bad_request(
+            "INVALID_PAYMENT",
+            "Forma de pagamento inválida",
+        ));
+    }
     let barber_id = valid_id(&request.barber_user_id)?;
+    if !is_owner(&context)
+        && !(walk_in && context.user.roles.contains(&Role::Barber) && barber_id == context.user.id)
+    {
+        return Err(AppError::forbidden());
+    }
     let service_id = valid_id(&request.service_id)?;
     let starts_at = parse_input_utc(&request.starts_at)?;
     if starts_at <= Utc::now() {
@@ -1539,13 +1665,18 @@ async fn create_admin_appointment(
                 }
                 return serde_json::from_str(&response_json).map_err(|_| AppError::Internal);
             }
+            if let Some(name) = &client_name {
+                // Reception-only identity, inactive and unable to authenticate. No invented customer credentials.
+                transaction.execute("INSERT INTO users(id,business_id,email,password_hash,display_name,active,created_at_utc,updated_at_utc) VALUES (?1,?2,?3,?4,?5,0,?6,?6)", params![client_id,business_id,format!("{client_id}@walk-in.invalid"),"!disabled-walk-in-identity-no-login!",name,utc_text(Utc::now())])?;
+                transaction.execute("INSERT INTO user_roles(business_id,user_id,role,created_at_utc) VALUES (?1,?2,'client',?3)", params![business_id,client_id,utc_text(Utc::now())])?;
+            }
             let client_exists: i64 = transaction.query_row(
                 "SELECT EXISTS(SELECT 1 FROM users u JOIN user_roles r ON r.user_id = u.id AND r.business_id = u.business_id
                  WHERE u.business_id = ?1 AND u.id = ?2 AND u.active = 1 AND r.role = 'client')",
                 params![business_id, client_id],
                 |row| row.get(0),
             )?;
-            if client_exists == 0 {
+            if client_exists == 0 && !walk_in {
                 return Err(AppError::not_found("CLIENT_NOT_FOUND", "Client was not found"));
             }
             let (price_cents, duration_minutes): (i64, i64) = transaction
@@ -1567,6 +1698,7 @@ async fn create_admin_appointment(
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'confirmed', ?8, ?9, 'owner', ?10, ?11, ?11)",
                 params![appointment_id, business_id, client_id, barber_id, service_id, starts_text, ends_text, price_cents, duration_minutes, actor_id, now],
             )?;
+            transaction.execute("UPDATE appointments SET client_phone=?1,payment_method=?2,client_note=?3 WHERE business_id=?4 AND id=?5",params![client_phone,payment_method,client_note,business_id,appointment_id])?;
             insert_history(
                 &transaction,
                 &business_id,
@@ -1602,6 +1734,9 @@ async fn create_admin_appointment(
                 client_display_name: None,
                 barber_display_name: None,
                 service_name: None,
+                rating: None,
+                client_phone: None, payment_method: None, client_note: None, execution_started: false,
+                commission_cents: None,
             };
             let response_json = serde_json::to_string(&response).map_err(|_| AppError::Internal)?;
             transaction.execute(
@@ -1654,7 +1789,11 @@ async fn list_appointments(
             };
             let sql = format!(
                 "SELECT a.id, a.business_id, a.client_user_id, a.barber_user_id, a.service_id, a.starts_at_utc, a.ends_at_utc, a.status, a.price_cents, a.duration_minutes,
-                        client.display_name, barber.display_name, service.name
+                        client.display_name, barber.display_name, service.name,
+                    (SELECT r.score FROM ratings r WHERE r.business_id = a.business_id AND r.appointment_id = a.id),
+                    a.client_phone, a.payment_method, a.client_note,
+                    EXISTS(SELECT 1 FROM service_executions e WHERE e.business_id=a.business_id AND e.appointment_id=a.id),
+                    (SELECT c.amount_cents FROM commission_snapshots c WHERE c.business_id=a.business_id AND c.appointment_id=a.id AND c.status='posted')
                  FROM appointments a
                  JOIN users client ON client.business_id = a.business_id AND client.id = a.client_user_id
                  JOIN users barber ON barber.business_id = a.business_id AND barber.id = a.barber_user_id
@@ -1671,6 +1810,15 @@ async fn list_appointments(
             Ok(rows)
         })
         .await?;
+    let appointments = appointments
+        .into_iter()
+        .map(|mut item| {
+            if scope == "client" {
+                item.commission_cents = None;
+            }
+            item
+        })
+        .collect();
     Ok(Json(appointments))
 }
 
@@ -1802,6 +1950,63 @@ async fn cancel_appointment(
     Ok(Json(result))
 }
 
+async fn update_appointment_details(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<crate::models::AppointmentDetailsRequest>,
+) -> ApiResult<Json<MessageResponse>> {
+    let context = authenticate(&state, &headers).await?;
+    require_mutation(&state, &headers, &context)?;
+    let appointment_id = valid_id(&id)?;
+    let phone = optional_text(
+        request.client_phone.as_deref(),
+        20,
+        "INVALID_PHONE",
+        "Telefone inválido",
+    )?;
+    if !phone.is_empty() {
+        let value = &phone;
+        if !value.chars().all(|c| c.is_ascii_digit()) || !(10..=13).contains(&value.len()) {
+            return Err(AppError::bad_request(
+                "INVALID_PHONE",
+                "Informe DDD e telefone, somente números.",
+            ));
+        }
+    }
+    let note = optional_text(
+        request.client_note.as_deref(),
+        500,
+        "INVALID_NOTE",
+        "Observação muito longa",
+    )?;
+    let payment = request.payment_method;
+    if payment
+        .as_deref()
+        .is_some_and(|p| !["Pix", "Cartão", "Presencial"].contains(&p))
+    {
+        return Err(AppError::bad_request(
+            "INVALID_PAYMENT",
+            "Forma de pagamento inválida",
+        ));
+    }
+    let business_id = context.user.business_id.clone();
+    let actor_id = context.user.id.clone();
+    let owner = is_owner(&context);
+    let barber = context.user.roles.contains(&Role::Barber);
+    state.db.with_conn(move |connection| -> Result<_, AppError> {
+        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let appointment = get_appointment(&tx, &business_id, &appointment_id)?;
+        if !(owner || (barber && appointment.barber_user_id == actor_id)) { return Err(AppError::forbidden()); }
+        tx.execute("UPDATE appointments SET client_phone=?1, payment_method=?2, client_note=?3, updated_at_utc=?4, version=version+1 WHERE business_id=?5 AND id=?6", params![phone,payment,note,utc_text(Utc::now()),business_id,appointment_id])?;
+        insert_audit(&tx,&business_id,Some(&actor_id),"appointment.details_updated","appointment",&appointment_id,"{}")?;
+        tx.commit()?; Ok(())
+    }).await?;
+    Ok(Json(MessageResponse {
+        message: "Detalhes atualizados",
+    }))
+}
+
 async fn start_execution(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -1871,6 +2076,12 @@ fn appointment_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Appointment
         client_display_name: row.get(10)?,
         barber_display_name: row.get(11)?,
         service_name: row.get(12)?,
+        rating: row.get(13)?,
+        client_phone: row.get(14)?,
+        payment_method: row.get(15)?,
+        client_note: row.get(16)?,
+        execution_started: row.get(17)?,
+        commission_cents: row.get(18)?,
     })
 }
 
@@ -1882,7 +2093,11 @@ fn get_appointment(
     connection
         .query_row(
             "SELECT a.id, a.business_id, a.client_user_id, a.barber_user_id, a.service_id, a.starts_at_utc, a.ends_at_utc, a.status, a.price_cents, a.duration_minutes,
-                    client.display_name, barber.display_name, service.name
+                    client.display_name, barber.display_name, service.name,
+                    (SELECT r.score FROM ratings r WHERE r.business_id = a.business_id AND r.appointment_id = a.id),
+                    a.client_phone, a.payment_method, a.client_note,
+                    EXISTS(SELECT 1 FROM service_executions e WHERE e.business_id=a.business_id AND e.appointment_id=a.id),
+                    (SELECT c.amount_cents FROM commission_snapshots c WHERE c.business_id=a.business_id AND c.appointment_id=a.id AND c.status='posted')
              FROM appointments a
              JOIN users client ON client.business_id = a.business_id AND client.id = a.client_user_id
              JOIN users barber ON barber.business_id = a.business_id AND barber.id = a.barber_user_id
@@ -2005,6 +2220,68 @@ fn insert_history(
     Ok(())
 }
 
+fn settle_commission(
+    transaction: &rusqlite::Transaction<'_>,
+    current: &AppointmentResponse,
+    now: &str,
+) -> Result<(), AppError> {
+    let posted: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM commission_snapshots WHERE business_id=?1 AND appointment_id=?2 AND status='posted')", params![current.business_id,current.id], |row| row.get(0))?;
+    if posted {
+        return Ok(());
+    }
+    let rule: Option<(String, String, i64)> = transaction
+        .query_row(
+            "SELECT id, rule_type, amount FROM commission_rules
+             WHERE business_id = ?1 AND active = 1
+               AND (barber_user_id IS NULL OR barber_user_id = ?2)
+               AND (service_id IS NULL OR service_id = ?3)
+               AND (valid_from_utc IS NULL OR valid_from_utc <= ?4)
+               AND (valid_until_utc IS NULL OR valid_until_utc > ?4)
+             ORDER BY (barber_user_id IS NOT NULL) DESC, (service_id IS NOT NULL) DESC, priority DESC, created_at_utc DESC
+             LIMIT 1",
+            params![current.business_id, current.barber_user_id, current.service_id, utc_text(current.starts_at)],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()?;
+    match rule {
+        Some((rule_id, rule_type, rule_amount)) => {
+            let commission_cents = if rule_type == "percent" {
+                (current.price_cents * rule_amount + 5_000) / 10_000
+            } else {
+                rule_amount
+            };
+            transaction.execute(
+        "INSERT INTO commission_snapshots(business_id, appointment_id, barber_user_id, rule_id, rule_type, rule_amount,
+         base_cents, amount_cents, status, created_at_utc)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'posted', ?9) ON CONFLICT(business_id, appointment_id) DO UPDATE SET rule_id=excluded.rule_id, rule_type=excluded.rule_type, rule_amount=excluded.rule_amount, amount_cents=excluded.amount_cents, status='posted', error_code=NULL",
+        params![current.business_id, current.id, current.barber_user_id, rule_id, rule_type, rule_amount, current.price_cents, commission_cents, now],
+            )?;
+            transaction.execute(
+        "INSERT INTO financial_entries(id, business_id, appointment_id, kind, amount_cents, status, created_at_utc)
+         VALUES (?1, ?2, ?3, 'commission', ?4, 'posted', ?5) ON CONFLICT(business_id, appointment_id, kind) DO UPDATE SET amount_cents=excluded.amount_cents, status='posted'",
+        params![new_id(), current.business_id, current.id, commission_cents, now],
+            )?;
+        }
+        None => {
+            let exists: bool = transaction.query_row("SELECT EXISTS(SELECT 1 FROM commission_snapshots WHERE business_id=?1 AND appointment_id=?2)", params![current.business_id,current.id], |row| row.get(0))?;
+            if exists {
+                return Ok(());
+            }
+            transaction.execute(
+        "INSERT INTO commission_snapshots(business_id, appointment_id, barber_user_id, base_cents, status, error_code, created_at_utc)
+         VALUES (?1, ?2, ?3, ?4, 'pending_configuration', 'COMMISSION_RULE_MISSING', ?5)",
+        params![current.business_id, current.id, current.barber_user_id, current.price_cents, now],
+            )?;
+            transaction.execute(
+        "INSERT INTO financial_entries(id, business_id, appointment_id, kind, amount_cents, status, created_at_utc)
+         VALUES (?1, ?2, ?3, 'commission', NULL, 'pending_configuration', ?4)",
+        params![new_id(), current.business_id, current.id, now],
+            )?;
+        }
+    }
+    Ok(())
+}
+
 async fn complete_appointment(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -2068,55 +2345,11 @@ async fn complete_appointment(
                  VALUES (?1, ?2, ?3, 'revenue', ?4, 'posted', ?5)",
                 params![new_id(), business_id, appointment_id, current.price_cents, now],
             )?;
-            let rule: Option<(String, String, i64)> = transaction
-                .query_row(
-                    "SELECT id, rule_type, amount FROM commission_rules
-                     WHERE business_id = ?1 AND active = 1
-                       AND (barber_user_id IS NULL OR barber_user_id = ?2)
-                       AND (service_id IS NULL OR service_id = ?3)
-                       AND (valid_from_utc IS NULL OR valid_from_utc <= ?4)
-                       AND (valid_until_utc IS NULL OR valid_until_utc > ?4)
-                     ORDER BY (barber_user_id IS NOT NULL) DESC, (service_id IS NOT NULL) DESC, priority DESC, created_at_utc DESC
-                     LIMIT 1",
-                    params![business_id, current.barber_user_id, current.service_id, utc_text(current.starts_at)],
-                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-                )
-                .optional()?;
-            match rule {
-                Some((rule_id, rule_type, rule_amount)) => {
-                    let commission_cents = if rule_type == "percent" {
-                        (current.price_cents * rule_amount + 5_000) / 10_000
-                    } else {
-                        rule_amount
-                    };
-                    transaction.execute(
-                        "INSERT INTO commission_snapshots(business_id, appointment_id, barber_user_id, rule_id, rule_type, rule_amount,
-                         base_cents, amount_cents, status, created_at_utc)
-                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'posted', ?9)",
-                        params![business_id, appointment_id, current.barber_user_id, rule_id, rule_type, rule_amount, current.price_cents, commission_cents, now],
-                    )?;
-                    transaction.execute(
-                        "INSERT INTO financial_entries(id, business_id, appointment_id, kind, amount_cents, status, created_at_utc)
-                         VALUES (?1, ?2, ?3, 'commission', ?4, 'posted', ?5)",
-                        params![new_id(), business_id, appointment_id, commission_cents, now],
-                    )?;
-                }
-                None => {
-                    transaction.execute(
-                        "INSERT INTO commission_snapshots(business_id, appointment_id, barber_user_id, base_cents, status, error_code, created_at_utc)
-                         VALUES (?1, ?2, ?3, ?4, 'pending_configuration', 'COMMISSION_RULE_MISSING', ?5)",
-                        params![business_id, appointment_id, current.barber_user_id, current.price_cents, now],
-                    )?;
-                    transaction.execute(
-                        "INSERT INTO financial_entries(id, business_id, appointment_id, kind, amount_cents, status, created_at_utc)
-                         VALUES (?1, ?2, ?3, 'commission', NULL, 'pending_configuration', ?4)",
-                        params![new_id(), business_id, appointment_id, now],
-                    )?;
-                }
-            }
+            settle_commission(&transaction, &current, &now)?;
             insert_audit(&transaction, &business_id, Some(&actor_id), "appointment.completed", "appointment", &appointment_id, "{}")?;
+            let completed = get_appointment(&transaction, &business_id, &appointment_id)?;
             transaction.commit()?;
-            Ok(AppointmentResponse { status: AppointmentStatus::Completed, ..current })
+            Ok(completed)
         })
         .await?;
     Ok(Json(result))
@@ -2668,6 +2901,69 @@ mod tests {
         assert_eq!(barber_report["completed_count"], 1);
         assert_eq!(barber_report["revenue_cents"], 5000);
         assert_eq!(barber_report["commission_pending_count"], 1);
+
+        // A rule linked to this barber and service settles earlier missing commissions.
+        let rule = json!({"barber_user_id":barber_id,"service_id":service_id,"rule_type":"percent","amount":5000});
+        let (status, _, _) = request_json(
+            &app,
+            "POST",
+            "/api/v1/admin/commission-rules",
+            rule.clone(),
+            Some(&barber_cookie),
+            Some(&barber_csrf),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        let (status, _, _) = request_json(
+            &app,
+            "POST",
+            "/api/v1/admin/commission-rules",
+            rule.clone(),
+            Some(&owner_cookie),
+            Some(&owner_csrf),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        let (_, _, settled) = request_json(
+            &app,
+            "GET",
+            "/api/v1/reports/revenue",
+            json!({}),
+            Some(&barber_cookie),
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(settled["commission_cents"], 2500);
+        assert_eq!(settled["commission_pending_count"], 0);
+        // A later rate must not rewrite already posted financial history.
+        let mut changed_rule = rule;
+        changed_rule["amount"] = json!(7000);
+        let (status, _, _) = request_json(
+            &app,
+            "POST",
+            "/api/v1/admin/commission-rules",
+            changed_rule,
+            Some(&owner_cookie),
+            Some(&owner_csrf),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        let (_, _, preserved) = request_json(
+            &app,
+            "GET",
+            "/api/v1/reports/revenue",
+            json!({}),
+            Some(&barber_cookie),
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(preserved["commission_cents"], 2500);
+        assert_eq!(preserved["revenue_cents"], 5000);
 
         let (status, _, _) = request_json(
             &app,

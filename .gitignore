@@ -8,3 +8,7 @@ portable/release/
 .env
 .env.*
 !*.env.example
+
+# Arquivos temporários do SQLite em execução.
+*.db-wal
+*.db-shm

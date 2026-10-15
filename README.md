@@ -1,72 +1,145 @@
 # NA Barbearia
 
-Plataforma de atendimento e gestão da NA Barbearia em Santos/SP. O projeto reúne uma landing page pública e uma área operacional autenticada, conectadas a um backend Rust/Axum com SQLite.
+Aplicação de agendamento e gestão da NA Barbearia, em Santos/SP. Reúne o site público, a área do cliente, a operação do barbeiro e o painel do proprietário, integrados a uma API com persistência em SQLite.
 
-## Rotas
+## Tecnologias
 
-- `/`: apresentação pública, localização e entrada para a agenda;
-- `/painel`: autenticação, cadastro de clientes, agenda e gestão operacional;
-- `/agendar`: atalho para a plataforma de agendamento.
+- **Frontend:** React 19, Vite, TypeScript/JavaScript, Tailwind CSS, componentes shadcn/ui com Base UI e ícones Lucide.
+- **Design system:** Plus Jakarta Sans, azul `#0099FF`, fundo `#F4F4F6` e superfícies brancas.
+- **Backend:** Rust, Axum e SQLite, com migrações automáticas.
+- **Autenticação:** sessão em cookie HttpOnly, proteção CSRF e permissões por perfil.
+
+## Funcionalidades
+
+### Cliente
+
+- Catálogo com pesquisa, categorias, preços e durações.
+- Escolha de profissional, consulta de disponibilidade e reserva.
+- Comprovante recuperável pelo ID do agendamento.
+- Próximos agendamentos, histórico, cancelamento, remarcação e avaliação.
+- Perfil com dados da sessão e contato com a recepção pelo WhatsApp.
+
+Visitantes podem consultar o catálogo. Reservas e gerenciamento de agendamentos exigem autenticação e são persistidos na API.
+
+### Barbeiro
+
+Navegação inferior com três abas:
+
+- **Agenda:** datas em pílulas, atendimento atual em destaque, próximos horários e histórico recolhido.
+- **Meus Ganhos:** serviços concluídos, comissões calculadas e pendências da data selecionada.
+- **Perfil:** dados da conta, contato com a recepção e logout.
+
+A agenda permite iniciar/concluir atendimentos, registrar falta, cadastrar clientes presenciais e bloquear almoço ou pausas. Telefone, observações e pagamento previsto podem ser editados no card. O WhatsApp abre o contato cadastrado; sem telefone, o atalho leva à recepção.
+
+Encaixes e bloqueios respeitam os horários e conflitos da agenda. O início do atendimento e as alterações permanecem salvos após recarregar a página.
+
+### Proprietário
+
+- **Financeiro:** produção por dia ou mês, taxa de faltas, comissões a pagar, formas de pagamento previstas e repasses registrados.
+- **Equipe:** cadastro/edição de profissionais, escalas e regras de comissão por barbeiro e serviço.
+- **Agenda Geral:** consulta por data/profissional, remanejamento e cancelamento em lote.
+- **Serviços:** cadastro e edição de preço, duração, categoria e status ativo/inativo.
+- **Modo híbrido:** acesso à agenda profissional do próprio dono, mantendo suas permissões de gestão.
+
+As comissões são calculadas na conclusão sobre o valor registrado no atendimento. Salvar uma regra também regulariza pendências compatíveis, preservando comissões já calculadas. O registro de repasses vincula cada comissão ao pagamento registrado e impede duplicidade; ele não realiza transferência bancária.
+
+Ações em lote aceitam até 100 reservas confirmadas e não iniciadas. O remanejamento mantém os horários e durações originais; qualquer conflito desfaz o lote inteiro.
 
 ## Executar localmente
 
-Requisitos: Node.js, npm e Rust estável.
+### Requisitos
 
-1. Gere um token local para o backend, mantendo-o fora do Git:
+- Node.js **24 recomendado**, com npm.
+- Rust estável e Cargo, com suporte à edição 2024.
+- Ferramentas de compilação C/C++ da plataforma para as dependências nativas do backend.
 
-```powershell
-$taskRng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-$taskBytes = New-Object byte[] 32
-$taskRng.GetBytes($taskBytes)
-$taskRng.Dispose()
-$env:NABARBEARIA_BOOTSTRAP_TOKEN = [Convert]::ToBase64String($taskBytes).TrimEnd('=').Replace('+','-').Replace('/','_')
-cargo run --manifest-path backend/Cargo.toml
+O SQLite é compilado junto ao backend; não é necessário instalar um servidor de banco separado. Execute os comandos a partir da raiz do repositório.
+
+### 1. Instalar dependências
+
+```bash
+git clone https://github.com/Leandro-Santana013/Nabarbearia.git
+cd Nabarbearia
+npm ci
 ```
 
-2. Em outro terminal, instale as dependências e inicie o frontend:
+### 2. Iniciar a API
 
-```powershell
-npm install
+Em um terminal:
+
+```bash
+npm run dev:backend
+```
+
+O script lê `backend/.env`. Se não houver token de bootstrap configurado, gera um token aleatório e o salva nesse arquivo, ignorado pelo Git. Não é necessário gerar o token manualmente para o desenvolvimento local.
+
+A API escuta, por padrão, em **http://127.0.0.1:3001**. Para verificar:
+
+```bash
+curl http://127.0.0.1:3001/api/v1/health
+```
+
+Resposta esperada: `{"status":"ok"}`.
+
+### 3. Iniciar o frontend
+
+Em outro terminal:
+
+```bash
 npm run dev
 ```
 
-O frontend usa `http://127.0.0.1:5173` e encaminha `/api` para a API em `http://127.0.0.1:3001`.
+Abra **http://127.0.0.1:5173**. O Vite encaminha `/api` para o backend na porta 3001. Mantenha os dois terminais em execução.
 
-## Pacote portátil para Windows
+### Frontend compilado
 
-Para gerar uma pasta que já contém o frontend compilado, o backend Rust e o banco SQLite, execute:
-
-```powershell
-.\portable\Build-Portable.ps1
+```bash
+npm run build
+npm run dev:backend
 ```
 
-Depois, abra `portable\release\NA-Barbearia\Start-NA-Barbearia.cmd`. O computador de destino não precisa instalar Node.js, Rust ou um banco separado. As instruções completas ficam em `portable\README.md`.
+Com o build disponível em `dist/`, o próprio backend serve a aplicação em **http://127.0.0.1:3001**. Encerre uma instância já aberta antes de iniciar outra na mesma porta.
 
-## Pacote portátil para Linux
+## Rotas e acesso
 
-Para gerar o pacote Linux com frontend compilado, backend Rust, banco SQLite e todos os registros:
-
-```powershell
-.\portable\Build-Portable-Linux.ps1
-```
-
-O resultado é `portable\release\NA-Barbearia-linux.tar.gz`. No Linux, extraia o arquivo e execute `bash ./Install-NA-Barbearia.sh`; ele instala as ferramentas de compilação, instala o Rust estável quando necessário e compila o backend nativamente. Depois, use `bash ./Start-NA-Barbearia.sh` para subir a aplicação. Normalmente ela abre em `http://127.0.0.1:3001`; se essa porta estiver ocupada, o script escolhe uma porta livre próxima e mostra o endereço correto.
-
-## Credenciais de demonstração
-
-As credenciais abaixo são exemplos documentais, não devem ser usadas em produção:
-
-| Perfil | E-mail | Senha |
+| Perfil | Rota | Conteúdo |
 | --- | --- | --- |
-| Proprietário | `dono@example.test` | `Exemplo123!` |
-| Barbeiro | `barbeiro@example.test` | `Exemplo123!` |
-| Cliente | `cliente@example.test` | `Exemplo123!` |
+| Público | `/` | Apresentação da barbearia e localização |
+| Público | `/login`, `/entrar`, `/cadastro` | Autenticação e cadastro de cliente |
+| Cliente | `/home` | Catálogo de serviços |
+| Cliente | `/servico`, `/detalhes` | Seleção de profissional |
+| Cliente | `/horarios` | Seleção de data e horário |
+| Cliente | `/confirmacao?id=...` | Comprovante da reserva salva |
+| Cliente | `/meus-agendamentos`, `/perfil` | Agendamentos e conta |
+| Barbeiro | `/barbeiro` | Agenda, ganhos e perfil |
+| Proprietário | `/gestao/financeiro` | Indicadores financeiros |
+| Proprietário | `/gestao/barbeiros` | Equipe, escalas, comissões e repasses |
+| Proprietário | `/gestao/agenda-geral` | Agenda de toda a equipe |
+| Proprietário | `/gestao/servicos` | Catálogo e preços |
+| Proprietário | `/gestao/minha-agenda` | Agenda no modo híbrido |
+| Desenvolvimento | `/styleguide` | Referência visual dos componentes |
 
-O banco SQLite versionado em `backend/data/` é um snapshot de demonstração desta máquina. Ele foi incluído intencionalmente neste repositório conforme o escopo do projeto; não use esse arquivo como banco de produção.
+`/painel` e `/agendar` direcionam a conta autenticada ao módulo correspondente: cliente → Home, barbeiro → agenda e proprietário → gestão. O acesso direto às áreas protegidas também verifica a sessão e as permissões.
 
-## Verificações
+Não há credenciais universais de acesso. Para o banco de demonstração existente, solicite uma conta à equipe responsável. Em um banco novo, o primeiro proprietário deve ser criado pelo endpoint de configuração; consulte o [README do backend](backend/README.md#primeiro-proprietário).
 
-```powershell
+## Dados e configuração
+
+- `src/data/barbershopData.ts`: catálogo local, profissionais e informações institucionais fornecidas para o projeto.
+- `src/services/api.ts`: comunicação entre a interface e a API.
+- `backend/data/`: banco SQLite local; o snapshot já versionado é destinado à demonstração.
+- `backend/migrations/`: estrutura do banco e atualizações aplicadas na inicialização.
+- `backend/.env.example`: referência das variáveis de ambiente.
+
+Nos fluxos integrados, serviços, profissionais, disponibilidade, agendamentos e comissões vêm da API. Os dados locais não substituem os cadastros persistidos no backend.
+
+Para receber reservas, cadastre serviços ativos, profissionais ativos e suas escalas no painel do proprietário. Ao ativar o modo híbrido, configure também a escala do dono.
+
+O arquivo `portable/NA-Barbearia.zip` é um pacote previamente versionado; ele não é atualizado automaticamente pelos comandos de build. Para executar o código atual, use o procedimento acima.
+
+## Testes e verificações
+
+```bash
 npm test
 npm run build
 cargo fmt --manifest-path backend/Cargo.toml --check
@@ -75,6 +148,37 @@ cargo clippy --manifest-path backend/Cargo.toml -- -D warnings
 git diff --check
 ```
 
-## Segurança e operação
+Para os fluxos completos no navegador:
 
-O backend usa sessão em cookie `HttpOnly`, proteção CSRF, validação estrita de `Origin`, isolamento por negócio, Argon2id e transações SQLite para impedir conflitos de horário. O token de bootstrap, arquivos `.env` reais e demais segredos devem permanecer fora do repositório.
+```bash
+npm run test:client-flow
+npm run test:owner-flow
+```
+
+- **Cliente/barbeiro:** login, reserva, comprovante, remarcação, avaliação, cancelamento, encaixe, observações, início/conclusão, falta, pausas e navegação entre abas.
+- **Proprietário:** serviços ativos/inativos, edição de equipe, escalas, comissões, repasses, remanejamento/cancelamento em lote, rollback de conflitos e modo híbrido.
+
+Os testes de navegador requerem Google Chrome/Chromium e Rust. A variável `CHROME_BIN` permite indicar outro executável compatível. Eles iniciam uma API e um banco temporários nas portas **3011** e **9224**, sem alterar o banco local da barbearia. Execute um fluxo por vez.
+
+## Limites das integrações atuais
+
+- Os links de WhatsApp abrem o contato; envio automático de comprovantes e lembretes ainda não está integrado.
+- Edição dos dados pessoais do cliente, recuperação de senha e login Google dependem de integrações próprias; a interface não simula sucesso dessas operações.
+- Forma de pagamento prevista não comprova recebimento. O faturamento exibido representa o valor dos serviços concluídos.
+- O saldo de comissões a pagar é acumulado; a produção financeira segue o período selecionado. O resultado após comissões é exibido, mas o lucro líquido permanece não apurado sem despesas e impostos.
+
+## Problemas comuns
+
+| Sintoma | Como resolver |
+| --- | --- |
+| `Address already in use` / `AddrInUse` ao iniciar a API | A porta 3001 já está ocupada. Verifique o endpoint de saúde; se a API responder, ela já está em execução. Para reiniciar, use `Ctrl+C` no terminal da instância atual e execute novamente `npm run dev:backend`. |
+| Frontend abre, mas não carrega os dados | Confirme que a API responde em `http://127.0.0.1:3001/api/v1/health` e que o frontend foi aberto pela URL permitida na configuração. |
+| Nenhum horário disponível | Verifique serviço/profissional ativos, escala cadastrada, pausas e reservas existentes. |
+| Comissão pendente | Cadastre a regra do profissional/serviço na aba Equipe. Não há percentual padrão presumido. |
+| `cargo` não encontrado | Instale o Rust e reabra o terminal para carregar o PATH. |
+
+## Segurança e colaboração
+
+Sessões usam cookies HttpOnly, CSRF e validação de Origin. O backend aplica permissões por negócio e perfil e usa transações para proteger reservas, comissões e repasses.
+
+Não versione tokens, senhas, arquivos `.env` reais ou arquivos temporários `*.db-wal`/`*.db-shm`. O banco local em uso não faz parte da atualização de código preparada nesta branch. Para produção, configure HTTPS, cookies seguros, origens permitidas e backups conforme a [documentação do backend](backend/README.md).
