@@ -38,4 +38,10 @@ export interface Appointment {
   amountCents: number
   durationMinutes?: number
   source?: 'api'
+  clientPhone?: string
+  paymentMethod?: string
+  clientNote?: string
+  executionStarted?: boolean
+  commissionCents?: number
+  rating?: number
 }

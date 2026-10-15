@@ -209,7 +209,11 @@ pub struct AppointmentRequest {
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct AdminAppointmentRequest {
-    pub client_user_id: String,
+    pub client_user_id: Option<String>,
+    pub client_name: Option<String>,
+    pub client_phone: Option<String>,
+    pub payment_method: Option<String>,
+    pub client_note: Option<String>,
     pub barber_user_id: String,
     pub service_id: String,
     pub starts_at: String,
@@ -248,6 +252,18 @@ pub struct AppointmentResponse {
     pub client_display_name: Option<String>,
     pub barber_display_name: Option<String>,
     pub service_name: Option<String>,
+    #[serde(default)]
+    pub rating: Option<i64>,
+    #[serde(default)]
+    pub client_phone: Option<String>,
+    #[serde(default)]
+    pub payment_method: Option<String>,
+    #[serde(default)]
+    pub client_note: Option<String>,
+    #[serde(default)]
+    pub execution_started: bool,
+    #[serde(default)]
+    pub commission_cents: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -290,4 +306,12 @@ pub struct RevenueReport {
     pub revenue_cents: i64,
     pub commission_cents: i64,
     pub commission_pending_count: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AppointmentDetailsRequest {
+    pub client_phone: Option<String>,
+    pub payment_method: Option<String>,
+    pub client_note: Option<String>,
 }

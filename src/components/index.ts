@@ -1,0 +1,13 @@
+export { default as Navbar } from "./Navbar"
+export { default as Header } from "./Header"
+export { default as PromoBanner } from "./PromoBanner"
+export { default as CategoryFilter } from "./CategoryFilter"
+export { default as BarberCard } from "./BarberCard"
+export { default as ServiceCard } from "./ServiceCard"
+
+export type { NavbarProps } from "./Navbar"
+export type { HeaderProps } from "./Header.types"
+export type { PromoBannerProps } from "./PromoBanner"
+export type { CategoryFilterProps } from "./CategoryFilter"
+export type { BarberCardProps } from "./BarberCard"
+export type { ServiceCardProps } from "./ServiceCard"

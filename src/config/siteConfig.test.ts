@@ -9,7 +9,8 @@ describe('public site configuration', () => {
     expect(siteConfig.phone).toBe('(13) 97404-0190')
   })
 
-  it('does not publish an unverified Saturday schedule', () => {
-    expect(siteConfig.hours.map((hours) => hours.days)).toEqual(['Dom', 'Seg–Ter', 'Qua–Sex'])
+  it('uses the supplied schedule, including Saturday and closed Sunday', () => {
+    expect(siteConfig.hours.find((hours) => hours.days === 'Sábado')).toMatchObject({ open: '10:00', close: '19:00' })
+    expect(siteConfig.hours.find((hours) => hours.days === 'Domingo')).toMatchObject({ open: null, close: null, closed: true })
   })
 })

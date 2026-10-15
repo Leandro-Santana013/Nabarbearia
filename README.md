@@ -7,6 +7,19 @@ Plataforma de atendimento e gestão da NA Barbearia em Santos/SP. O projeto reú
 - `/`: apresentação pública, localização e entrada para a agenda;
 - `/painel`: autenticação, cadastro de clientes, agenda e gestão operacional;
 - `/agendar`: atalho para a plataforma de agendamento.
+- `/home`: catálogo e área do cliente, usando a sessão e os dados da API;
+- `/meus-agendamentos`: próximos atendimentos, histórico, cancelamento, remarcação e avaliações;
+- `/perfil`: dados da conta autenticada e resumo dos atendimentos;
+- `/barbeiro`: agenda exclusiva do profissional;
+- `/login` e `/cadastro`: acesso e criação de conta.
+
+Clientes que entram por `/painel` ou `/agendar` são direcionados à nova Home.
+O catálogo pode ser consultado como visitante; para reservar e gerenciar horários,
+é necessário entrar na conta. Confirmações só são exibidas após salvar na API.
+O link do comprovante contém o ID do agendamento e pode ser recarregado.
+
+Edição do cadastro e lembretes automáticos de WhatsApp permanecem indisponíveis
+enquanto não houver endpoints para essas funções. O suporte pelo WhatsApp continua acessível.
 
 ## Executar localmente
 
@@ -66,6 +79,14 @@ O banco SQLite versionado em `backend/data/` é um snapshot de demonstração de
 
 ## Verificações
 
+`npm run test:client-flow` executa o fluxo completo em Chrome headless, com uma API
+e um banco temporários nas portas 3011 e 9224. Verifica login pelo painel, reserva,
+recarga do comprovante, remarcação, avaliação, reagendamento, cancelamento e logout.
+Também valida o painel do barbeiro: encaixe, contato, pagamento previsto, observações,
+início persistente, conclusão com comissão, falta e almoço bloqueado após recarga.
+Requer Google Chrome (`CHROME_BIN` pode indicar outro executável Chromium) e Rust.
+O teste não usa nem modifica o banco local da barbearia.
+
 ```powershell
 npm test
 npm run build
@@ -78,3 +99,27 @@ git diff --check
 ## Segurança e operação
 
 O backend usa sessão em cookie `HttpOnly`, proteção CSRF, validação estrita de `Origin`, isolamento por negócio, Argon2id e transações SQLite para impedir conflitos de horário. O token de bootstrap, arquivos `.env` reais e demais segredos devem permanecer fora do repositório.
+
+## Agenda profissional
+
+Em `/barbeiro`, a agenda usa datas em pílulas, encaixes presenciais, pausas de 15 minutos e almoço de uma hora. Encaixes respeitam horários de trabalho e conflitos; pausas são persistidas e impedem reservas sobrepostas. Cada barbeiro pode alterar somente a própria agenda.
+
+Telefone, pagamento previsto e observações podem ser preenchidos no encaixe ou editados no card. O WhatsApp abre o contato cadastrado; sem telefone, o atalho leva à recepção. Pagamento previsto não representa pagamento recebido. Identidades presenciais são registros internos sem acesso de login.
+
+O resumo soma os serviços concluídos na data selecionada e as comissões já calculadas pelas regras do proprietário. Atendimentos sem regra aparecem como pendentes de configuração, sem percentual presumido.
+
+No painel do proprietário (`/painel`), “Comissão por barbeiro e serviço” permite informar percentuais de 0 a 100. O serviço é opcional para a regra geral do barbeiro. Salvar calcula pendências compatíveis e preserva comissões já lançadas. Na API, percentuais são expressos em pontos-base (50% = `amount: 5000`); o formulário faz essa conversão automaticamente.
+
+## Painel do proprietário
+
+Login de proprietário e `/painel` abrem `/gestao/financeiro`. As outras abas ficam em `/gestao/barbeiros`, `/gestao/agenda-geral` e `/gestao/servicos`. A gestão usa dados da API, incluindo profissionais reais (a contagem é dinâmica) e serviços inativos.
+
+O Financeiro filtra produção por dia ou mês em São Paulo. Faturamento significa valor dos serviços concluídos; formas de pagamento são as previstas no agendamento, sem conciliação de recebimentos. O saldo de comissões a pagar é acumulado, enquanto a produção da equipe segue o período selecionado. O resultado após comissões é exibido; lucro líquido fica não apurado enquanto despesas e impostos não forem cadastrados.
+
+Em Equipe, os diálogos permitem cadastrar/editar profissionais, configurar escala e comissão e registrar repasses já realizados. O registro não transfere dinheiro. Repasses são idempotentes e vinculados às comissões quitadas, impedindo duplicidade.
+
+Na Agenda Geral, somente reservas confirmadas e não iniciadas são elegíveis para ações em lote (até 100). Remanejamentos preservam horários e durações, com opção de mudar a data e o profissional. Qualquer conflito desfaz todo o lote. Concluídos, faltas e cancelamentos permanecem consultáveis.
+
+O modo híbrido inclui o proprietário na equipe com a mesma conta e abre sua agenda pessoal. É necessário cadastrar sua escala para receber reservas.
+
+`npm run test:owner-flow` valida o módulo no Chrome com API e banco temporários, incluindo cadastro/edição, serviços inativos, comissões, repasses, lote com rollback e modo híbrido. Usa as portas de teste 3011 e 9224; execute separadamente de `test:client-flow`.

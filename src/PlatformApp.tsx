@@ -1,3 +1,4 @@
+import CommissionRuleForm from './components/CommissionRuleForm'
 import { useEffect, useMemo, useState } from 'react'
 import type * as React from 'react'
 import {
@@ -22,6 +23,8 @@ import {
 import { ApiError, api, type AuthResponse, type AvailabilitySlot, type RevenueReport, type UserSession } from './services/api'
 import type { Appointment, AppointmentStatus, Barber, Service, UserRole } from './types'
 import { BarberPhoto } from './components/BarberPhoto'
+import LoginScreen from './pages/LoginScreen'
+import BarberDashboard from './pages/BarberDashboard'
 
 const roleLabels: Record<UserRole, string> = {
   client: 'Cliente',
@@ -93,10 +96,35 @@ export default function PlatformApp() {
   }
 
   if (!session) {
-    return <AuthScreen initialError={connectionError} onAuthenticated={setSession} />
+    return <LoginScreen initialError={connectionError} onAuthenticated={setSession} />
   }
 
+  if (session.user.roles.includes('barber') && !session.user.roles.includes('owner')) {
+    return <BarberDashboard session={session} />
+  }
+
+  if (session.user.roles.includes('client') && !session.user.roles.includes('owner')) {
+    return <ClientHomeRedirect />
+  }
+
+  if (session.user.roles.includes('owner')) return <OwnerManagementRedirect />
   return <Workspace session={session} onLogout={() => setSession(null)} />
+}
+
+function OwnerManagementRedirect() {
+  useEffect(() => {
+    window.history.replaceState({}, '', '/gestao/financeiro')
+    window.dispatchEvent(new Event('popstate'))
+  }, [])
+  return <LoadingScreen label="Abrindo painel de gestão" />
+}
+
+function ClientHomeRedirect() {
+  useEffect(() => {
+    window.history.replaceState({}, '', '/home')
+    window.dispatchEvent(new Event('popstate'))
+  }, [])
+  return <LoadingScreen label="Abrindo sua barbearia" />
 }
 
 function LoadingScreen({ label }: { label: string }) {
@@ -105,87 +133,6 @@ function LoadingScreen({ label }: { label: string }) {
       <Scissors size={30} />
       <p>{label}...</p>
     </div>
-  )
-}
-
-function AuthScreen({ initialError, onAuthenticated }: { initialError?: string; onAuthenticated: (session: AuthResponse) => void }) {
-  const [mode, setMode] = useState<'login' | 'register'>('login')
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [setupRequired, setSetupRequired] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(initialError ?? '')
-
-  useEffect(() => {
-    api.getSetupStatus()
-      .then((status) => setSetupRequired(status.needs_owner))
-      .catch(() => setError((current) => current || 'A API ainda não está disponível. Inicie o backend para acessar a plataforma.'))
-  }, [])
-
-  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setBusy(true)
-    setError('')
-    try {
-      const result = mode === 'login'
-        ? await api.login(email, password)
-        : await api.register(email, password, name)
-      onAuthenticated(result)
-    } catch (submitError) {
-      setError(getErrorMessage(submitError))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <main className="auth-page">
-      <div className="auth-brand">
-        <a className="brand" href="/">
-          <span className="brand-mark"><Scissors size={18} /></span>
-          <span>NA <strong>Barbearia</strong></span>
-        </a>
-        <span className="secure-label"><ShieldCheck size={14} /> Acesso seguro</span>
-      </div>
-      <section className="auth-card" aria-labelledby="auth-title">
-        <div className="section-eyebrow">Plataforma operacional</div>
-        <h1 id="auth-title">{mode === 'login' ? 'Entre na sua conta' : 'Crie sua conta de cliente'}</h1>
-        <p className="muted">Agenda, histórico e gestão em um só lugar.</p>
-
-        {setupRequired && (
-          <div className="notice notice-info">
-            <ShieldCheck size={18} />
-            <span>O primeiro acesso do proprietário precisa ser configurado no backend com o token de bootstrap. Depois disso, clientes podem se cadastrar aqui.</span>
-          </div>
-        )}
-        {error && <div className="notice notice-error" role="alert"><X size={18} /> {error}</div>}
-        <form className="stack-form" onSubmit={submit}>
-          {mode === 'register' && (
-            <label>
-              Nome completo
-              <input value={name} onChange={(event) => setName(event.target.value)} autoComplete="name" minLength={2} required />
-            </label>
-          )}
-          <label>
-            E-mail
-            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" required />
-          </label>
-          <label>
-            Senha
-            <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={8} required />
-          </label>
-          <button className="primary-button full-width" type="submit" disabled={busy}>
-            {busy ? 'Aguarde...' : mode === 'login' ? 'Entrar na plataforma' : 'Criar conta'}
-            {!busy && <ArrowRight size={17} />}
-          </button>
-        </form>
-
-        <button className="quiet-button auth-switch" type="button" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError('') }}>
-          {mode === 'login' ? 'Ainda não tenho conta' : 'Já tenho uma conta'}
-        </button>
-      </section>
-    </main>
   )
 }
 
@@ -494,6 +441,7 @@ function OwnerWorkspace({ services, barbers, appointments, report, onRefresh, on
   return (
     <div className="owner-layout">
       <RevenueMetrics report={report} />
+      <CommissionRuleForm barbers={barbers} services={services} onSaved={onRefresh} />
       <section className="panel-card"><div className="card-heading"><div><span className="section-eyebrow">Configuração</span><h2>Catálogo e equipe</h2></div><ShieldCheck size={22} /></div><div className="management-actions"><button className="secondary-button" type="button" onClick={() => setShowServiceForm(!showServiceForm)}><Plus size={16} /> Novo serviço</button><button className="secondary-button" type="button" onClick={() => setShowBarberForm(!showBarberForm)}><Plus size={16} /> Novo barbeiro</button><button className="secondary-button" type="button" onClick={() => setShowScheduleForm(!showScheduleForm)}><Plus size={16} /> Nova escala</button></div>{showServiceForm && <form className="inline-form" onSubmit={saveService}><input placeholder="Nome do serviço" value={service.name} onChange={(event) => setService({ ...service, name: event.target.value })} required /><input placeholder="Categoria" value={service.category} onChange={(event) => setService({ ...service, category: event.target.value })} /><input placeholder="Descrição (opcional)" value={service.description} onChange={(event) => setService({ ...service, description: event.target.value })} /><input placeholder="Preço em reais" inputMode="decimal" value={service.price} onChange={(event) => setService({ ...service, price: event.target.value })} required /><input type="number" min="5" max="720" placeholder="Duração em minutos" value={service.duration} onChange={(event) => setService({ ...service, duration: event.target.value })} required /><button className="primary-button" type="submit">Salvar serviço</button></form>}{showBarberForm && <form className="inline-form" onSubmit={saveBarber}><input placeholder="Nome do barbeiro" value={barber.name} onChange={(event) => setBarber({ ...barber, name: event.target.value })} required /><input type="email" placeholder="E-mail de acesso" value={barber.email} onChange={(event) => setBarber({ ...barber, email: event.target.value })} required /><input type="password" minLength={8} placeholder="Senha inicial" value={barber.password} onChange={(event) => setBarber({ ...barber, password: event.target.value })} required /><input type="url" placeholder="URL pública da foto (opcional)" value={barber.photoUrl} onChange={(event) => setBarber({ ...barber, photoUrl: event.target.value })} /><button className="primary-button" type="submit">Cadastrar barbeiro</button></form>}{showScheduleForm && <form className="inline-form" onSubmit={saveSchedule}><select value={schedule.barberId} onChange={(event) => setSchedule({ ...schedule, barberId: event.target.value })} required><option value="">Escolha o barbeiro</option>{barbers.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select><select value={schedule.weekday} onChange={(event) => setSchedule({ ...schedule, weekday: event.target.value })}>{['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'].map((day, index) => <option value={index} key={day}>{day}</option>)}</select><input type="time" value={schedule.start} onChange={(event) => setSchedule({ ...schedule, start: event.target.value })} required /><input type="time" value={schedule.end} onChange={(event) => setSchedule({ ...schedule, end: event.target.value })} required /><button className="primary-button" type="submit">Salvar escala</button></form>}<div className="catalog-summary"><div><strong>{services.length}</strong><span>serviços ativos</span></div><div><strong>{barbers.length}</strong><span>barbeiros ativos</span></div></div></section>
       <section className="panel-card"><div className="card-heading"><div><span className="section-eyebrow">Equipe</span><h2>Profissionais cadastrados</h2></div><Users size={22} /></div><div className="barber-directory">{barbers.map((item) => <article className="barber-card" key={item.id}><BarberPhoto src={item.photoUrl} alt={`Foto de ${item.name}`} initials={item.initials} className="barber-avatar" fallbackClassName="barber-avatar" /><div><strong>{item.name}</strong><small>{item.specialty ?? 'Barbeiro'}</small></div></article>)}</div></section>
       <section className="panel-card"><div className="card-heading"><div><span className="section-eyebrow">Agenda</span><h2>Todos os atendimentos</h2></div><CalendarDays size={22} /></div><AppointmentList appointments={appointments} onAction={onAction} professional emptyTitle="Nenhum atendimento registrado." /></section>
