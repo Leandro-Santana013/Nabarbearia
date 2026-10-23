@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:client-flow": "npm run build && node scripts/check-client-flow.mjs",
     "test:owner-flow": "npm run build && node scripts/check-owner-flow.mjs",
+    "test:barber-responsive": "npm run build && node scripts/check-barber-responsive.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {

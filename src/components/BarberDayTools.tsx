@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { api } from '@/services/api'
 import type { Service } from '@/types'
 import { money, shopDate } from '@/lib/barber-schedule'
+import './barber-agenda.css'
 
 export default function BarberDayTools({ date, barberId, busy, onRun }: {
   date: string; barberId: string; busy: boolean
@@ -50,11 +51,11 @@ export default function BarberDayTools({ date, barberId, busy, onRun }: {
       setMode(null); setName(''); setPhone(''); setNote(''); key.current = { fingerprint: '', id: '' }
     }
   }
-  return <section aria-label="Gestão do dia" className="space-y-3">
-    <div className="flex flex-wrap gap-2">
-      <Button disabled={busy || date < shopDate()} onClick={() => setMode(mode === 'walkin' ? null : 'walkin')} aria-expanded={mode === 'walkin'} className="min-h-11 flex-1 rounded-xl px-3 text-xs! font-semibold!"><Plus className="size-4" />Cliente Presencial (Encaixe)</Button>
-      <Button disabled={busy || date < shopDate()} variant="outline" onClick={() => { setMinutes(60); setMode('break') }} className="min-h-11 rounded-xl bg-white px-3 text-xs!"><Utensils className="size-3.5" />Almoço (1h)</Button>
-      <Button disabled={busy || date < shopDate()} variant="outline" onClick={() => { setMinutes(15); setMode('break') }} className="min-h-11 rounded-xl bg-white px-3 text-xs!"><Coffee className="size-3.5" />Pausa (15 min)</Button>
+  return <section aria-label="Gestão do dia" className="barber-day-tools space-y-3">
+    <div className="barber-day-actions">
+      <Button type="button" disabled={busy || date < shopDate()} onClick={() => setMode(mode === 'walkin' ? null : 'walkin')} aria-expanded={mode === 'walkin'} className="barber-day-action barber-day-walkin"><Plus aria-hidden="true" className="size-4" />Novo encaixe</Button>
+      <Button type="button" disabled={busy || date < shopDate()} variant="outline" onClick={() => { setMinutes(60); setMode('break') }} aria-expanded={mode === 'break' && minutes === 60} className="barber-day-action"><Utensils aria-hidden="true" className="size-4" /><span>Almoço <small>1h</small></span></Button>
+      <Button type="button" disabled={busy || date < shopDate()} variant="outline" onClick={() => { setMinutes(15); setMode('break') }} aria-expanded={mode === 'break' && minutes === 15} className="barber-day-action"><Coffee aria-hidden="true" className="size-4" /><span>Pausa <small>15 min</small></span></Button>
     </div>
     {mode && <Card className="gap-3 rounded-2xl bg-white p-3.5 shadow-sm ring-0">
       <h2 className="text-sm font-semibold">{mode === 'walkin' ? 'Novo atendimento presencial' : `Bloquear ${minutes} minutos`}</h2>

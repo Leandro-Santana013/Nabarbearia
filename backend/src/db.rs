@@ -156,7 +156,10 @@ fn apply_migrations(connection: &Connection) -> Result<(), DbError> {
 }
 
 fn migration_checksum(contents: &str) -> String {
-    let digest = Sha256::digest(contents.as_bytes());
+    // Git may check out the same SQL with CRLF on Windows. Hash its canonical
+    // LF form so a platform change does not look like an edited migration.
+    let normalized = contents.replace("\r\n", "\n");
+    let digest = Sha256::digest(normalized.as_bytes());
     digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
@@ -190,6 +193,13 @@ mod tests {
     use rusqlite::params;
 
     use super::*;
+
+    #[test]
+    fn migration_checksum_ignores_windows_line_endings() {
+        let lf = "CREATE TABLE test (id INTEGER);\n-- next line\n";
+        let crlf = lf.replace('\n', "\r\n");
+        assert_eq!(migration_checksum(lf), migration_checksum(&crlf));
+    }
 
     #[tokio::test]
     async fn composite_foreign_key_rejects_cross_business_role() {

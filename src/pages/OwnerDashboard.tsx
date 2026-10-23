@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import "./owner-mobile.css";
 import {
   ArrowRightLeft,
   Calendar,
@@ -93,6 +94,42 @@ export default function OwnerDashboard({
     () => ownerRange(reportDate, period),
     [reportDate, period],
   );
+  useEffect(() => {
+    // Pinch zoom and mobile browser chrome can leave the visual viewport
+    // narrower than CSS media queries report. Reflow without disabling zoom.
+    const viewport = window.visualViewport;
+    const updateViewport = () => {
+      document.documentElement.style.setProperty(
+        "--owner-viewport-width",
+        `${Math.min(window.innerWidth, viewport?.width ?? window.innerWidth)}px`,
+      );
+      document.documentElement.style.setProperty(
+        "--owner-viewport-height",
+        `${Math.min(window.innerHeight, viewport?.height ?? window.innerHeight)}px`,
+      );
+      document.documentElement.style.setProperty(
+        "--owner-viewport-top",
+        `${viewport?.offsetTop ?? 0}px`,
+      );
+      document.documentElement.style.setProperty(
+        "--owner-viewport-left",
+        `${viewport?.offsetLeft ?? 0}px`,
+      );
+    };
+    updateViewport();
+    viewport?.addEventListener("resize", updateViewport);
+    viewport?.addEventListener("scroll", updateViewport);
+    window.addEventListener("resize", updateViewport);
+    return () => {
+      viewport?.removeEventListener("resize", updateViewport);
+      viewport?.removeEventListener("scroll", updateViewport);
+      window.removeEventListener("resize", updateViewport);
+      document.documentElement.style.removeProperty("--owner-viewport-width");
+      document.documentElement.style.removeProperty("--owner-viewport-height");
+      document.documentElement.style.removeProperty("--owner-viewport-top");
+      document.documentElement.style.removeProperty("--owner-viewport-left");
+    };
+  }, []);
   useEffect(() => {
     let active = true;
     api
@@ -274,9 +311,9 @@ export default function OwnerDashboard({
       : { dateStyle: "long" }),
   }).format(new Date(`${reportDate}T12:00:00-03:00`));
   return (
-    <div className="min-h-dvh bg-background text-foreground">
-      <div className="mx-auto max-w-6xl space-y-4 px-4 py-5 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
-        <header className="flex flex-col justify-between gap-3 rounded-2xl border border-border/60 bg-white p-4 shadow-sm md:flex-row md:items-center">
+    <div className="owner-dashboard min-h-dvh bg-background text-foreground">
+      <div className="owner-container mx-auto max-w-6xl space-y-4 px-4 py-5 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
+        <header className="owner-header flex flex-col justify-between gap-3 rounded-2xl border border-border/60 bg-white p-4 shadow-sm md:flex-row md:items-center">
           <div className="min-w-0">
             <Badge className="mb-1 rounded-full border-0 bg-blue-50 px-2.5 text-[10px] text-primary">
               Super Administrador
@@ -288,7 +325,7 @@ export default function OwnerDashboard({
               {session.user.display_name}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="owner-header-actions flex flex-wrap gap-2">
             {hybrid ? (
               <Button
                 variant="outline"
@@ -316,7 +353,7 @@ export default function OwnerDashboard({
                   <ArrowRightLeft className="size-4" />
                   Modo Híbrido: Minha Agenda
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="owner-dialog">
                   <DialogTitle className="pr-8 text-lg font-semibold">
                     Ativar minha agenda profissional
                   </DialogTitle>
@@ -366,23 +403,32 @@ export default function OwnerDashboard({
               onValueChange={(value) => {
                 setNotice("");
                 onNavigate(`/gestao/${value}`);
+                if (window.matchMedia("(max-width: 767.98px)").matches)
+                  window.scrollTo({ top: 0, behavior: "instant" });
               }}
               className="space-y-4"
             >
-              <TabsList className="grid-cols-2 rounded-2xl border border-border/60 bg-white p-1 sm:grid-cols-4">
+              <TabsList aria-label="Navegação da gestão" className="grid-cols-2 rounded-2xl border border-border/60 bg-white p-1 sm:grid-cols-4">
+                <span
+                  aria-hidden="true"
+                  className="owner-tab-indicator hidden"
+                  style={{
+                    transform: `translateX(calc(${sections.findIndex((section) => section.value === tab)} * (100% + 4px)))`,
+                  }}
+                />
                 {sections.map(({ value, label, icon: Icon }) => (
                   <TabsTrigger
                     key={value}
                     value={value}
                     className="gap-1.5 rounded-xl px-2 text-xs! font-semibold!"
                   >
-                    <Icon className="size-4" />
-                    {label}
+                    <Icon aria-hidden="true" className="size-4" />
+                    <span className="owner-tab-label">{label}</span>
                   </TabsTrigger>
                 ))}
               </TabsList>
               {tab !== "agenda-geral" && tab !== "servicos" && (
-                <div className="flex flex-wrap items-end gap-3">
+                <div className="owner-period-filters flex flex-wrap items-end gap-3">
                   <div className="w-40">
                     <OwnerSelect
                       label="Período"
@@ -453,7 +499,7 @@ export default function OwnerDashboard({
                 <p className="text-xs capitalize text-muted-foreground">
                   {periodLabel}
                 </p>
-                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div className="owner-metrics grid grid-cols-2 gap-3 lg:grid-cols-4">
                   <Metric
                     label="Faturamento total"
                     value={summary ? money(summary.revenue_cents) : "—"}
@@ -506,7 +552,7 @@ export default function OwnerDashboard({
                     </p>
                   </CardHeader>
                   <CardContent className="px-0">
-                    <Table>
+                    <Table className="owner-payments-table">
                       <TableHeader>
                         <TableRow>
                           <TableHead>Forma</TableHead>
@@ -586,7 +632,7 @@ export default function OwnerDashboard({
               </TabsContent>
               <TabsContent value="barbeiros">
                 <Card className="rounded-2xl bg-white shadow-sm">
-                  <CardHeader className="flex flex-wrap items-center justify-between gap-3">
+                  <CardHeader className="owner-section-heading flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <CardTitle className="text-sm font-semibold">
                         Equipe ({team.length} profissionais)
@@ -606,7 +652,7 @@ export default function OwnerDashboard({
                     </Button>
                   </CardHeader>
                   <CardContent className="px-0">
-                    <Table>
+                    <Table className="owner-mobile-table owner-team-table" role="table">
                       <TableHeader>
                         <TableRow>
                           {[
@@ -629,8 +675,8 @@ export default function OwnerDashboard({
                               rule.barber_id === null,
                           );
                           return (
-                            <TableRow key={item.id}>
-                              <TableCell>
+                            <TableRow key={item.id} role="row">
+                              <TableCell role="cell" className="owner-row-title">
                                 <div className="flex min-w-40 items-center gap-2">
                                   <Avatar className="size-9">
                                     <AvatarImage src={item.photo_url} />
@@ -650,11 +696,11 @@ export default function OwnerDashboard({
                                   </div>
                                 </div>
                               </TableCell>
-                              <TableCell>{item.completed_count}</TableCell>
-                              <TableCell className="whitespace-nowrap">
+                              <TableCell role="cell" data-label="Atendimentos">{item.completed_count}</TableCell>
+                              <TableCell role="cell" data-label="Faturamento" className="whitespace-nowrap">
                                 {money(item.revenue_cents)}
                               </TableCell>
-                              <TableCell>
+                              <TableCell role="cell" data-label="Comissão configurada" className="owner-row-wide">
                                 <div className="min-w-40 space-y-1 text-xs">
                                   {rules.length
                                     ? rules.map((rule) => (
@@ -678,10 +724,10 @@ export default function OwnerDashboard({
                                     : "Não configurada"}
                                 </div>
                               </TableCell>
-                              <TableCell className="font-semibold whitespace-nowrap text-primary">
+                              <TableCell role="cell" data-label="A repassar" className="owner-row-wide font-semibold whitespace-nowrap text-primary">
                                 {money(item.outstanding_cents)}
                               </TableCell>
-                              <TableCell>
+                              <TableCell role="cell" className="owner-row-actions">
                                 <div className="flex min-w-52 flex-wrap gap-1.5">
                                   <Button
                                     variant="outline"
@@ -738,7 +784,7 @@ export default function OwnerDashboard({
                 </Card>
               </TabsContent>
               <TabsContent value="agenda-geral">
-                <div className="grid items-end gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                <div className="owner-agenda-filters grid items-end gap-3 sm:grid-cols-[1fr_1fr_auto]">
                   <label className="space-y-1 text-xs font-semibold text-gray-600">
                     Data da agenda
                     <Input
@@ -778,7 +824,7 @@ export default function OwnerDashboard({
                     {agendaError}
                   </p>
                 )}
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="owner-bulk-actions flex flex-wrap items-center gap-2">
                   <span className="mr-auto text-xs text-muted-foreground">
                     {chosen.length} selecionado(s)
                   </span>
@@ -804,7 +850,7 @@ export default function OwnerDashboard({
                   </Button>
                 </div>
                 <Card className="rounded-2xl bg-white py-0 shadow-sm">
-                  <Table>
+                  <Table className="owner-mobile-table owner-agenda-table" role="table">
                     <TableHeader>
                       <TableRow>
                         <TableHead>
@@ -837,8 +883,8 @@ export default function OwnerDashboard({
                     </TableHeader>
                     <TableBody>
                       {visible.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell>
+                        <TableRow key={item.id} role="row">
+                          <TableCell role="cell" className="owner-appointment-select">
                             <input
                               type="checkbox"
                               aria-label={`Selecionar agendamento de ${item.clientName} às ${scheduleTime(item.startsAt ?? item.date)}`}
@@ -857,10 +903,10 @@ export default function OwnerDashboard({
                               }
                             />
                           </TableCell>
-                          <TableCell className="whitespace-nowrap">
+                          <TableCell role="cell" data-label="Horário" className="owner-appointment-time whitespace-nowrap">
                             {scheduleTime(item.startsAt ?? item.date)}
                           </TableCell>
-                          <TableCell className="min-w-52">
+                          <TableCell role="cell" data-label="Cliente / Serviço" className="owner-appointment-client min-w-52">
                             <p className="text-sm font-semibold">
                               {item.clientName}
                             </p>
@@ -873,10 +919,10 @@ export default function OwnerDashboard({
                               </p>
                             )}
                           </TableCell>
-                          <TableCell className="whitespace-nowrap">
+                          <TableCell role="cell" data-label="Barbeiro" className="owner-appointment-barber whitespace-nowrap">
                             {item.barberName}
                           </TableCell>
-                          <TableCell>
+                          <TableCell role="cell" className="owner-appointment-status">
                             <Badge className="border-0 bg-blue-50 text-xs text-primary">
                               {item.status === "confirmed" &&
                               item.executionStarted
@@ -911,7 +957,7 @@ export default function OwnerDashboard({
                 )}
               </TabsContent>
               <TabsContent value="servicos">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="owner-section-heading flex flex-wrap items-center justify-between gap-3">
                   <h2 className="text-sm font-semibold">
                     Catálogo de Serviços & Preços ({services.length})
                   </h2>
@@ -925,7 +971,7 @@ export default function OwnerDashboard({
                   </Button>
                 </div>
                 <Card className="rounded-2xl bg-white py-0 shadow-sm">
-                  <Table>
+                  <Table className="owner-mobile-table owner-services-table" role="table">
                     <TableHeader>
                       <TableRow>
                         {[
@@ -942,23 +988,23 @@ export default function OwnerDashboard({
                     </TableHeader>
                     <TableBody>
                       {services.map((item) => (
-                        <TableRow key={item.id}>
-                          <TableCell className="min-w-52 font-semibold">
+                        <TableRow key={item.id} role="row">
+                          <TableCell role="cell" data-label="Serviço" className="owner-row-title min-w-52 font-semibold">
                             {item.name}
                           </TableCell>
-                          <TableCell>{item.category}</TableCell>
-                          <TableCell className="whitespace-nowrap">
+                          <TableCell role="cell" data-label="Categoria">{item.category}</TableCell>
+                          <TableCell role="cell" data-label="Preço" className="whitespace-nowrap">
                             {money(item.priceCents)}
                           </TableCell>
-                          <TableCell>{item.durationMinutes} min</TableCell>
-                          <TableCell>
+                          <TableCell role="cell" data-label="Duração">{item.durationMinutes} min</TableCell>
+                          <TableCell role="cell" data-label="Status">
                             <Badge
                               className={`border-0 text-xs ${item.active ? "bg-blue-50 text-primary" : "bg-gray-100 text-gray-500"}`}
                             >
                               {item.active ? "Ativo" : "Inativo"}
                             </Badge>
                           </TableCell>
-                          <TableCell>
+                          <TableCell role="cell" className="owner-row-actions">
                             <Button
                               variant="outline"
                               className={button}

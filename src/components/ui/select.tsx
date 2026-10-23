@@ -23,11 +23,11 @@ export function SelectTrigger({
     </Primitive.Trigger>
   );
 }
-export function SelectContent({ children }: { children: React.ReactNode }) {
+export function SelectContent({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <Primitive.Portal>
       <Primitive.Positioner sideOffset={4} className="z-[60]">
-        <Primitive.Popup className="max-h-72 min-w-[var(--anchor-width)] overflow-y-auto rounded-xl border border-border bg-white p-1 text-foreground shadow-lg">
+        <Primitive.Popup className={cn("max-h-72 min-w-[var(--anchor-width)] overflow-y-auto rounded-xl border border-border bg-white p-1 text-foreground shadow-lg", className)}>
           <Primitive.List>{children}</Primitive.List>
         </Primitive.Popup>
       </Primitive.Positioner>
