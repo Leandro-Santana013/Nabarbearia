@@ -1,0 +1,87 @@
+.barber-agenda-header {
+  container-type: inline-size;
+  min-width: 0;
+  border: 1px solid #e4e4e7;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 2px 8px #07364f04;
+}
+
+.barber-agenda-greeting { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 16px; }
+.barber-agenda-intro { flex: 1 1 140px; min-width: 0; }
+.barber-agenda-eyebrow { margin: 0 0 5px; color: #71717a; font-size: 11px; font-weight: 600; }
+.barber-agenda-intro h1 { margin: 0; color: #07364f; font-size: 18px; font-weight: 700; letter-spacing: -.04em; line-height: 1.4; overflow-wrap: anywhere; }
+.barber-agenda-status { display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; padding: 6px 9px; border-radius: 8px; background: #ecfdf5; color: #047857; font-size: 11px; font-weight: 600; }
+.barber-agenda-status > span { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.barber-agenda-status[data-status="busy"] { color: #92400e; background: #fffbeb; }
+.barber-agenda-status[data-status="paused"] { color: #52525b; background: #f4f4f5; }
+.barber-agenda-calendar { padding: 4px 12px 6px; border-top: 1px solid #f0f0f2; }
+.barber-agenda-calendar-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 2px 4px; }
+.barber-agenda-calendar-heading h2 { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 0; color: #52525b; font-size: 12px; font-weight: 600; line-height: 1.5; }
+.barber-agenda-calendar-heading h2 svg { flex-shrink: 0; color: #0369a1; }
+.barber-agenda-calendar-heading h2 span::first-letter { text-transform: uppercase; }
+.barber-agenda-calendar-heading h2 span { min-width: 0; }
+.barber-agenda-header .barber-agenda-icon { width: 44px; height: 44px; min-height: 44px; border-radius: 10px; color: #52525b; }
+.barber-agenda-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.barber-agenda-header .barber-agenda-day { display: flex; flex-direction: column; gap: 6px; width: 100%; min-width: 0; height: auto; min-height: 66px; padding: 9px 0; border-radius: 12px; color: #52525b; }
+.barber-agenda-weekday { font-size: 10px; font-weight: 600; line-height: 1.3; text-transform: uppercase; }
+.barber-agenda-day-number { color: #07364f; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2; }
+.barber-agenda-header .barber-agenda-day[aria-current="date"]:not([aria-pressed="true"]) { background: #f0f9ff; color: #0369a1; }
+.barber-agenda-header .barber-agenda-day[aria-pressed="true"] { background: #0369a1; color: #fff; box-shadow: 0 3px 7px #0369a11a; }
+.barber-agenda-day[aria-pressed="true"] .barber-agenda-day-number { color: #fff; }
+.barber-agenda-header .barber-agenda-day[aria-pressed="true"]:hover { background: #075985; }
+.barber-agenda-pagination { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; gap: 4px; padding-top: 4px; }
+.barber-agenda-header .barber-agenda-today { min-width: 0; height: auto; min-height: 44px; padding: 4px; border-radius: 10px; color: #0369a1; font-size: 11px; font-weight: 600; white-space: normal; }
+.barber-agenda-today-short { display: none; }
+.barber-day-tools { container-type: inline-size; }
+.barber-day-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.barber-day-actions .barber-day-action { gap: 8px; width: 100%; min-width: 0; height: auto; min-height: 48px; padding: 10px 8px; border-radius: 12px; background: #fff; color: #52525b; font-size: 12px; font-weight: 600; white-space: normal; line-height: 1.5; }
+.barber-day-actions .barber-day-action:hover, .barber-day-actions .barber-day-action[aria-expanded="true"] { background: #f0f9ff; color: #075985; border-color: #bae6fd; }
+.barber-day-actions .barber-day-walkin { grid-column: 1 / -1; border-color: #0369a1; background: #0369a1; color: #fff; }
+.barber-day-actions .barber-day-walkin:hover, .barber-day-actions .barber-day-walkin[aria-expanded="true"] { border-color: #075985; background: #075985; color: #fff; }
+.barber-day-action small { margin-inline-start: 4px; font-size: 10px; font-weight: 500; opacity: .85; }
+
+@container (min-width: 480px) {
+  .barber-day-actions { grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, 1fr)); }
+  .barber-day-actions .barber-day-walkin { grid-column: auto; }
+}
+
+@container (max-width: 240px) {
+  .barber-agenda-days { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .barber-agenda-today-full { display: none; }
+  .barber-agenda-today-short { display: inline; }
+}
+
+@container (max-width: 200px) {
+  .barber-day-actions { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 767.98px) {
+  body:has(.barber-dashboard) { min-width: 0; }
+  .barber-dashboard { width: min(100%, var(--barber-viewport-width, 100%)); min-width: 0; margin-left: var(--barber-viewport-left, 0px); }
+  .owner-dashboard .barber-dashboard { margin-left: 0; }
+  .barber-dashboard-main { width: 100%; min-width: 0; padding-inline: min(16px, 4%); }
+  .barber-dashboard-main > * { min-width: 0; max-width: 100%; }
+  .barber-dashboard :is(input, select, fieldset) { min-width: 0; max-width: 100%; }
+  .barber-dashboard :is(input, select) { font-size: 16px; }
+  .barber-dashboard [data-slot="button"] { min-width: 0; max-width: 100%; height: auto; white-space: normal; }
+  .barber-day-tools form fieldset > .flex { flex-wrap: wrap; }
+  .barber-navigation {
+    top: calc(var(--barber-viewport-top, 0px) + var(--barber-viewport-height, 100dvh) - var(--barber-navigation-height, 64px));
+    right: auto;
+    bottom: auto;
+    left: var(--barber-viewport-left, 0px);
+    width: min(100vw, var(--barber-viewport-width, 100vw));
+  }
+}
+
+@media (min-width: 640px) {
+  .barber-agenda-greeting { padding: 22px 20px; }
+  .barber-agenda-calendar { padding-inline: 16px; }
+  .barber-agenda-intro h1 { font-size: 20px; }
+  .barber-agenda-header .barber-agenda-day { min-height: 72px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barber-agenda-header button, .barber-day-actions button { transition: none; }
+}

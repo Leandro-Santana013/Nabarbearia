@@ -100,6 +100,52 @@ npm run dev:backend
 
 Com o build disponível em `dist/`, o próprio backend serve a aplicação em **http://127.0.0.1:3001**. Encerre uma instância já aberta antes de iniciar outra na mesma porta.
 
+## Android com Tauri: APK assinado por USB
+
+O projeto inclui um aplicativo Tauri 2 para Android ARM64. Esta configuração é
+destinada a testes com o celular conectado ao computador: a WebView abre
+`http://127.0.0.1:5173` pelo encaminhamento USB do ADB. O frontend e a API
+continuam no computador; o APK não contém um backend nem funciona offline.
+
+São necessários Android SDK/NDK, JDK 21, depuração USB autorizada e Rust com o
+alvo `aarch64-linux-android`. No Windows, o script usa o JDK do Android Studio,
+o NDK instalado e o toolchain GNU com MinGW/GCC no PATH, sem alterar o toolchain
+padrão do backend:
+
+```powershell
+rustup toolchain install stable-x86_64-pc-windows-gnu --profile minimal --target aarch64-linux-android
+npm run android:init
+npm run android:signing
+npm run android:build
+```
+
+`android:signing` cria uma chave local e preserva uma chave já existente.
+Guarde um backup privado destes dois arquivos, necessários para futuras
+atualizações com a mesma assinatura:
+
+- `src-tauri/gen/android/nabarbearia-release.p12`
+- `src-tauri/gen/android/keystore.properties`
+
+Ambos são ignorados pelo Git. O Gradle usa essa chave para assinar a versão
+release; `android:build:debug` gera a variante de desenvolvimento separada.
+O APK de release fica em `src-tauri/gen/android/app/build/outputs/apk/`.
+
+Para executar pelo cabo, mantenha `npm run dev:backend` e
+`npm run android:serve` em terminais separados. Então:
+
+```powershell
+adb devices
+adb -d reverse tcp:5173 tcp:5173
+adb -d install -r artifacts/NA-Barbearia-arm64-release.apk
+adb -d shell am start -n br.com.nabarbearia.app/.MainActivity
+```
+
+O arquivo em `artifacts/` é a cópia de entrega da build assinada. Ao reconectar
+o celular, repita o encaminhamento `adb reverse`. Para distribuir um aplicativo
+independente do cabo, configure um servidor HTTPS acessível ao celular no lugar
+da URL local em `src-tauri/tauri.conf.json`. A permissão de HTTP do Android está
+restrita a `localhost` e `127.0.0.1`.
+
 ## Rotas e acesso
 
 | Perfil | Rota | Conteúdo |

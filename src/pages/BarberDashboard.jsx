@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { WHATSAPP_URL } from "@/data/barbershopData"
 import BarberDayTools from "@/components/BarberDayTools"
+import BarberAgendaHeader from "@/components/BarberAgendaHeader"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import LoginScreen from "./LoginScreen"
 import BarberSchedule from "./BarberSchedule"
@@ -26,7 +27,37 @@ export default function BarberDashboard({ session: initialSession } = {}) {
   const [notice, setNotice] = useState("")
   const requestId = useRef(0)
   const actionPending = useRef(false)
+  const dashboardRef = useRef(null)
+  const navigationRef = useRef(null)
   const allowed = session?.user.roles.includes("barber")
+
+  useEffect(() => {
+    const dashboard = dashboardRef.current
+    const navigation = navigationRef.current
+    if (!dashboard || !navigation) return
+    const viewport = window.visualViewport
+    // Mobile zoom changes the visible viewport without changing CSS breakpoints.
+    // Keep the content and bottom navigation inside that visible area.
+    const updateViewport = () => {
+      dashboard.style.setProperty("--barber-viewport-width", `${Math.min(window.innerWidth, viewport?.width ?? window.innerWidth)}px`)
+      dashboard.style.setProperty("--barber-viewport-height", `${Math.min(window.innerHeight, viewport?.height ?? window.innerHeight)}px`)
+      dashboard.style.setProperty("--barber-viewport-left", `${viewport?.offsetLeft ?? 0}px`)
+      dashboard.style.setProperty("--barber-viewport-top", `${viewport?.offsetTop ?? 0}px`)
+      dashboard.style.setProperty("--barber-navigation-height", `${navigation.getBoundingClientRect().height}px`)
+    }
+    updateViewport()
+    const observer = new ResizeObserver(updateViewport)
+    observer.observe(navigation)
+    viewport?.addEventListener("resize", updateViewport)
+    viewport?.addEventListener("scroll", updateViewport)
+    window.addEventListener("resize", updateViewport)
+    return () => {
+      observer.disconnect()
+      viewport?.removeEventListener("resize", updateViewport)
+      viewport?.removeEventListener("scroll", updateViewport)
+      window.removeEventListener("resize", updateViewport)
+    }
+  }, [allowed])
 
   useEffect(() => {
     if (initialSession) return
@@ -127,24 +158,10 @@ export default function BarberDashboard({ session: initialSession } = {}) {
   const tabs = [{ id: "agenda", label: "Agenda", icon: Calendar }, { id: "ganhos", label: "Meus Ganhos", icon: DollarSign }, { id: "perfil", label: "Perfil", icon: User }]
 
   return (
-    <div className="min-h-dvh bg-[#F4F4F6] font-sans text-[#111111] antialiased">
-      <main className="mx-auto flex max-w-xl flex-col gap-3 p-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
+    <div ref={dashboardRef} className="barber-dashboard min-h-dvh bg-[#F4F4F6] font-sans text-[#111111] antialiased">
+      <main className="barber-dashboard-main mx-auto flex max-w-xl flex-col gap-3 p-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
         {activeTab === "agenda" && <>
-          <header className="flex items-center justify-between gap-2 py-1">
-            <h1 className="min-w-0 break-words text-base font-semibold">Olá, {name}!</h1>
-            <span className={`flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${inProgress ? "bg-amber-50 text-amber-700" : paused ? "bg-gray-100 text-gray-600" : "bg-emerald-50 text-emerald-700"}`}><span aria-hidden="true" className={`size-1.5 rounded-full ${inProgress ? "bg-amber-500" : paused ? "bg-gray-400" : "bg-emerald-500"}`} />{inProgress ? "Em atendimento" : paused ? "Em pausa" : "Disponível"}</span>
-          </header>
-          <div className="flex items-center gap-2">
-            <div className="flex min-w-0 flex-1 snap-x gap-2 overflow-x-auto py-1" role="group" aria-label="Consultar data">
-              {Array.from({ length: 14 }, (_, index) => {
-                const day = new Date(`${shopDate()}T12:00:00-03:00`); day.setUTCDate(day.getUTCDate() + index)
-                const value = shopDate(day)
-                const label = index === 0 ? "HOJE" : new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", weekday: "short" }).format(day).replace(".", "").toUpperCase()
-                return <Button key={value} type="button" disabled={busy} aria-pressed={date === value} onClick={() => setDate(value)} variant={date === value ? "default" : "outline"} className={`min-h-11 shrink-0 snap-start rounded-xl px-3 text-xs! font-semibold! ${date === value ? "" : "bg-white text-gray-600"}`}>{label} {day.getUTCDate()}</Button>
-              })}
-            </div>
-            <Button type="button" variant="ghost" size="icon" disabled={loading || busy} onClick={load} aria-label="Atualizar agenda" className="size-11 rounded-xl text-muted-foreground"><RefreshCw aria-hidden="true" className={`size-4 ${loading ? "animate-spin motion-reduce:animate-none" : ""}`} /></Button>
-          </div>
+          <BarberAgendaHeader name={name} date={date} inProgress={inProgress} paused={paused} busy={busy} loading={loading} onDateChange={setDate} onRefresh={load} />
           <BarberDayTools date={date} barberId={session.user.id} busy={busy || loading} onRun={runAction} />
           {blocks.length > 0 && <section aria-label="Pausas bloqueadas" className="flex flex-wrap gap-2">{blocks.map((block) => <span key={block.id} className="rounded-lg bg-white px-2 py-1 text-[11px] text-gray-500">{block.reason || "Pausa"} · {scheduleTime(block.starts_at)}–{scheduleTime(block.ends_at)}</span>)}</section>}
         </>}
@@ -180,9 +197,12 @@ export default function BarberDashboard({ session: initialSession } = {}) {
           <Button type="button" variant="outline" disabled={busy} onClick={logout} className="min-h-11 w-full rounded-xl border-red-200 text-xs! text-red-600 hover:bg-red-50"><LogOut className="size-4" />Sair da conta</Button>
         </section>}
       </main>
-      <nav aria-label="Navegação do barbeiro" className="fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom,0px)]">
-        <div className="mx-auto grid max-w-xl grid-cols-3 gap-2 px-4 py-2">
-          {tabs.map(({ id, label, icon: Icon }) => <button key={id} type="button" aria-current={activeTab === id ? "page" : undefined} disabled={busy} onClick={() => { setActiveTab(id); setNotice(""); window.scrollTo({ top: 0, behavior: "instant" }) }} className={`flex min-h-12 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-2 py-1 text-[11px]! font-medium! transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 ${activeTab === id ? "bg-blue-50 text-primary" : "text-gray-500 hover:bg-gray-50"}`}><Icon aria-hidden="true" className="size-5" /><span>{label}</span></button>)}
+      <nav ref={navigationRef} aria-label="Navegação do barbeiro" className="barber-navigation fixed inset-x-0 bottom-0 z-50 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom,0px)]">
+        <div className="mx-auto max-w-xl px-4 py-2">
+          <div className="relative isolate grid grid-cols-3 gap-2">
+            <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 -z-10 w-[calc((100%-1rem)/3)] rounded-xl bg-blue-50 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none" style={{ transform: `translateX(calc(${tabs.findIndex((tab) => tab.id === activeTab)} * (100% + 0.5rem)))` }} />
+            {tabs.map(({ id, label, icon: Icon }) => <button key={id} type="button" aria-current={activeTab === id ? "page" : undefined} disabled={busy} onClick={() => { setActiveTab(id); setNotice(""); window.scrollTo({ top: 0, behavior: "instant" }) }} className={`flex min-h-12 touch-manipulation select-none flex-col items-center justify-center gap-1 rounded-xl px-2 py-1 text-[11px]! font-medium! transition-colors duration-300 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 ${activeTab === id ? "text-primary" : "text-gray-500 hover:bg-gray-50"}`}><Icon aria-hidden="true" className="size-5" /><span>{label}</span></button>)}
+          </div>
         </div>
       </nav>
     </div>

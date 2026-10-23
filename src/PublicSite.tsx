@@ -34,8 +34,8 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
     <div className="public-site">
       <header className="public-header">
         <a className="public-brand" href="#inicio" onClick={closeMenu} aria-label="NA Barbearia, início"><span className="public-brand-mark"><Scissors size={19} /></span><span><strong>NA</strong> Barbearia</span></a>
-        <button className="public-menu-button" type="button" aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'} aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? <X size={21} /> : <Menu size={21} />}</button>
-        <nav className={`public-nav ${menuOpen ? 'is-open' : ''}`} aria-label="Navegação principal">
+        <button className="public-menu-button" type="button" aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'} aria-controls="public-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? <X size={21} /> : <Menu size={21} />}</button>
+        <nav id="public-navigation" onKeyDown={(event) => { if (event.key === 'Escape') { closeMenu(); document.querySelector<HTMLButtonElement>('.public-menu-button')?.focus() } }} className={`public-nav ${menuOpen ? 'is-open' : ''}`} aria-label="Navegação principal">
           <a href="#experiencia" onClick={closeMenu}>Experiência</a>
           <a href="#como-funciona" onClick={closeMenu}>Como funciona</a>
           <a href="#equipe" onClick={closeMenu}>Nossa equipe</a>

@@ -3,6 +3,10 @@
 node_modules/
 backend/target/
 portable/release/
+artifacts/
+*.keystore
+*.jks
+*.p12
 
 # Segredos locais; o arquivo de exemplo permanece versionado.
 .env

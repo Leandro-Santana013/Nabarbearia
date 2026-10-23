@@ -161,7 +161,7 @@ export default function OwnerEditor({
         if (!open && !busy) onClose();
       }}
     >
-      <DialogContent>
+      <DialogContent className="owner-dialog">
         <DialogTitle className="pr-8 text-lg font-semibold">
           {labels[editor.kind]}
         </DialogTitle>
@@ -389,7 +389,7 @@ export default function OwnerEditor({
                   </p>
                 </>
               )}
-              <div className="flex justify-end gap-2">
+              <div className="owner-dialog-actions flex justify-end gap-2">
                 <Button
                   type="button"
                   variant="outline"

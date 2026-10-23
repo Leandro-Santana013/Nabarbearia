@@ -33,10 +33,10 @@ export default function OwnerSelect({
         }}
         disabled={disabled}
       >
-        <SelectTrigger aria-labelledby={id}>
+        <SelectTrigger aria-labelledby={id} className="owner-select-trigger">
           <SelectValue />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="owner-select-popup">
           {options.map((item) => (
             <SelectItem key={item.value} value={item.value}>
               {item.label}

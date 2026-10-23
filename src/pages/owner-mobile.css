@@ -1,0 +1,95 @@
+/* Owner-only adaptations. Desktop keeps its existing layout and component styles. */
+@media (max-width: 767.98px) {
+  body:has(.owner-dashboard) { min-width: 0; }
+
+  .owner-dashboard { --owner-mobile-nav-height: 80px; width: min(100%, var(--owner-viewport-width, 100%)); min-width: 0; margin-left: var(--owner-viewport-left, 0px); }
+  .owner-dashboard, .owner-dialog { overflow-wrap: anywhere; }
+  .owner-container { width: 100%; max-width: 100%; min-width: 0; padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) calc(var(--owner-mobile-nav-height) + 24px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
+  .owner-dashboard :is([data-slot="tabs"], [data-slot="tabs-content"], [data-slot="card"], [data-slot="card-header"], [data-slot="card-content"]) { min-width: 0; }
+  .owner-header { gap: 16px; }
+  .owner-header h1 { font-size: 18px; line-height: 1.5; text-wrap: balance; }
+  .owner-header-actions { display: grid; grid-template-columns: minmax(0, 1fr) 44px; align-items: stretch; }
+  .owner-header-actions > button { width: 100%; }
+  .owner-dashboard [data-slot="button"], .owner-dialog [data-slot="button"] { min-height: 44px; max-width: 100%; height: auto; white-space: normal; }
+  .owner-dashboard [data-slot="button"] svg { flex-shrink: 0; }
+  .owner-dashboard [data-slot="tabs-list"] { position: fixed; z-index: 40; top: calc(var(--owner-viewport-top, 0px) + var(--owner-viewport-height, 100dvh) - var(--owner-mobile-nav-height) - env(safe-area-inset-bottom, 0px)); left: var(--owner-viewport-left, 0px); width: min(100vw, var(--owner-viewport-width, 100vw)); height: calc(var(--owner-mobile-nav-height) + env(safe-area-inset-bottom, 0px)); grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: stretch; gap: 4px; margin: 0; padding: 8px max(8px, env(safe-area-inset-right, 0px)) calc(8px + env(safe-area-inset-bottom, 0px)) max(8px, env(safe-area-inset-left, 0px)); border: 0; border-top: 1px solid var(--border); border-radius: 0; background: white; }
+  .owner-tab-indicator { display: block; position: absolute; z-index: 0; top: 9px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); left: max(8px, env(safe-area-inset-left, 0px)); width: calc((100% - max(8px, env(safe-area-inset-left, 0px)) - max(8px, env(safe-area-inset-right, 0px)) - 12px) / 4); border-radius: 12px; background: #eff6ff; pointer-events: none; transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1); }
+  .owner-dashboard [data-slot="tabs-trigger"] { position: relative; z-index: 1; min-height: 48px; flex-direction: column; gap: 4px; padding: 4px; border-radius: 12px; white-space: normal; transition: color 300ms; }
+  .owner-dashboard [data-slot="tabs-trigger"] svg { width: 20px; height: 20px; flex-shrink: 0; }
+  .owner-tab-label { min-width: 0; font-size: 11px; font-weight: 500; line-height: 1.25; text-align: center; }
+  .owner-dashboard [data-slot="tabs-trigger"][data-active] { background: transparent; box-shadow: none; }
+
+  .owner-period-filters { display: grid; grid-template-columns: minmax(0, 1fr) 44px; gap: 10px 8px; }
+  .owner-period-filters > * { min-width: 0; width: 100%; }
+  .owner-period-filters > :first-child { grid-column: 1 / -1; }
+  .owner-dashboard :is(input:not([type="checkbox"]), select), .owner-dialog :is(input:not([type="checkbox"]), select) { min-width: 0; max-width: 100%; min-height: 44px; font-size: 16px !important; }
+  .owner-dashboard input:is([type="date"], [type="month"]), .owner-dialog input:is([type="date"], [type="time"]) { width: 100%; display: block; }
+  .owner-select-trigger { min-width: 0; text-align: left; }
+  .owner-select-trigger > span { min-width: 0; white-space: normal; }
+  .owner-select-trigger > span:last-child { flex-shrink: 0; }
+  .owner-select-popup { max-width: calc(min(100vw, var(--owner-viewport-width, 100vw)) - 24px); }
+  .owner-select-popup [role="option"] { white-space: normal; overflow-wrap: anywhere; min-height: 44px; }
+  .owner-agenda-filters { grid-template-columns: minmax(0, 1fr); }
+  .owner-metrics { grid-template-columns: repeat(auto-fit, minmax(min(100%, 156px), 1fr)); gap: 10px; }
+  .owner-metrics [data-slot="card"] { height: 100%; }
+  .owner-metrics :is([data-slot="card-header"], [data-slot="card-content"]) { padding-inline: 12px; }
+  .owner-metrics [data-slot="card-content"] > p:first-child { font-size: clamp(17px, 4.4vw, 22px); line-height: 1.4; }
+  .owner-section-heading { display: flex; flex-direction: column; align-items: stretch; }
+  .owner-section-heading > button { width: 100%; }
+  .owner-bulk-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .owner-bulk-actions > span { grid-column: 1 / -1; }
+  .owner-bulk-actions > button { width: 100%; padding: 10px; }
+
+  .owner-payments-table { table-layout: fixed; font-size: 12px; }
+  .owner-payments-table :is(th, td) { padding: 12px 8px; white-space: normal; overflow-wrap: anywhere; }
+  .owner-payments-table th { font-size: 11px; }
+  .owner-payments-table :is(th, td):last-child { text-align: right; }
+
+  /* Keep one semantic table and the same actions across both layouts. */
+  .owner-mobile-table, .owner-mobile-table tbody { display: block; width: 100%; }
+  .owner-mobile-table thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .owner-mobile-table tbody > tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; padding: 16px; }
+  .owner-mobile-table td { display: block; min-width: 0; padding: 0; white-space: normal; font-size: 13px; }
+  .owner-mobile-table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 5px; color: var(--muted-foreground); font-size: 11px; font-weight: 500; line-height: 1.4; }
+  .owner-mobile-table :is(.owner-row-title, .owner-row-wide, .owner-row-actions) { grid-column: 1 / -1; }
+  .owner-mobile-table .owner-row-title { font-size: 14px; }
+  .owner-mobile-table td.owner-row-title::before { display: none; }
+  .owner-team-table .owner-row-title > div, .owner-team-table .owner-row-wide > div { min-width: 0; }
+  .owner-team-table .owner-row-title > div > div { min-width: 0; }
+  .owner-row-actions { border-top: 1px solid var(--border); padding-top: 12px !important; }
+  .owner-team-table .owner-row-actions > div { display: grid; min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .owner-team-table .owner-row-actions button { width: 100%; padding-inline: 6px; }
+  .owner-team-table .owner-row-actions button:last-child { grid-column: 1 / -1; }
+  .owner-services-table .owner-row-actions button { width: 100%; }
+
+  .owner-agenda-table thead { position: static; display: block; width: auto; height: auto; clip-path: none; padding: 12px 16px; overflow: visible; }
+  .owner-agenda-table thead tr { display: block; border: 0; }
+  .owner-agenda-table th:first-child { display: flex; align-items: center; gap: 10px; padding: 0; white-space: normal; }
+  .owner-agenda-table th:first-child::after { content: "Selecionar todos"; }
+  .owner-agenda-table th:not(:first-child) { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
+  .owner-dashboard input[type="checkbox"], .owner-dialog input[type="checkbox"] { flex: 0 0 20px; width: 20px; height: 20px; min-height: 0; margin: 2px; padding: 0; accent-color: var(--primary); cursor: pointer; }
+  .owner-agenda-table tbody > tr { grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1fr); gap: 12px 8px; }
+  .owner-agenda-table .owner-appointment-select { display: flex; align-items: center; justify-content: center; min-height: 44px; grid-column: 1; grid-row: 1; }
+  .owner-agenda-table .owner-appointment-time { grid-column: 2; grid-row: 1; align-self: center; font-size: 17px; font-weight: 700; }
+  .owner-agenda-table td.owner-appointment-time::before { display: none; }
+  .owner-agenda-table .owner-appointment-status { grid-column: 3; grid-row: 1; align-self: center; justify-self: end; }
+  .owner-appointment-status > span { max-width: 100%; height: auto; min-height: 20px; padding-block: 3px; line-height: 1.4; white-space: normal; text-align: center; }
+  .owner-agenda-table :is(.owner-appointment-client, .owner-appointment-barber) { grid-column: 1 / -1; }
+  .owner-agenda-table .owner-appointment-client { border-top: 1px solid var(--border); padding-top: 12px; }
+
+  .owner-dialog { top: calc(var(--owner-viewport-top, 0px) + min(100dvh, var(--owner-viewport-height, 100dvh)) / 2); left: calc(var(--owner-viewport-left, 0px) + min(100vw, var(--owner-viewport-width, 100vw)) / 2); width: calc(min(100vw, var(--owner-viewport-width, 100vw)) - 24px); max-height: calc(min(100dvh, var(--owner-viewport-height, 100dvh)) - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); padding: 20px 16px; overscroll-behavior: contain; }
+  .owner-dialog :is(form, fieldset, label, [data-slot="card"]) { min-width: 0; }
+  .owner-dialog select { width: 100%; }
+  .owner-dialog-actions { flex-wrap: wrap; }
+  .owner-dialog-actions > button { flex: 1 1 100px; padding-block: 10px; }
+  .owner-dialog [data-slot="card"] { padding: 12px; }
+}
+
+@media (max-width: 767.98px) and (prefers-reduced-motion: reduce) {
+  .owner-tab-indicator, .owner-dashboard [data-slot="tabs-trigger"] { transition: none; }
+}
+
+@media (max-width: 359.98px) {
+  .owner-metrics { grid-template-columns: minmax(0, 1fr); }
+  .owner-bulk-actions { grid-template-columns: minmax(0, 1fr); }
+}

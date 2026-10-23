@@ -4,6 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "tauri": "tauri",
+    "android:init": "node scripts/tauri-android.mjs init --ci --skip-targets-install",
+    "android:signing": "node scripts/android-signing.mjs",
+    "android:build": "npm run android:signing && node scripts/tauri-android.mjs build --apk --target aarch64",
+    "android:build:debug": "node scripts/tauri-android.mjs build --debug --apk --target aarch64",
+    "android:serve": "vite preview --host 127.0.0.1 --port 5173 --strictPort",
     "dev": "vite",
     "dev:backend": "node scripts/dev-backend.mjs",
     "build": "tsc -b && vite build",
@@ -11,6 +17,7 @@
     "test": "vitest run",
     "test:client-flow": "npm run build && node scripts/check-client-flow.mjs",
     "test:owner-flow": "npm run build && node scripts/check-owner-flow.mjs",
+    "test:barber-responsive": "npm run build && node scripts/check-barber-responsive.mjs",
     "test:watch": "vitest"
   },
   "dependencies": {
@@ -32,6 +39,7 @@
     "vitest": "^3.2.4"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4",
     "@types/node": "^24.13.6",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5"
