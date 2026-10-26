@@ -26,6 +26,7 @@ jobs:
       DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
       DEPLOY_USER: ${{ vars.DEPLOY_USER }}
       DEPLOY_DOMAIN: ${{ vars.DEPLOY_DOMAIN }}
+      RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -67,7 +68,7 @@ jobs:
           mkdir -p build-release
           install -m755 backend/target/release/nabarbearia-backend build-release/backend
           cp -R dist build-release/dist
-          printf '%s\n' "$GITHUB_SHA" > build-release/REVISION
+          printf '%s\n' "$RELEASE_ID" > build-release/REVISION
           tar -czf release.tar.gz -C build-release backend dist REVISION
           sha256sum release.tar.gz > release.tar.gz.sha256
       - uses: actions/upload-artifact@v4
@@ -90,6 +91,6 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           trap 'rm -f ~/.ssh/deploy_key' EXIT
           target="${DEPLOY_USER}@${DEPLOY_HOST}"
-          scp -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes release.tar.gz "$target:/tmp/nabarbearia-${GITHUB_SHA}.tar.gz"
-          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "$target" "sudo /usr/local/sbin/nabarbearia deploy /tmp/nabarbearia-${GITHUB_SHA}.tar.gz ${GITHUB_SHA}"
+          scp -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes release.tar.gz "$target:/tmp/nabarbearia-${RELEASE_ID}.tar.gz"
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "$target" "sudo /usr/local/sbin/nabarbearia deploy /tmp/nabarbearia-${RELEASE_ID}.tar.gz ${RELEASE_ID}"
           curl --fail --retry 3 --retry-delay 5 "https://${DEPLOY_DOMAIN}/api/v1/health"

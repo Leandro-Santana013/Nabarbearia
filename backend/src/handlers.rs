@@ -2670,7 +2670,7 @@ mod tests {
     use super::*;
     use crate::{config::Config, db::Db, security::RateLimiter};
 
-    fn test_app() -> Router {
+    fn test_state() -> AppState {
         let config = Config {
             bind_addr: "127.0.0.1:3001".parse::<SocketAddr>().unwrap(),
             db_path: ":memory:".into(),
@@ -2682,11 +2682,15 @@ mod tests {
             session_days: 7,
             timezone: "America/Sao_Paulo".into(),
         };
-        router(AppState {
+        AppState {
             config: Arc::new(config),
             db: Db::in_memory().unwrap(),
             limiter: RateLimiter::default(),
-        })
+        }
+    }
+
+    fn test_app() -> Router {
+        router(test_state())
     }
 
     async fn request_json(
@@ -2739,6 +2743,97 @@ mod tests {
             .next()
             .unwrap()
             .to_string()
+    }
+
+    #[tokio::test]
+    async fn staff_apk_is_streamed_from_private_storage_after_authentication() {
+        let directory = std::env::temp_dir().join(format!("na-apk-test-{}", Uuid::now_v7()));
+        std::fs::create_dir_all(directory.join("android")).unwrap();
+        let bytes = vec![42_u8; 128 * 1024];
+        std::fs::write(
+            directory.join("android/NA-Barbearia-arm64-release.apk"),
+            &bytes,
+        )
+        .unwrap();
+        let mut state = test_state();
+        Arc::get_mut(&mut state.config).unwrap().db_path = directory.join("test.db");
+        let app = router(state);
+        let (_, headers, _) = request_json(&app, "POST", "/api/v1/setup/owner", json!({
+            "business_name":"APK Test", "timezone":"America/Sao_Paulo", "email":"owner@apk.test",
+            "password":"TestPassword123!", "display_name":"Owner"
+        }), None, None, Some("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")).await;
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/staff/android/apk")
+                    .header(header::COOKIE, cookie(&headers))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers()[header::CONTENT_TYPE],
+            "application/vnd.android.package-archive"
+        );
+        assert!(
+            response.headers()[header::CONTENT_DISPOSITION]
+                .to_str()
+                .unwrap()
+                .starts_with("attachment;")
+        );
+        assert_eq!(
+            response
+                .into_body()
+                .collect()
+                .await
+                .unwrap()
+                .to_bytes()
+                .as_ref(),
+            bytes.as_slice()
+        );
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[tokio::test]
+    async fn inactive_staff_cannot_create_another_session() {
+        let state = test_state();
+        let app = router(state.clone());
+        request_json(&app, "POST", "/api/v1/setup/owner", json!({
+            "business_name":"Inactive Test", "timezone":"America/Sao_Paulo", "email":"owner@inactive.test",
+            "password":"TestPassword123!", "display_name":"Owner"
+        }), None, None, Some("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")).await;
+        state
+            .db
+            .with_conn(|connection| -> Result<_, AppError> {
+                connection.execute("UPDATE users SET active = 0", [])?;
+                Ok(())
+            })
+            .await
+            .unwrap();
+        let (status, headers, _) = request_json(
+            &app,
+            "POST",
+            "/api/v1/auth/staff/login",
+            json!({
+                "email":"owner@inactive.test", "password":"TestPassword123!"
+            }),
+            None,
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert!(!headers.contains_key(header::SET_COOKIE));
+        let sessions = state
+            .db
+            .with_conn(|connection| -> Result<i64, AppError> {
+                Ok(connection.query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))?)
+            })
+            .await
+            .unwrap();
+        assert_eq!(sessions, 1);
     }
 
     #[tokio::test]

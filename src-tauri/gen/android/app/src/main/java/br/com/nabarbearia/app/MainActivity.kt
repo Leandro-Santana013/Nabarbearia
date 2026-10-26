@@ -69,7 +69,8 @@ class MainActivity : TauriActivity() {
         val uri = request.url
         val teamHost = "na-barbearia.duckdns.org"
         if (uri.scheme == "https" && uri.host == teamHost) {
-          if (!(uri.path ?: "").startsWith("/equipe") && uri.path != "/api/v1/staff/android/apk") {
+          val path = uri.path ?: ""
+          if (path != "/equipe" && !path.startsWith("/equipe/") && path != "/api/v1/staff/android/apk") {
             view.loadUrl("https://$teamHost/equipe")
             return true
           }

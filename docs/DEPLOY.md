@@ -121,6 +121,9 @@ Para atualizar: commit/push para `master` → Actions → **Publicar demonstraç
 O workflow é manual, serializado e restrito à branch `master`. Executa testes unitários, Clippy, testes de backup
 e os fluxos reais de cliente, dono e equipe no Chrome; compila Linux AMD64 e envia o pacote.
 Runners padrão de repositórios públicos são gratuitos; não habilite runners pagos para essa demonstração.
+Cada pacote identifica commit, execução e tentativa do workflow, permitindo repetir uma publicação que
+falhou sem sobrescrever o diretório de uma tentativa anterior. Para testar a preparação inicial sem acesso
+de deploy, desmarque a opção de publicar: o workflow entrega somente o pacote Linux como artifact.
 
 Durante a troca, o site responde 503 com `Retry-After`. O backend é parado, um backup privado é verificado,
 o link da versão é trocado e o serviço reinicia aplicando migrações. Se o health falhar, o código anterior

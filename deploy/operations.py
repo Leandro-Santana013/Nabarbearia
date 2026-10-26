@@ -265,7 +265,8 @@ def import_database(source):
 
 def test_restore(name):
     import pwd
-    with tempfile.TemporaryDirectory(dir=BACKUPS) as temp:
+    # The service user can traverse DATA, but deliberately cannot enter root-only BACKUPS.
+    with tempfile.TemporaryDirectory(prefix='.restore-test-', dir=DATA) as temp:
         directory = Path(temp)
         _, restored = restored_file(name, directory)
         account = pwd.getpwnam('nabarbearia')

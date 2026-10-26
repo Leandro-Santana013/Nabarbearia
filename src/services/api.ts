@@ -94,6 +94,7 @@ class ApiService {
   private csrfToken: string | null = null
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
+    const requestSession = this.csrfToken
     const headers = new Headers(init.headers)
     if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
     if (this.csrfToken) headers.set('X-CSRF-Token', this.csrfToken)
@@ -106,7 +107,7 @@ class ApiService {
     })
     const body = await response.json().catch(() => null)
     if (!response.ok) {
-      if (response.status === 401 && typeof window !== 'undefined' && window.location.pathname.startsWith('/equipe') && !path.startsWith('/auth/')) {
+      if (response.status === 401 && requestSession !== null && this.csrfToken === requestSession && typeof window !== 'undefined' && window.location.pathname.startsWith('/equipe') && !path.startsWith('/auth/')) {
         this.csrfToken = null
         window.dispatchEvent(new Event('staff-session-expired'))
       }
