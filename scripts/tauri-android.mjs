@@ -1,4 +1,5 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -50,6 +51,18 @@ child.on('exit', (code) => {
     mkdirSync(artifacts, { recursive: true })
     const delivery = join(artifacts, 'NA-Barbearia-arm64-release.apk')
     copyFileSync(apk, delivery)
+    const properties = readFileSync(join(root, 'src-tauri/gen/android/app/tauri.properties'), 'utf8')
+    const versionCode = Number(properties.match(/^tauri.android.versionCode=(\d+)$/m)?.[1])
+    const versionName = properties.match(/^tauri.android.versionName=(.+)$/m)?.[1]?.trim()
+    if (!Number.isSafeInteger(versionCode) || versionCode <= 0 || !versionName) {
+      throw new Error('Não foi possível obter a versão do APK compilado.')
+    }
+    writeFileSync(join(artifacts, 'release.json'), JSON.stringify({
+      version_code: versionCode,
+      version_name: versionName,
+      size_bytes: statSync(delivery).size,
+      sha256: createHash('sha256').update(readFileSync(delivery)).digest('hex'),
+    }, null, 2) + '\n')
     console.info(`APK de entrega: ${delivery}`)
   }
 })

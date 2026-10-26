@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { stopTestProcesses } from './stop-test-processes.mjs'
 import { randomBytes } from 'node:crypto'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -147,8 +147,65 @@ try {
   await login('owner@staff-flow.test')
   await waitText('Baixar APK Android')
   assert.equal(await evaluate('location.pathname'), '/equipe/download')
+
+  // A newer APK must take priority over both login and a saved dashboard URL.
+  const originalAgent = (await send('Browser.getVersion')).userAgent
+  const androidAgent = 'Mozilla/5.0 (Linux; Android 14; Test; wv) AppleWebKit/537.36 NABarbearia/'
+  const androidDirectory = join(temp, 'android')
+  mkdirSync(androidDirectory)
+  writeFileSync(join(androidDirectory, 'NA-Barbearia-arm64-release.apk'), Buffer.alloc(12000000))
+  writeFileSync(join(androidDirectory, 'release.json'), JSON.stringify({ version_code: 2002, version_name: '0.2.2', size_bytes: 12000000, sha256: 'a'.repeat(64) }))
+  await send('Network.setUserAgentOverride', { userAgent: androidAgent + '2001' })
+  await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
+  await navigate('/equipe/gestao/financeiro')
+  await waitText('Atualize para continuar')
+  assert(!(await text()).includes('Painel de Gestão'))
+  assert(!(await text()).includes('Acesso da equipe'))
+  assert(await evaluate('document.documentElement.scrollWidth <= innerWidth'))
+  mkdirSync(join(root, 'artifacts'), { recursive: true })
+  const screenshot = await send('Page.captureScreenshot', { format: 'png' })
+  writeFileSync(join(root, 'artifacts/android-update-screen.png'), Buffer.from(screenshot.data, 'base64'))
+  await evaluate("history.pushState({}, '', '/equipe/barbeiro'); dispatchEvent(new Event('popstate'))")
+  await waitText('Atualize para continuar')
+  await send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 })
+  await evaluate("dispatchEvent(new Event('staff-resume'))")
+  await waitText('Não foi possível verificar a versão')
+  await send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 })
+  await click('Tentar novamente')
+  await waitText('Atualize para continuar')
+  await click('Atualizar aplicativo')
+  await waitText('Baixando atualização…')
+  await evaluate("dispatchEvent(new CustomEvent('na-android-update', { detail: { state: 'error', message: 'Falha de download simulada' } }))")
+  await waitText('Falha de download simulada')
+  await until(() => evaluate("[...document.querySelectorAll('button')].some(b => b.textContent.includes('Atualizar aplicativo') && !b.disabled)"), 'tentar download novamente')
+
+  await send('Network.setUserAgentOverride', { userAgent: androidAgent + '2002' })
+  await navigate('/equipe')
+  await waitText('Painel de Gestão')
+  await send('Network.setUserAgentOverride', { userAgent: androidAgent + '2003' })
+  await navigate('/equipe')
+  await waitText('Painel de Gestão')
+  await send('Network.setUserAgentOverride', { userAgent: 'Mozilla/5.0 (Linux; Android 14; Test; wv) AppleWebKit/537.36' })
+  await navigate('/equipe')
+  await waitText('Nesta versão, abra o arquivo pela notificação')
+  await evaluate(`(async () => {
+    const session = await (await fetch('/api/v1/auth/session')).json();
+    await fetch('/api/v1/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': session.csrf_token }, body: '{}' });
+  })()`)
+  await send('Network.setUserAgentOverride', { userAgent: androidAgent + '2001' })
+  await navigate('/equipe/login')
+  await waitText('Atualize para continuar')
+  assert(!(await text()).includes('Acesso da equipe'))
+  await click('Atualizar aplicativo')
+  await waitText('Entre com sua conta da equipe para instalar a atualização.')
+  await login('owner@staff-flow.test')
+  await waitText('Baixando atualização…')
+  await send('Network.setUserAgentOverride', { userAgent: originalAgent })
+  await send('Emulation.clearDeviceMetricsOverride')
+  await navigate('/equipe')
+  await waitText('Painel de Gestão')
   assert.deepEqual(errors, [])
-  console.log('OK: site público preservado; equipe recusa cliente; barbeiro/dono, sessão, logout, revogação, download e recuperação de rede verificados.')
+  console.log('OK: acesso da equipe, sessão e download; atualização antes do login/painel, retorno ao app, falha de rede/download, login para atualizar, versões iguais/maiores, APK antigo e navegador comum verificados.')
 } catch (error) {
   console.error(error.message)
   if (evaluate) console.error(await evaluate('document.body.innerText').catch(() => 'Página indisponível'))

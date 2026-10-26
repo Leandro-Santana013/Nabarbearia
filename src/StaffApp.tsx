@@ -5,6 +5,7 @@ import LoginScreen from './pages/LoginScreen'
 import BarberDashboard from './pages/BarberDashboard'
 import OwnerDashboard from './pages/OwnerDashboard'
 import { Button } from './components/ui/button'
+import AndroidUpdateGate from './components/AndroidUpdateGate'
 
 function navigate(path: string, replace = false) {
   window.history[replace ? 'replaceState' : 'pushState']({}, '', path)
@@ -12,6 +13,10 @@ function navigate(path: string, replace = false) {
 }
 
 export default function StaffApp({ path }: { path: string }) {
+  return <AndroidUpdateGate><StaffSessionApp path={path} /></AndroidUpdateGate>
+}
+
+function StaffSessionApp({ path }: { path: string }) {
   const [downloadRequested] = useState(path === '/equipe/download')
   const [session, setSession] = useState<AuthResponse | null>(null)
   const [checking, setChecking] = useState(true)

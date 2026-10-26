@@ -2,10 +2,8 @@ package br.com.nabarbearia.app
 
 import android.os.Bundle
 import android.graphics.Color
-import android.app.DownloadManager
 import android.content.Intent
 import android.net.Uri
-import android.os.Environment
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.*
@@ -23,18 +21,32 @@ class MainActivity : TauriActivity() {
   override val handleBackNavigation: Boolean = true
   private var appWebView: WebView? = null
   private var hasResumed = false
+  private var updater: AppUpdater? = null
 
   override fun onResume() {
     super.onResume()
     // A backgrounded Activity can keep the old JavaScript alive indefinitely.
     // Reload the no-store HTTPS page on return so server updates reach this APK.
-    if (hasResumed) appWebView?.reload()
+    if (updater?.onResume() != true && hasResumed) appWebView?.reload()
     hasResumed = true
+  }
+
+  override fun onPause() {
+    updater?.onPause()
+    super.onPause()
+  }
+
+  override fun onDestroy() {
+    updater?.close()
+    super.onDestroy()
   }
 
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
     appWebView = webView
+    val marker = if (BuildConfig.DEBUG) "NABarbeariaDebug" else "NABarbearia"
+    webView.settings.userAgentString += " $marker/${BuildConfig.VERSION_CODE}"
+    updater = AppUpdater(this, webView)
     // Wry installs its client and content view after this hook. Configure on
     // attachment so it cannot overwrite the wrapper or remove the error panel.
     webView.post { configureWebView(webView) }
@@ -84,6 +96,10 @@ class MainActivity : TauriActivity() {
         val teamHost = "na-barbearia.duckdns.org"
         if (uri.scheme == "https" && uri.host == teamHost) {
           val path = uri.path ?: ""
+          if (path == "/api/v1/staff/android/apk") {
+            if (request.isForMainFrame) updater?.start(uri.toString())
+            return true
+          }
           if (path != "/equipe" && !path.startsWith("/equipe/") && path != "/api/v1/staff/android/apk") {
             view.loadUrl("https://$teamHost/equipe")
             return true
@@ -115,16 +131,7 @@ class MainActivity : TauriActivity() {
       }
     }
     webView.setDownloadListener { url, _, _, _, _ ->
-      val uri = Uri.parse(url)
-      if (uri.scheme == "https" && uri.host == "na-barbearia.duckdns.org" && uri.path == "/api/v1/staff/android/apk") {
-        val request = DownloadManager.Request(uri)
-          .addRequestHeader("Cookie", CookieManager.getInstance().getCookie(url) ?: "")
-          .setMimeType("application/vnd.android.package-archive")
-          .setTitle("NA Barbearia — atualização")
-          .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-          .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "NA-Barbearia-${System.currentTimeMillis()}.apk")
-        (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
-      }
+      updater?.start(url)
     }
   }
 

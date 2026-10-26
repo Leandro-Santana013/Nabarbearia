@@ -1,3 +1,4 @@
+mod android;
 mod owner;
 use std::{collections::HashSet, str::FromStr, time::Duration};
 
@@ -71,6 +72,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/auth/login", post(login))
         .route("/api/v1/auth/staff/login", post(staff_login))
         .route("/api/v1/staff/android/apk", get(staff_android_apk))
+        .route("/api/v1/staff/android/release", get(android::release))
         .route("/api/v1/auth/session", get(auth_session))
         .route("/api/v1/auth/logout", post(logout))
         .route("/api/v1/public/services", get(public_services))
@@ -2743,6 +2745,85 @@ mod tests {
             .next()
             .unwrap()
             .to_string()
+    }
+
+    #[tokio::test]
+    async fn android_release_is_public_but_only_advertises_a_published_apk() {
+        let directory = std::env::temp_dir().join(format!("na-release-test-{}", Uuid::now_v7()));
+        std::fs::create_dir_all(directory.join("android")).unwrap();
+        let mut state = test_state();
+        Arc::get_mut(&mut state.config).unwrap().db_path = directory.join("test.db");
+        let app = router(state);
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/staff/android/release")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+        assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+        let release = json!({ "version_code":2002, "version_name":"0.2.2", "size_bytes":4, "sha256":"a".repeat(64) });
+        std::fs::write(directory.join("android/release.json"), release.to_string()).unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/staff/android/release")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+        std::fs::write(
+            directory.join("android/NA-Barbearia-arm64-release.apk"),
+            [1_u8, 2, 3, 4],
+        )
+        .unwrap();
+        let (status, headers, body) = request_json(
+            &app,
+            "GET",
+            "/api/v1/staff/android/release",
+            json!(null),
+            None,
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(headers[header::CACHE_CONTROL], "no-store");
+        assert_eq!(body, release);
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/staff/android/apk")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        std::fs::write(
+            directory.join("android/NA-Barbearia-arm64-release.apk"),
+            [1_u8],
+        )
+        .unwrap();
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/staff/android/release")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        std::fs::remove_dir_all(directory).unwrap();
     }
 
     #[tokio::test]

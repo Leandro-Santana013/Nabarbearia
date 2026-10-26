@@ -134,6 +134,31 @@ Ambos são ignorados pelo Git. O Gradle usa essa chave para assinar a versão
 release; `android:build:debug` gera a variante de desenvolvimento separada.
 O APK de release fica em `src-tauri/gen/android/app/build/outputs/apk/`.
 
+### Atualizações do aplicativo da equipe
+
+O app verifica a versão Android antes de mostrar login ou painel e ao retornar do segundo plano.
+Se houver uma versão mais nova, a tela **Atualize para continuar** bloqueia o painel e oferece
+**Atualizar aplicativo**. Se a sessão expirou, o login da equipe é solicitado nessa etapa.
+O download usa a sessão existente; o Android solicita autorização de instalação e confirmação.
+Cancelar a instalação mantém a tela de atualização. Navegadores comuns não recebem esse bloqueio.
+
+`npm run android:build` gera `artifacts/NA-Barbearia-arm64-release.apk` e `artifacts/release.json`
+com versão, tamanho e SHA-256. Aumente `version` em `src-tauri/tauri.conf.json` e
+`src-tauri/Cargo.toml` a cada atualização nativa e preserve a chave de assinatura.
+Publique o backend e a interface junto com os dois arquivos Android no diretório `android/`
+ao lado do banco de produção (por exemplo, `/var/lib/nabarbearia/android/`).
+Envie primeiro os arquivos com nomes temporários, confira o SHA-256 e substitua o APK,
+depois `release.json`, por renomeação. Não anuncie um manifesto antes do respectivo APK.
+
+`GET /api/v1/staff/android/release` disponibiliza somente informações da versão, sem cache;
+sem manifesto ou APK, retorna 204. O APK continua restrito a barbeiros e proprietário em
+`GET /api/v1/staff/android/apk`. Uma falha na consulta oferece **Tentar novamente**.
+Apps antigos sem identificação de versão são reconhecidos pelo Android WebView e recebem
+a orientação para abrir o arquivo pela notificação de download nesta primeira atualização.
+É preciso instalar uma vez o APK 0.2.2 ou posterior para habilitar a abertura do instalador
+pelo próprio app. Este fluxo é destinado à distribuição direta do APK; uma publicação na
+Google Play deve usar o mecanismo de atualização da loja.
+
 Para instalar a atualização por USB, opcionalmente use:
 
 ```powershell
