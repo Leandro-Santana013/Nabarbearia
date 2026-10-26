@@ -35,6 +35,12 @@ class MainActivity : TauriActivity() {
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
     appWebView = webView
+    // Wry installs its client and content view after this hook. Configure on
+    // attachment so it cannot overwrite the wrapper or remove the error panel.
+    webView.post { configureWebView(webView) }
+  }
+
+  private fun configureWebView(webView: WebView) {
     val delegate = if (WebViewFeature.isFeatureSupported(WebViewFeature.GET_WEB_VIEW_CLIENT)) {
       WebViewCompat.getWebViewClient(webView)
     } else RustWebViewClient(webView as RustWebView, this)
@@ -55,10 +61,14 @@ class MainActivity : TauriActivity() {
         addView(TextView(this@MainActivity).apply {
           text = "Não foi possível conectar à NA Barbearia.\nVerifique sua internet e tente novamente."
           textSize = 18f
+          setTextColor(Color.rgb(17, 24, 39))
           gravity = android.view.Gravity.CENTER
         })
         addView(Button(this@MainActivity).apply {
           text = "Tentar novamente"
+          isAllCaps = false
+          setTextColor(Color.WHITE)
+          backgroundTintList = android.content.res.ColorStateList.valueOf(Color.rgb(0, 153, 255))
           setOnClickListener { hideError(); webView.loadUrl(retryUrl) }
         })
       }

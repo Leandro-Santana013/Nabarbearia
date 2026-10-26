@@ -69,7 +69,7 @@ export default function LoginScreen({
           <div aria-hidden="true" className="mb-2 flex size-16 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground shadow-md shadow-blue-500/15">NA</div>
           <h1 className="text-xl leading-tight font-bold">{staffOnly ? "Acesso da equipe" : isRegister ? "Crie sua conta" : "Bem-vindo de volta!"}</h1>
           <p className="max-w-64 text-xs leading-relaxed text-gray-500">
-            {staffOnly ? "Entre para acessar sua agenda ou a gestão da NA Barbearia." : isRegister ? `Cadastre-se para agendar e acompanhar seus serviços na ${BARBERSHOP_INFO.name}.` : `Acesse sua conta para agendar e acompanhar seus serviços na ${BARBERSHOP_INFO.name}.`}
+            {staffOnly ? "Entre com sua conta de barbeiro ou proprietário da NA Barbearia." : isRegister ? `Cadastre-se para agendar e acompanhar seus serviços na ${BARBERSHOP_INFO.name}.` : `Acesse sua conta para agendar e acompanhar seus serviços na ${BARBERSHOP_INFO.name}.`}
           </p>
         </header>
 

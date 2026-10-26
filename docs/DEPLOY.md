@@ -187,6 +187,15 @@ Primeiro valide no celular atual: sem cabo, Wi-Fi/4G, login, reabertura, logout,
 WhatsApp e atualização sobre a versão anterior. O erro inicial de conexão possui uma tela nativa de tentativa
 novamente. Site e conta de cliente continuam pelo navegador.
 
+Antes do login do piloto, com o celular autorizado no ADB, execute a regressão física:
+
+```powershell
+python scripts/check-android-offline.py --serial SERIAL_DO_ADB
+```
+
+Ela abre o app sem rede, exige o botão nativo de nova tentativa, restaura os estados anteriores de
+Wi-Fi/dados e verifica a recuperação do login. As capturas ficam em `artifacts/android-offline-check`.
+
 ## Diagnóstico e verificações
 
 ```bash
