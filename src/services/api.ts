@@ -102,9 +102,14 @@ class ApiService {
       ...init,
       headers,
       credentials: 'include',
+      signal: init.signal ?? AbortSignal.timeout(20000),
     })
     const body = await response.json().catch(() => null)
     if (!response.ok) {
+      if (response.status === 401 && typeof window !== 'undefined' && window.location.pathname.startsWith('/equipe') && !path.startsWith('/auth/')) {
+        this.csrfToken = null
+        window.dispatchEvent(new Event('staff-session-expired'))
+      }
       throw new ApiError(body?.message ?? 'Não foi possível concluir a operação.', body?.code, response.status)
     }
     return body as T
@@ -139,6 +144,13 @@ class ApiService {
 
   async login(email: string, password: string): Promise<AuthResponse> {
     return this.setSession(await this.request<AuthResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    }))
+  }
+
+  async staffLogin(email: string, password: string): Promise<AuthResponse> {
+    return this.setSession(await this.request<AuthResponse>('/auth/staff/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     }))

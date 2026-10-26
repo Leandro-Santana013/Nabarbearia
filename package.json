@@ -7,7 +7,7 @@
     "tauri": "tauri",
     "android:init": "node scripts/tauri-android.mjs init --ci --skip-targets-install",
     "android:signing": "node scripts/android-signing.mjs",
-    "android:build": "npm run android:signing && node scripts/tauri-android.mjs build --apk --target aarch64",
+    "android:build": "node scripts/tauri-android.mjs build --apk --target aarch64",
     "android:build:debug": "node scripts/tauri-android.mjs build --debug --apk --target aarch64",
     "android:serve": "vite preview --host 127.0.0.1 --port 5173 --strictPort",
     "dev": "vite",
@@ -17,6 +17,7 @@
     "test": "vitest run",
     "test:client-flow": "npm run build && node scripts/check-client-flow.mjs",
     "test:owner-flow": "npm run build && node scripts/check-owner-flow.mjs",
+    "test:staff-flow": "npm run build && node scripts/check-staff-flow.mjs",
     "test:barber-responsive": "npm run build && node scripts/check-barber-responsive.mjs",
     "test:watch": "vitest"
   },

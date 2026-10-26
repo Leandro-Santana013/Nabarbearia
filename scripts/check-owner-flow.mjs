@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { stopTestProcesses } from "./stop-test-processes.mjs";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -54,7 +55,7 @@ function launch(command, args, env = {}) {
   return child;
 }
 try {
-  launch("cargo", ["run", "--manifest-path", "backend/Cargo.toml"], {
+  launch(process.env.NABARBEARIA_TEST_BACKEND ?? "cargo", process.env.NABARBEARIA_TEST_BACKEND ? [] : ["run", "--manifest-path", "backend/Cargo.toml"], {
     NABARBEARIA_BIND: "127.0.0.1:3011",
     NABARBEARIA_DB_PATH: join(temp, "test.db"),
     NABARBEARIA_FRONTEND_DIR: join(root, "dist"),
@@ -583,5 +584,5 @@ try {
   process.exitCode = 1;
 } finally {
   socket?.close();
-  for (const child of processes.reverse()) child.kill("SIGTERM");
+  stopTestProcesses(processes);
 }

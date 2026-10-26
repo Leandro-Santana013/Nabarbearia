@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { stopTestProcesses } from './stop-test-processes.mjs'
 import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -42,7 +43,7 @@ function launch(command, args, env = {}) {
   return child
 }
 try {
-  launch('cargo', ['run', '--manifest-path', 'backend/Cargo.toml'], {
+  launch(process.env.NABARBEARIA_TEST_BACKEND ?? 'cargo', process.env.NABARBEARIA_TEST_BACKEND ? [] : ['run', '--manifest-path', 'backend/Cargo.toml'], {
     NABARBEARIA_BIND: '127.0.0.1:3011', NABARBEARIA_DB_PATH: join(temp, 'test.db'),
     NABARBEARIA_FRONTEND_DIR: join(root, 'dist'), NABARBEARIA_BOOTSTRAP_TOKEN: token,
     NABARBEARIA_ALLOWED_ORIGINS: origin, NABARBEARIA_SECURE_COOKIES: 'false',
@@ -160,8 +161,8 @@ try {
   await navigate('/barbeiro'); await waitText('Bem-vindo de volta!')
   await fill('input[name="email"]', 'barber@client-flow.test'); await fill('input[name="password"]', password)
   await click('Entrar'); await waitText('Olá, Sorriso!')
-  const dayLabel = `${new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC', weekday: 'short' }).format(day).replace('.', '').toUpperCase()} ${day.getUTCDate()}`
-  await click(dayLabel); await waitText('Agenda do Dia')
+  const selectProfessionalDate = () => clickSelector(`button[aria-label=${JSON.stringify(dateLabel)}]`)
+  await selectProfessionalDate(); await waitText('Agenda do Dia')
   const formField = async (label, value, select = false) => evaluate(`(() => {
     const label = [...document.querySelectorAll('label')].find(el => el.firstChild?.textContent.trim() === ${JSON.stringify(label)});
     const input = label.querySelector(${JSON.stringify(select ? 'select' : 'input')});
@@ -169,7 +170,7 @@ try {
     input.dispatchEvent(new Event(${JSON.stringify(select ? 'change' : 'input')}, { bubbles: true }));
   })()`)
   async function walkIn(name, time) {
-    await click('Cliente Presencial (Encaixe)'); await waitText('Novo atendimento presencial')
+    await click('Novo encaixe'); await waitText('Novo atendimento presencial')
     await formField('Nome do cliente', name)
     await formField('WhatsApp (opcional)', '13999998888')
     await formField('Serviço', service.id, true)
@@ -193,14 +194,15 @@ try {
   assert.equal((await appointments()).find(item => item.id === walkin.id).client_note, 'Navalhado leve')
   await click('Iniciar Atendimento'); await waitText('Em Atendimento')
   assert.equal(await evaluate("document.querySelector('section[aria-labelledby] > [data-slot=card]')?.textContent.includes('Em Atendimento')"), true)
-  assert.equal(await evaluate(`(() => {
+  const activeLayout = await evaluate(`(() => {
     const hero = document.querySelector('section[aria-labelledby] > [data-slot=card]');
     const dates = document.querySelector('[aria-label="Consultar data"]');
     const action = [...hero.querySelectorAll('button')].find(button => button.textContent.includes('Concluir Serviço'));
-    return hero.getBoundingClientRect().top < 400 && dates.getBoundingClientRect().bottom <= hero.getBoundingClientRect().top && action.getBoundingClientRect().bottom <= document.querySelector('[aria-label="Navegação do barbeiro"]').getBoundingClientRect().top;
-  })()`), true)
+    return { heroTop: hero.getBoundingClientRect().top, datesBottom: dates.getBoundingClientRect().bottom, actionBottom: action.getBoundingClientRect().bottom, navigationTop: document.querySelector('[aria-label="Navegação do barbeiro"]').getBoundingClientRect().top };
+  })()`)
+  assert(activeLayout.heroTop >= 0 && activeLayout.datesBottom <= activeLayout.heroTop && activeLayout.actionBottom <= activeLayout.navigationTop, JSON.stringify(activeLayout))
   writeFileSync(join(temp, 'barber-active.png'), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'))
-  await send('Page.reload'); await waitText('Olá, Sorriso!'); await click(dayLabel); await waitText('Em Atendimento')
+  await send('Page.reload'); await waitText('Olá, Sorriso!'); await selectProfessionalDate(); await waitText('Em Atendimento')
   await click('Concluir Serviço'); await waitText('Serviço concluído com sucesso.')
   assert.equal((await appointments()).find(item => item.id === walkin.id).status, 'completed')
   assert.equal((await appointments()).find(item => item.id === walkin.id).commission_cents, 4500)
@@ -218,12 +220,12 @@ try {
   await evaluate(`[...document.querySelectorAll('summary')].find(el => el.textContent.includes('Atendimentos Concluídos')).click()`)
   await walkIn('Falta Teste', '11:00'); await click('Falta'); await click('Registrar falta'); await waitText('Falta registrada.')
   assert.equal((await appointments()).find(item => item.client_display_name === 'Falta Teste').status, 'no_show')
-  await click('Almoço (1h)'); await formField('Horário de início · Brasília', '12:00'); await click('Confirmar pausa')
+  await click('Almoço 1h'); await formField('Horário de início · Brasília', '12:00'); await click('Confirmar pausa')
   await waitText('Pausa bloqueada na agenda.'); await waitText('Almoço · 12:00–13:00')
   const selectedDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' }).format(day)
   const slots = (await request(`/public/availability?${new URLSearchParams({ date: selectedDate, service_id: service.id, barber_id: barber.id })}`)).body
   assert(!slots.some(slot => slot.starts_at === `${selectedDate}T15:00:00Z`))
-  await send('Page.reload'); await waitText('Olá, Sorriso!'); await click(dayLabel); await waitText('Almoço · 12:00–13:00')
+  await send('Page.reload'); await waitText('Olá, Sorriso!'); await selectProfessionalDate(); await waitText('Almoço · 12:00–13:00')
   writeFileSync(join(temp, 'barber.png'), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'))
   const barberLogin = await request('/auth/login', { email: 'barber@client-flow.test', password })
   const barberAuth = { cookie: barberLogin.cookie, csrf: barberLogin.body.csrf_token }
@@ -253,5 +255,5 @@ try {
   process.exitCode = 1
 } finally {
   socket?.close()
-  for (const child of processes.reverse()) child.kill('SIGTERM')
+  stopTestProcesses(processes)
 }

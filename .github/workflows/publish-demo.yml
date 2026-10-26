@@ -1,0 +1,95 @@
+name: Publicar demonstração
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publicar no servidor após os testes (desmarque para gerar somente o pacote)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nabarbearia-demo
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CHROME_BIN: /usr/bin/google-chrome
+      NABARBEARIA_TEST_BACKEND: ${{ github.workspace }}/backend/target/debug/nabarbearia-backend
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_DOMAIN: ${{ vars.DEPLOY_DOMAIN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Validar configurações
+        if: inputs.publish
+        run: |
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_USER"
+          test -n "$DEPLOY_DOMAIN"
+          test "$DEPLOY_DOMAIN" = na-barbearia.duckdns.org
+      - name: Instalar dependências
+        run: |
+          npm ci
+          rustup update stable --no-self-update
+          rustup default stable
+      - name: Testar frontend e operações de banco
+        run: |
+          npm test
+          npm run build
+          python3 -m unittest discover -s deploy -p test_operations.py -v
+          python3 -m py_compile deploy/operations.py deploy/bootstrap.py
+          node --check scripts/check-staff-flow.mjs
+          node --check scripts/tauri-android.mjs
+      - name: Testar backend e fluxos reais
+        run: |
+          cargo fmt --manifest-path backend/Cargo.toml --check
+          cargo test --locked --manifest-path backend/Cargo.toml
+          cargo clippy --locked --manifest-path backend/Cargo.toml -- -D warnings
+          cargo build --locked --manifest-path backend/Cargo.toml
+          node scripts/check-client-flow.mjs
+          node scripts/check-owner-flow.mjs
+          node scripts/check-staff-flow.mjs
+      - name: Compilar e empacotar Linux AMD64
+        run: |
+          cargo build --release --locked --manifest-path backend/Cargo.toml
+          mkdir -p build-release
+          install -m755 backend/target/release/nabarbearia-backend build-release/backend
+          cp -R dist build-release/dist
+          printf '%s\n' "$GITHUB_SHA" > build-release/REVISION
+          tar -czf release.tar.gz -C build-release backend dist REVISION
+          sha256sum release.tar.gz > release.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-amd64-${{ github.sha }}
+          path: |
+            release.tar.gz
+            release.tar.gz.sha256
+          retention-days: 7
+      - name: Publicar com backup e recuperação
+        if: inputs.publish
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          trap 'rm -f ~/.ssh/deploy_key' EXIT
+          target="${DEPLOY_USER}@${DEPLOY_HOST}"
+          scp -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes release.tar.gz "$target:/tmp/nabarbearia-${GITHUB_SHA}.tar.gz"
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "$target" "sudo /usr/local/sbin/nabarbearia deploy /tmp/nabarbearia-${GITHUB_SHA}.tar.gz ${GITHUB_SHA}"
+          curl --fail --retry 3 --retry-delay 5 "https://${DEPLOY_DOMAIN}/api/v1/health"

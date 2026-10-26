@@ -10,7 +10,7 @@ const inputClass = "h-11 rounded-xl! border-gray-200! bg-white! px-3.5! py-2.5! 
 
 /** @param {import("./LoginScreen.types").LoginScreenProps} props */
 export default function LoginScreen({
-  initialMode = "login", initialError = "", onAuthenticated, onGuest, onGoogleSignIn,
+  initialMode = "login", initialError = "", onAuthenticated, onGuest, onGoogleSignIn, staffOnly = false,
 } = {}) {
   const [mode, setMode] = useState(initialMode)
   const [name, setName] = useState("")
@@ -23,7 +23,7 @@ export default function LoginScreen({
   const nameRef = useRef(null)
   const emailRef = useRef(null)
   const id = useId()
-  const isRegister = mode === "register"
+  const isRegister = !staffOnly && mode === "register"
   const supportUrl = `${WHATSAPP_URL}?text=${encodeURIComponent(`Olá! Preciso de ajuda para acessar minha conta na ${BARBERSHOP_INFO.name}.`)}`
 
   function authenticated(session) {
@@ -38,7 +38,9 @@ export default function LoginScreen({
     setBusy(true)
     setError("")
     try {
-      const session = social
+      const session = staffOnly
+        ? await api.staffLogin(email.trim(), password)
+        : social
         ? await onGoogleSignIn()
         : isRegister
           ? await api.register(email.trim(), password, name.trim())
@@ -65,25 +67,25 @@ export default function LoginScreen({
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-between gap-6 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:p-6">
         <header className="mt-6 flex flex-col items-center gap-2 text-center">
           <div aria-hidden="true" className="mb-2 flex size-16 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground shadow-md shadow-blue-500/15">NA</div>
-          <h1 className="text-xl leading-tight font-bold">{isRegister ? "Crie sua conta" : "Bem-vindo de volta!"}</h1>
+          <h1 className="text-xl leading-tight font-bold">{staffOnly ? "Acesso da equipe" : isRegister ? "Crie sua conta" : "Bem-vindo de volta!"}</h1>
           <p className="max-w-64 text-xs leading-relaxed text-gray-500">
-            {isRegister ? `Cadastre-se para agendar e acompanhar seus serviços na ${BARBERSHOP_INFO.name}.` : `Acesse sua conta para agendar e acompanhar seus serviços na ${BARBERSHOP_INFO.name}.`}
+            {staffOnly ? "Entre para acessar sua agenda ou a gestão da NA Barbearia." : isRegister ? `Cadastre-se para agendar e acompanhar seus serviços na ${BARBERSHOP_INFO.name}.` : `Acesse sua conta para agendar e acompanhar seus serviços na ${BARBERSHOP_INFO.name}.`}
           </p>
         </header>
 
         <section aria-label={isRegister ? "Cadastro de cliente" : "Acesso à conta"} className="my-auto flex flex-col gap-4 py-5">
-          <div>
+          {!staffOnly && <div>
             <Button type="button" variant="outline" disabled={busy || !onGoogleSignIn} onClick={() => authenticate(true)} aria-describedby={!onGoogleSignIn ? `${id}-google-status` : undefined} className="h-11 w-full gap-2.5 rounded-xl border-gray-200 bg-white px-4 py-2.5 text-xs! font-semibold! text-gray-700 shadow-sm transition-colors hover:bg-gray-50">
               <img src="/icons/google.svg" alt="" aria-hidden="true" className="size-4" />
               Continuar com o Google
             </Button>
             {!onGoogleSignIn && <p id={`${id}-google-status`} className="mt-1.5 text-center text-[11px] text-gray-400">Acesso com Google ainda não disponível.</p>}
-          </div>
-          <div className="my-1 flex items-center gap-3">
+          </div>}
+          {!staffOnly && <div className="my-1 flex items-center gap-3">
             <span aria-hidden="true" className="flex-1 border-t border-gray-200" />
             <span className="text-[11px] font-medium text-gray-400">{isRegister ? "ou cadastre-se com e-mail" : "ou entre com e-mail"}</span>
             <span aria-hidden="true" className="flex-1 border-t border-gray-200" />
-          </div>
+          </div>}
           {error && <Alert variant="destructive" className="rounded-xl border-destructive/20 bg-white p-3"><AlertDescription className="text-xs leading-relaxed text-destructive">{error}</AlertDescription></Alert>}
 
           <form onSubmit={(event) => { event.preventDefault(); void authenticate() }} aria-busy={busy} className="space-y-3">
@@ -117,7 +119,7 @@ export default function LoginScreen({
           </form>
         </section>
 
-        <footer className="mb-2 flex flex-col items-center gap-3 text-center">
+        {!staffOnly && <footer className="mb-2 flex flex-col items-center gap-3 text-center">
           <p className="text-xs text-gray-500">
             {isRegister ? "Já tem uma conta?" : "Ainda não tem uma conta?"}{" "}
             <button type="button" disabled={busy} onClick={changeMode} className="rounded-sm text-xs! font-bold! text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary disabled:opacity-50">{isRegister ? "Entrar" : "Cadastre-se"}</button>
@@ -125,7 +127,7 @@ export default function LoginScreen({
           <Button type="button" variant="ghost" disabled={busy} onClick={onGuest ?? (() => window.location.assign("/home"))} className="min-h-11 gap-1 rounded-xl px-3 py-2 text-xs! font-medium! text-gray-400 transition-colors hover:text-gray-600">
             Continuar como visitante <ArrowRight aria-hidden="true" className="size-3.5" />
           </Button>
-        </footer>
+        </footer>}
       </main>
     </div>
   )

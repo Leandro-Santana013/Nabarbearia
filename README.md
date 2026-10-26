@@ -100,12 +100,15 @@ npm run dev:backend
 
 Com o build disponível em `dist/`, o próprio backend serve a aplicação em **http://127.0.0.1:3001**. Encerre uma instância já aberta antes de iniciar outra na mesma porta.
 
-## Android com Tauri: APK assinado por USB
+## Android com Tauri: aplicativo online da equipe
 
-O projeto inclui um aplicativo Tauri 2 para Android ARM64. Esta configuração é
-destinada a testes com o celular conectado ao computador: a WebView abre
-`http://127.0.0.1:5173` pelo encaminhamento USB do ADB. O frontend e a API
-continuam no computador; o APK não contém um backend nem funciona offline.
+O aplicativo Tauri 2 para Android ARM64 abre **https://na-barbearia.duckdns.org/equipe**.
+Barbeiros e proprietário entram nessa área; clientes continuam usando o site com
+landing page, cadastro e agendamento. Uma sessão válida é restaurada por até sete dias.
+O aplicativo exige internet e usa o backend hospedado, sem depender de USB ou do computador ligado.
+
+O [guia de implantação e atualizações](docs/DEPLOY.md) explica Oracle, HTTPS, migração única do banco,
+backups privados, recuperação e o workflow manual **Publicar demonstração** no GitHub Actions.
 
 São necessários Android SDK/NDK, JDK 21, depuração USB autorizada e Rust com o
 alvo `aarch64-linux-android`. No Windows, o script usa o JDK do Android Studio,
@@ -115,11 +118,12 @@ padrão do backend:
 ```powershell
 rustup toolchain install stable-x86_64-pc-windows-gnu --profile minimal --target aarch64-linux-android
 npm run android:init
-npm run android:signing
 npm run android:build
 ```
 
-`android:signing` cria uma chave local e preserva uma chave já existente.
+`android:build` exige a assinatura existente para atualizar o app instalado.
+Somente em uma instalação inteiramente nova, sem assinatura anterior a preservar,
+use `npm run android:signing` para criar a chave.
 Guarde um backup privado destes dois arquivos, necessários para futuras
 atualizações com a mesma assinatura:
 
@@ -130,21 +134,18 @@ Ambos são ignorados pelo Git. O Gradle usa essa chave para assinar a versão
 release; `android:build:debug` gera a variante de desenvolvimento separada.
 O APK de release fica em `src-tauri/gen/android/app/build/outputs/apk/`.
 
-Para executar pelo cabo, mantenha `npm run dev:backend` e
-`npm run android:serve` em terminais separados. Então:
+Para instalar a atualização por USB, opcionalmente use:
 
 ```powershell
 adb devices
-adb -d reverse tcp:5173 tcp:5173
 adb -d install -r artifacts/NA-Barbearia-arm64-release.apk
 adb -d shell am start -n br.com.nabarbearia.app/.MainActivity
 ```
 
-O arquivo em `artifacts/` é a cópia de entrega da build assinada. Ao reconectar
-o celular, repita o encaminhamento `adb reverse`. Para distribuir um aplicativo
-independente do cabo, configure um servidor HTTPS acessível ao celular no lugar
-da URL local em `src-tauri/tauri.conf.json`. A permissão de HTTP do Android está
-restrita a `localhost` e `127.0.0.1`.
+O arquivo em `artifacts/` é a cópia de entrega da build assinada. Após instalar,
+o cabo pode ser desconectado. A equipe também pode entrar pelo navegador em
+`/equipe/download` e baixar o APK autenticado. Alterações nas telas e no backend
+chegam pela publicação no servidor; alterações nativas exigem outro APK com versão superior.
 
 ## Rotas e acesso
 
@@ -152,6 +153,9 @@ restrita a `localhost` e `127.0.0.1`.
 | --- | --- | --- |
 | Público | `/` | Apresentação da barbearia e localização |
 | Público | `/login`, `/entrar`, `/cadastro` | Autenticação e cadastro de cliente |
+| Equipe | `/equipe`, `/equipe/login` | Login exclusivo de barbeiro/proprietário e restauração de sessão |
+| Equipe | `/equipe/barbeiro`, `/equipe/gestao/...` | Painéis dentro do aplicativo |
+| Equipe | `/equipe/download` | Download autenticado do APK |
 | Cliente | `/home` | Catálogo de serviços |
 | Cliente | `/servico`, `/detalhes` | Seleção de profissional |
 | Cliente | `/horarios` | Seleção de data e horário |
@@ -199,6 +203,7 @@ Para os fluxos completos no navegador:
 ```bash
 npm run test:client-flow
 npm run test:owner-flow
+npm run test:staff-flow
 ```
 
 - **Cliente/barbeiro:** login, reserva, comprovante, remarcação, avaliação, cancelamento, encaixe, observações, início/conclusão, falta, pausas e navegação entre abas.

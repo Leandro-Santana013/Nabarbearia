@@ -6,6 +6,13 @@ import { fileURLToPath } from 'node:url'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const env = { ...process.env }
+if (process.argv[2] === 'build' && !process.argv.includes('--debug')) {
+  for (const name of ['nabarbearia-release.p12', 'keystore.properties']) {
+    if (!existsSync(join(root, 'src-tauri/gen/android', name))) {
+      throw new Error(`Assinatura ausente: ${name}. Restaure o backup para atualizar o app existente. Para uma primeira instalação nova, execute android:signing explicitamente.`)
+    }
+  }
+}
 delete env.DEBUG
 const gradleCache = join(tmpdir(), 'nabarbearia-android-gradle-cache').replaceAll('\\', '/')
 env.GRADLE_OPTS = [env.GRADLE_OPTS, `"-Dorg.gradle.projectcachedir=${gradleCache}"`].filter(Boolean).join(' ')

@@ -16,3 +16,5 @@ artifacts/
 # Arquivos temporários do SQLite em execução.
 *.db-wal
 *.db-shm
+__pycache__/
+*.pyc

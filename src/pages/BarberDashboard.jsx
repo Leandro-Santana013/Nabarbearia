@@ -13,7 +13,7 @@ import { ApiError, api } from "@/services/api"
 import { dailySchedule, isAppointmentInProgress, money, shopDate, scheduleTime } from "@/lib/barber-schedule"
 
 /** @param {import("./BarberDashboard.types").BarberDashboardProps} props */
-export default function BarberDashboard({ session: initialSession } = {}) {
+export default function BarberDashboard({ session: initialSession, onLogout } = {}) {
   const [activeTab, setActiveTab] = useState("agenda")
   const [session, setSession] = useState(initialSession ?? null)
   const [checkingSession, setCheckingSession] = useState(!initialSession)
@@ -137,7 +137,8 @@ export default function BarberDashboard({ session: initialSession } = {}) {
     setError("")
     try {
       await api.logout()
-      window.location.assign("/login")
+      if (onLogout) onLogout()
+      else window.location.assign("/login")
     } catch {
       setError("Não foi possível sair da conta. Tente novamente.")
       actionPending.current = false

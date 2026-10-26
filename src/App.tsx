@@ -7,6 +7,7 @@ import StyleguidePage from '../app/styleguide/page'
 import LoginScreen from './pages/LoginScreen'
 import BarberDashboard from './pages/BarberDashboard'
 import OwnerDashboard from './pages/OwnerDashboard'
+import StaffApp from './StaffApp'
 
 export function navigateTo(path: string) {
   window.history.pushState({}, '', path)
@@ -24,6 +25,7 @@ export default function App() {
   }, [])
 
   const cleanPath = currentPath.replace(/\/$/, '')
+  if (cleanPath === '/equipe' || cleanPath.startsWith('/equipe/')) return <StaffApp path={cleanPath} />
   if (cleanPath === '/gestao' || cleanPath.startsWith('/gestao/')) return <OwnerDashboard path={cleanPath} onNavigate={navigateTo} />
   if (CLIENT_ROUTES.has(cleanPath)) return <ClientApp path={cleanPath} onNavigate={navigateTo} />
   if (cleanPath === '/barbeiro' || cleanPath.startsWith('/barbeiro/')) return <BarberDashboard />

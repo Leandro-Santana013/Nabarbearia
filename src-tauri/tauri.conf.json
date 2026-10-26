@@ -1,11 +1,11 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "NA Barbearia",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "br.com.nabarbearia.app",
   "build": {
-    "frontendDist": "http://127.0.0.1:5173",
-    "devUrl": "http://127.0.0.1:5173",
+    "frontendDist": "https://na-barbearia.duckdns.org/equipe",
+    "devUrl": "http://127.0.0.1:5173/equipe",
     "beforeDevCommand": "npm run dev -- --host 127.0.0.1 --port 5173 --strictPort",
     "beforeBuildCommand": "npm run build"
   },

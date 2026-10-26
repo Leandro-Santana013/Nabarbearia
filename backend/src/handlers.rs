@@ -16,6 +16,7 @@ use chrono::{
 use chrono_tz::Tz;
 use rusqlite::{OptionalExtension, TransactionBehavior, params};
 use serde_json::json;
+use tower::ServiceExt;
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
 
@@ -68,6 +69,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/setup/owner", post(setup_owner))
         .route("/api/v1/auth/register", post(register))
         .route("/api/v1/auth/login", post(login))
+        .route("/api/v1/auth/staff/login", post(staff_login))
+        .route("/api/v1/staff/android/apk", get(staff_android_apk))
         .route("/api/v1/auth/session", get(auth_session))
         .route("/api/v1/auth/logout", post(logout))
         .route("/api/v1/public/services", get(public_services))
@@ -337,6 +340,23 @@ async fn login(
     headers: HeaderMap,
     Json(request): Json<LoginRequest>,
 ) -> ApiResult<(HeaderMap, Json<AuthResponse>)> {
+    login_for_channel(state, headers, request, false).await
+}
+
+async fn staff_login(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(request): Json<LoginRequest>,
+) -> ApiResult<(HeaderMap, Json<AuthResponse>)> {
+    login_for_channel(state, headers, request, true).await
+}
+
+async fn login_for_channel(
+    state: AppState,
+    headers: HeaderMap,
+    request: LoginRequest,
+    staff_only: bool,
+) -> ApiResult<(HeaderMap, Json<AuthResponse>)> {
     check_origin(&headers, &state.config.allowed_origins)?;
     let email = email_address(&request.email)?;
     if !state
@@ -374,6 +394,13 @@ async fn login(
         return Err(AppError::unauthorized());
     }
     let roles = load_roles(&state, &business_id, &user_id).await?;
+    if staff_only && !roles.contains(&Role::Owner) && !roles.contains(&Role::Barber) {
+        return Err(AppError::Api {
+            status: StatusCode::FORBIDDEN,
+            code: "STAFF_ONLY",
+            message: "Este acesso é exclusivo para barbeiros e proprietário.",
+        });
+    }
     let user = AuthUser {
         id: user_id,
         business_id,
@@ -383,6 +410,47 @@ async fn login(
     };
     let session = create_session(&state, &user).await?;
     auth_json_response(&state, user, session)
+}
+
+async fn staff_android_apk(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> ApiResult<Response> {
+    let context = authenticate(&state, &headers).await?;
+    if !context.user.roles.contains(&Role::Owner) && !context.user.roles.contains(&Role::Barber) {
+        return Err(AppError::forbidden());
+    }
+    // Delivery lives alongside private data, never inside the publicly served frontend directory.
+    let path = state
+        .config
+        .db_path
+        .parent()
+        .unwrap_or(std::path::Path::new("."))
+        .join("android/NA-Barbearia-arm64-release.apk");
+    let request = axum::http::Request::builder()
+        .uri("/")
+        .body(axum::body::Body::empty())
+        .map_err(|_| AppError::Internal)?;
+    let response = tower_http::services::ServeFile::new(path)
+        .oneshot(request)
+        .await
+        .map_err(|_| AppError::Internal)?;
+    let mut response = response.map(axum::body::Body::new);
+    if response.status() == StatusCode::NOT_FOUND {
+        return Err(AppError::not_found(
+            "APK_NOT_AVAILABLE",
+            "O APK ainda não foi publicado.",
+        ));
+    }
+    response.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/vnd.android.package-archive"),
+    );
+    response.headers_mut().insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_static("attachment; filename=\"NA-Barbearia-arm64-release.apk\""),
+    );
+    Ok(response)
 }
 
 async fn auth_session(
@@ -2671,6 +2739,153 @@ mod tests {
             .next()
             .unwrap()
             .to_string()
+    }
+
+    #[tokio::test]
+    async fn staff_login_rejects_clients_and_preserves_public_login() {
+        let app = test_app();
+        let bootstrap = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let (_, headers, owner) = request_json(&app, "POST", "/api/v1/setup/owner", json!({
+            "business_name":"NA Test", "timezone":"America/Sao_Paulo", "email":"owner@staff.test",
+            "password":"TestPassword123!", "display_name":"Owner"
+        }), None, None, Some(bootstrap)).await;
+        let owner_cookie = cookie(&headers);
+        let (status, _, _) = request_json(
+            &app,
+            "POST",
+            "/api/v1/admin/barbers",
+            json!({
+                "email":"barber@staff.test", "password":"TestPassword123!", "display_name":"Barber"
+            }),
+            Some(&owner_cookie),
+            owner["csrf_token"].as_str(),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        let (status, client_headers, _) = request_json(
+            &app,
+            "POST",
+            "/api/v1/auth/register",
+            json!({
+                "email":"client@staff.test", "password":"TestPassword123!", "display_name":"Client"
+            }),
+            None,
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let client_cookie = cookie(&client_headers);
+        let client_login = json!({"email":"client@staff.test", "password":"TestPassword123!"});
+        let (status, headers, body) = request_json(
+            &app,
+            "POST",
+            "/api/v1/auth/staff/login",
+            client_login.clone(),
+            None,
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(body["code"], "STAFF_ONLY");
+        assert!(!headers.contains_key(header::SET_COOKIE));
+        let (status, _, _) = request_json(
+            &app,
+            "POST",
+            "/api/v1/auth/login",
+            client_login,
+            None,
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let (status, _, _) = request_json(
+            &app,
+            "GET",
+            "/api/v1/staff/android/apk",
+            json!({}),
+            Some(&client_cookie),
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        let (status, _, _) = request_json(
+            &app,
+            "GET",
+            "/api/v1/staff/android/apk",
+            json!({}),
+            None,
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        for email in ["owner@staff.test", "barber@staff.test"] {
+            let (status, headers, body) = request_json(
+                &app,
+                "POST",
+                "/api/v1/auth/staff/login",
+                json!({"email":email,"password":"TestPassword123!"}),
+                None,
+                None,
+                None,
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK);
+            assert!(headers.contains_key(header::SET_COOKIE));
+            let (status, _, _) = request_json(
+                &app,
+                "POST",
+                "/api/v1/auth/logout",
+                json!({}),
+                Some(&cookie(&headers)),
+                body["csrf_token"].as_str(),
+                None,
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK);
+            let (status, _, _) = request_json(
+                &app,
+                "GET",
+                "/api/v1/auth/session",
+                json!({}),
+                Some(&cookie(&headers)),
+                None,
+                None,
+            )
+            .await;
+            assert_eq!(status, StatusCode::UNAUTHORIZED);
+        }
+        let (status, headers, _) = request_json(
+            &app,
+            "POST",
+            "/api/v1/auth/staff/login",
+            json!({"email":"owner@staff.test","password":"WrongPassword!"}),
+            None,
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED);
+        assert!(!headers.contains_key(header::SET_COOKIE));
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/auth/staff/login")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        r#"{"email":"owner@staff.test","password":"TestPassword123!"}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]

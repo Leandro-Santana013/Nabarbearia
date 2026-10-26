@@ -60,12 +60,16 @@ const button = "min-h-10 rounded-xl px-3 text-xs! font-semibold!";
 export default function OwnerDashboard({
   path,
   onNavigate,
+  session: initialSession,
+  onLogout,
 }: {
   path: string;
   onNavigate: (path: string) => void;
+  session?: AuthResponse;
+  onLogout?: () => void;
 }) {
-  const [session, setSession] = useState<AuthResponse | null>(null);
-  const [checking, setChecking] = useState(true);
+  const [session, setSession] = useState<AuthResponse | null>(initialSession ?? null);
+  const [checking, setChecking] = useState(!initialSession);
   const [summary, setSummary] = useState<OwnerSummary | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -131,6 +135,7 @@ export default function OwnerDashboard({
     };
   }, []);
   useEffect(() => {
+    if (initialSession) return;
     let active = true;
     api
       .authSession()
@@ -146,7 +151,7 @@ export default function OwnerDashboard({
     return () => {
       active = false;
     };
-  }, []);
+  }, [initialSession]);
   const refresh = useCallback(async () => {
     if (!allowed) return;
     const request = ++sequence.current;
@@ -385,7 +390,8 @@ export default function OwnerDashboard({
               onClick={() =>
                 void run(async () => {
                   await api.logout();
-                  onNavigate("/login");
+                  if (onLogout) onLogout();
+                  else onNavigate("/login");
                 }, "")
               }
               className="size-10 rounded-xl"
@@ -395,7 +401,7 @@ export default function OwnerDashboard({
           </div>
         </header>
         {hybrid ? (
-          <BarberDashboard session={session} />
+          <BarberDashboard session={session} onLogout={onLogout} />
         ) : (
           <>
             <Tabs
