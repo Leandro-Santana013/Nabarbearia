@@ -131,7 +131,8 @@ e seu snapshot anterior às migrações são recuperados antes de reabrir o trá
 a manutenção permanece ativa para impedir novas gravações sobre uma base incerta.
 
 O resultado deve ser HTTP 200 em `https://na-barbearia.duckdns.org/api/v1/health` com `status: ok`.
-As telas novas são carregadas ao reabrir o app. Publicar a mesma revisão já saudável não repete a troca.
+As telas novas são carregadas ao reabrir o app, inclusive ao voltar do segundo plano: a página é
+recarregada e a sessão válida é restaurada. Publicar a mesma revisão já saudável não repete a troca.
 
 ## Restauração solicitada pelo operador
 

@@ -22,10 +22,14 @@ import androidx.core.view.WindowInsetsCompat
 class MainActivity : TauriActivity() {
   override val handleBackNavigation: Boolean = true
   private var appWebView: WebView? = null
+  private var hasResumed = false
 
   override fun onResume() {
     super.onResume()
-    appWebView?.evaluateJavascript("window.dispatchEvent(new Event('staff-resume'))", null)
+    // A backgrounded Activity can keep the old JavaScript alive indefinitely.
+    // Reload the no-store HTTPS page on return so server updates reach this APK.
+    if (hasResumed) appWebView?.reload()
+    hasResumed = true
   }
 
   override fun onWebViewCreate(webView: WebView) {
