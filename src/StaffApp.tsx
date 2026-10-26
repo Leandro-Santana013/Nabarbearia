@@ -12,6 +12,7 @@ function navigate(path: string, replace = false) {
 }
 
 export default function StaffApp({ path }: { path: string }) {
+  const [downloadRequested] = useState(path === '/equipe/download')
   const [session, setSession] = useState<AuthResponse | null>(null)
   const [checking, setChecking] = useState(true)
   const [connectionError, setConnectionError] = useState(false)
@@ -67,7 +68,7 @@ export default function StaffApp({ path }: { path: string }) {
   if (!session) return <LoginScreen key={notice} staffOnly initialError={notice} onAuthenticated={(value) => {
     setSession(value)
     setNotice('')
-    navigate(staffHome(value.user), true)
+    navigate(downloadRequested ? '/equipe/download' : staffHome(value.user), true)
   }} />
   if (path === '/equipe/download') return <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 p-6"><h1 className="text-xl font-semibold">Aplicativo da equipe</h1><p>Baixe a versão Android e confirme a instalação para atualizar o aplicativo existente.</p><a className="text-primary underline" href="/api/v1/staff/android/apk">Baixar APK Android</a><Button variant="outline" onClick={() => navigate(staffHome(session.user))}>Voltar ao painel</Button></main>
   if (session.user.roles.includes('owner') && path.startsWith('/equipe/gestao')) return <OwnerDashboard session={session} path={path.slice('/equipe'.length)} onNavigate={(target) => navigate(staffPath(target))} onLogout={loggedOut} />

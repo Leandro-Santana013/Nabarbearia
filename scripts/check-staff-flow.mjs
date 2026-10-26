@@ -142,6 +142,11 @@ try {
   })()`)
   await waitText('Acesso da equipe')
   assert.equal(await evaluate('location.pathname'), '/equipe/login')
+  await navigate('/equipe/download')
+  await waitText('Acesso da equipe')
+  await login('owner@staff-flow.test')
+  await waitText('Baixar APK Android')
+  assert.equal(await evaluate('location.pathname'), '/equipe/download')
   assert.deepEqual(errors, [])
   console.log('OK: site público preservado; equipe recusa cliente; barbeiro/dono, sessão, logout, revogação, download e recuperação de rede verificados.')
 } catch (error) {
