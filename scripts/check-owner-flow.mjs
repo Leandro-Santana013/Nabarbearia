@@ -1,73 +1,12 @@
-import { spawn } from "node:child_process";
-import { stopTestProcesses } from "./stop-test-processes.mjs";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { randomBytes } from "node:crypto";
-import assert from "node:assert/strict";
-import { fileURLToPath } from "node:url";
+import { createFlowTest } from './test-support/flow-test.mjs'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import assert from 'node:assert/strict'
 
-const root = fileURLToPath(new URL("../", import.meta.url));
-const temp = mkdtempSync(join(tmpdir(), "na-owner-flow-"));
-const origin = "http://127.0.0.1:3011";
-const token = randomBytes(32).toString("base64url");
-const password = randomBytes(24).toString("base64url");
-const processes = [];
-let socket;
-let evaluate;
-const logs = [];
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-async function until(fn, label, timeout = 45000) {
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
-    try {
-      const result = await fn();
-      if (result) return result;
-    } catch {}
-    await sleep(200);
-  }
-  throw new Error(`Tempo esgotado: ${label}`);
-}
-async function request(path, data, auth, extra = {}) {
-  const response = await fetch(`${origin}/api/v1${path}`, {
-    method: data ? "POST" : "GET",
-    headers: {
-      Origin: origin,
-      "Content-Type": "application/json",
-      ...(auth ? { Cookie: auth.cookie, "X-CSRF-Token": auth.csrf } : {}),
-      ...extra,
-    },
-    body: data ? JSON.stringify(data) : undefined,
-  });
-  const body = await response.json();
-  assert(response.ok, `${path}: ${response.status} ${body.message ?? ""}`);
-  return { body, cookie: response.headers.get("set-cookie")?.split(";")[0] };
-}
-function launch(command, args, env = {}) {
-  const child = spawn(command, args, {
-    cwd: root,
-    env: { ...process.env, ...env },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  child.on("error", (error) => logs.push(error.message));
-  child.stderr.on("data", (data) => logs.push(data.toString()));
-  processes.push(child);
-  return child;
-}
+const test = createFlowTest('owner')
+const { root, temp, origin, token, password, until, request, send, evaluate, runtimeErrors } = test
 try {
-  launch(process.env.NABARBEARIA_TEST_BACKEND ?? "cargo", process.env.NABARBEARIA_TEST_BACKEND ? [] : ["run", "--manifest-path", "backend/Cargo.toml"], {
-    NABARBEARIA_BIND: "127.0.0.1:3011",
-    NABARBEARIA_DB_PATH: join(temp, "test.db"),
-    NABARBEARIA_FRONTEND_DIR: join(root, "dist"),
-    NABARBEARIA_BOOTSTRAP_TOKEN: token,
-    NABARBEARIA_ALLOWED_ORIGINS: origin,
-    NABARBEARIA_SECURE_COOKIES: "false",
-  });
-  await until(
-    async () => (await fetch(`${origin}/api/v1/health`)).ok,
-    "API isolada",
-    120000,
-  );
+  await test.startBackend()
   const setup = await request(
     "/setup/owner",
     {
@@ -121,67 +60,7 @@ try {
     })
   ).body;
 
-  launch(process.env.CHROME_BIN ?? "google-chrome", [
-    "--headless",
-    "--no-sandbox",
-    "--disable-dev-shm-usage",
-    "--no-first-run",
-    "--remote-debugging-port=9224",
-    `--user-data-dir=${join(temp, "chrome")}`,
-    "about:blank",
-  ]);
-  const target = await until(
-    async () =>
-      (await (await fetch("http://127.0.0.1:9224/json/list")).json()).find(
-        (item) => item.type === "page",
-      ),
-    "Chrome",
-  );
-  socket = new WebSocket(target.webSocketDebuggerUrl);
-  await new Promise((resolve, reject) => {
-    socket.addEventListener("open", resolve, { once: true });
-    socket.addEventListener("error", reject, { once: true });
-  });
-  let sequence = 0;
-  const pending = new Map();
-  const runtimeErrors = [];
-  socket.addEventListener("message", (event) => {
-    const message = JSON.parse(event.data);
-    if (message.method === "Runtime.exceptionThrown")
-      runtimeErrors.push(message.params.exceptionDetails.text);
-    if (message.id && pending.has(message.id)) {
-      const { resolve, reject, timer } = pending.get(message.id);
-      clearTimeout(timer);
-      pending.delete(message.id);
-      message.error
-        ? reject(new Error(message.error.message))
-        : resolve(message.result);
-    }
-  });
-  const send = (method, params = {}) =>
-    new Promise((resolve, reject) => {
-      const id = ++sequence;
-      const timer = setTimeout(() => {
-        pending.delete(id);
-        reject(new Error(`CDP: ${method}`));
-      }, 20000);
-      pending.set(id, { resolve, reject, timer });
-      socket.send(JSON.stringify({ id, method, params }));
-    });
-  evaluate = async (expression) => {
-    const result = await send("Runtime.evaluate", {
-      expression,
-      awaitPromise: true,
-      returnByValue: true,
-      userGesture: true,
-    });
-    if (result.exceptionDetails)
-      throw new Error(
-        result.exceptionDetails.exception?.description ??
-          result.exceptionDetails.text,
-      );
-    return result.result?.value;
-  };
+  await test.startBrowser()
   const text = async () =>
     (await evaluate("document.body.innerText")).replace(/\u00a0/g, " ");
   const waitText = (value) =>
@@ -526,6 +405,31 @@ try {
     409,
   );
 
+  // Summary, payment eligibility and barber earnings must agree on this same DB.
+  // A broad period includes both future appointment starts and today's completion.
+  const financeRange = {
+    from: `${new Date(Date.now() - 86400000).toISOString().slice(0, 10)}T00:00:00Z`,
+    to: `${new Date(next.getTime() + 7 * 86400000).toISOString().slice(0, 10)}T00:00:00Z`,
+  };
+  const financeSummary = (
+    await request(`/admin/summary?${new URLSearchParams(financeRange)}`, null, owner)
+  ).body;
+  const ownerEarnings = (await request("/reports/revenue", null, owner)).body;
+  const barberLogin = await request("/auth/staff/login", {
+    email: "barber@client-flow.test", password,
+  });
+  const barberAuth = { cookie: barberLogin.cookie, csrf: barberLogin.body.csrf_token };
+  const barberEarnings = (await request("/reports/revenue", null, barberAuth)).body;
+  assert.equal(financeSummary.commission_cents, 10000);
+  assert.equal(financeSummary.outstanding_cents, 0);
+  assert.equal(financeSummary.commission_pending_count, 0);
+  assert.equal(financeSummary.retained_cents, financeSummary.revenue_cents - financeSummary.commission_cents);
+  assert.equal(ownerEarnings.commission_cents, financeSummary.commission_cents);
+  assert.equal(ownerEarnings.revenue_cents, financeSummary.revenue_cents);
+  assert.deepEqual(barberEarnings, ownerEarnings);
+  assert.equal(financeSummary.payouts.reduce((sum, payout) => sum + payout.amount_cents, 0), 10000);
+  console.log("OK: resumo do proprietário, repasses e ganhos do barbeiro conferem no mesmo banco; comissão paga continua na produção.");
+
   await click("Financeiro");
   await waitText("Repasses registrados no período");
   writeFileSync(
@@ -573,16 +477,8 @@ try {
     `Capturas: ${join(temp, "owner-mobile.png")} e ${join(temp, "owner-desktop.png")}`,
   );
 } catch (error) {
-  console.error(error.message);
-  if (evaluate)
-    console.error(
-      await evaluate("document.body.innerText").catch(
-        () => "Página indisponível",
-      ),
-    );
-  console.error(logs.slice(-3).join("").slice(-2500));
-  process.exitCode = 1;
+  await test.reportFailure(error)
+  process.exitCode = 1
 } finally {
-  socket?.close();
-  stopTestProcesses(processes);
+  await test.close()
 }

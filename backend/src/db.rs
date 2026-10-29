@@ -188,6 +188,23 @@ fn restrict_file_permissions(_path: &Path) -> Result<(), DbError> {
     Ok(())
 }
 
+pub(crate) fn insert_audit(
+    connection: &rusqlite::Connection,
+    business_id: &str,
+    actor_user_id: Option<&str>,
+    action: &str,
+    entity_type: &str,
+    entity_id: &str,
+    metadata_json: &str,
+) -> rusqlite::Result<()> {
+    connection.execute(
+        "INSERT INTO audit_log(id, business_id, actor_user_id, action, entity_type, entity_id, metadata_json, created_at_utc)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        rusqlite::params![uuid::Uuid::now_v7().to_string(), business_id, actor_user_id, action, entity_type, entity_id, metadata_json, chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)],
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use rusqlite::params;

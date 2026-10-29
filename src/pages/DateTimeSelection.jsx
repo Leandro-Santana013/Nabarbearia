@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react"
+import { useId, useRef, useState } from "react"
 import { ArrowLeft, Calendar, Clock, ArrowRight, Check } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -6,89 +6,22 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 import { DEFAULT_SERVICE, DEFAULT_BARBER } from "@/data/bookingCatalog"
-import { getBusinessHours } from "@/data/barbershopData"
-import { availabilityFromApi, clientError } from "@/lib/client-api"
+import { useBookingSelection } from "@/lib/booking/useBookingSelection"
+import { formatShopDate as formatDate } from "@/lib/shop-calendar"
+export { getDateOptions, getTimeSlots } from "@/lib/booking/availability"
 
 const PERIODS = [{ id: "all", label: "Todos" }, { id: "morning", label: "Manhã" }, { id: "afternoon", label: "Tarde" }, { id: "evening", label: "Noite" }]
-
-function shopTime(now) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-  }).formatToParts(now)
-  const get = (type) => parts.find((part) => part.type === type).value
-  return { date: `${get("year")}-${get("month")}-${get("day")}`, time: `${get("hour")}:${get("minute")}` }
-}
-
-function formatDate(date, options) {
-  return new Intl.DateTimeFormat("pt-BR", { ...options, timeZone: "UTC" }).format(new Date(`${date}T12:00:00Z`))
-}
-
-export function getDateOptions(now = new Date(), count = 14) {
-  const today = shopTime(now).date
-  return Array.from({ length: count }, (_, index) => {
-    const day = new Date(`${today}T12:00:00Z`)
-    day.setUTCDate(day.getUTCDate() + index)
-    return { date: day.toISOString().slice(0, 10), closed: Boolean(getBusinessHours(day.getUTCDay()).closed) }
-  })
-}
-
-// Horários candidatos conforme o expediente; reservas ainda dependem da agenda operacional.
-export function getTimeSlots(date, now = new Date(), durationMinutes = DEFAULT_SERVICE.durationMinutes) {
-  const current = shopTime(now)
-  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay()
-  const hours = getBusinessHours(weekday)
-  if (!hours || hours.closed || !hours.open || !hours.close) return []
-  const toMinutes = (time) => { const [hour, minute] = time.split(":").map(Number); return hour * 60 + minute }
-  const slots = []
-  for (let minute = toMinutes(hours.open); minute + durationMinutes <= toMinutes(hours.close); minute += 30) {
-    const time = `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`
-    slots.push({ time, period: time < "12:00" ? "morning" : time < "18:00" ? "afternoon" : "evening", disabled: date < current.date || (date === current.date && time <= current.time) })
-  }
-  return slots
-}
 
 /** @param {import("./DateTimeSelection.types").DateTimeSelectionProps} props */
 export default function DateTimeSelection({
   service = DEFAULT_SERVICE, barber = DEFAULT_BARBER,
   initialDate = "", initialTime = "", onBack, onChangeBarber, onSelectionChange, onReview, onConfirm, loadAvailability, lockBarber = false,
 } = {}) {
-  const [days] = useState(() => getDateOptions())
-  const [selectedDate, setSelectedDate] = useState(() =>
-    days.find((day) => day.date === initialDate && !day.closed)?.date ?? days.find((day) => !day.closed)?.date ?? ""
-  )
-  const [selectedTime, setSelectedTime] = useState(() =>
-    initialDate === selectedDate && (loadAvailability || getTimeSlots(selectedDate, new Date(), service.durationMinutes ?? DEFAULT_SERVICE.durationMinutes).some((slot) => slot.time === initialTime && !slot.disabled))
-      ? initialTime : ""
-  )
+  const { days, date: selectedDate, time: selectedTime, loading, slotError, confirming, confirmError, slots, selection } = useBookingSelection({ service, barber, initialDate, initialTime, onSelectionChange, onConfirm, loadAvailability })
   const [period, setPeriod] = useState("all")
   const [showReview, setShowReview] = useState(false)
-  const [remoteSlots, setRemoteSlots] = useState([])
-  const [remoteDate, setRemoteDate] = useState("")
-  const [loadingSlots, setLoadingSlots] = useState(false)
-  const [slotError, setSlotError] = useState("")
-  const [refresh, setRefresh] = useState(0)
-  const [confirming, setConfirming] = useState(false)
-  const [confirmError, setConfirmError] = useState("")
-  const confirmPending = useRef(false)
-  useEffect(() => {
-    if (!loadAvailability) return
-    let active = true
-    setLoadingSlots(true)
-    setSlotError("")
-    setRemoteSlots([])
-    loadAvailability(selectedDate).then((result) => {
-      if (active) { setRemoteSlots(result); setRemoteDate(selectedDate) }
-    }).catch((failure) => {
-      if (active) { setSlotError(clientError(failure)); setRemoteDate(selectedDate) }
-    }).finally(() => { if (active) setLoadingSlots(false) })
-    return () => { active = false }
-  }, [loadAvailability, selectedDate, refresh])
   const reviewRef = useRef(null)
   const id = useId()
-  const loading = Boolean(loadAvailability) && (loadingSlots || remoteDate !== selectedDate)
-  const getSlots = () => loadAvailability ? availabilityFromApi(remoteSlots, selectedDate) : getTimeSlots(selectedDate, new Date(), service.durationMinutes ?? DEFAULT_SERVICE.durationMinutes)
-  const slots = getSlots()
   const visibleSlots = slots.filter((slot) => period === "all" || slot.period === period)
   const canContinue = Boolean(!loading && !slotError && selectedDate && slots.some((slot) => slot.time === selectedTime && !slot.disabled))
   const barberName = barber.isAny ? "Qualquer disponível" : barber.name
@@ -100,55 +33,22 @@ export default function DateTimeSelection({
 
   function chooseDate(date) {
     if (date === selectedDate) return
-    setSelectedDate(date)
-    setSelectedTime("")
+    selection.selectDate(date)
     setShowReview(false)
-    setConfirmError("")
-    onSelectionChange?.({ date, time: "" })
   }
 
   function chooseTime(time) {
-    setSelectedTime(time)
+    selection.selectTime(time)
     setShowReview(false)
-    setConfirmError("")
-    onSelectionChange?.({ date: selectedDate, time })
-  }
-
-  function validateSelection() {
-    // Revalida também no clique, caso o horário tenha passado com a tela aberta.
-    if (loading || slotError || !getSlots().some((slot) => slot.time === selectedTime && !slot.disabled)) {
-      setSelectedTime("")
-      onSelectionChange?.({ date: selectedDate, time: "" })
-      setShowReview(false)
-      return false
-    }
-    return true
   }
 
   function handleReview() {
-    if (!validateSelection()) return
-    if (onReview) {
-      onReview({ service, barber, date: selectedDate, time: selectedTime, timeZone: "America/Sao_Paulo" })
-    } else {
+    const review = selection.review()
+    if (!review) { setShowReview(false); return }
+    if (onReview) onReview(review)
+    else {
       setShowReview(true)
       requestAnimationFrame(() => reviewRef.current?.focus())
-    }
-  }
-
-  async function handleConfirm() {
-    if (confirmPending.current || !validateSelection()) return
-    confirmPending.current = true
-    setConfirming(true)
-    setConfirmError("")
-    const selectedSlot = getSlots().find((slot) => slot.time === selectedTime)
-    try {
-      await onConfirm?.({ service, barber, date: selectedDate, time: selectedTime, timeZone: "America/Sao_Paulo", startsAt: selectedSlot?.startsAt, barberId: selectedSlot?.barberId })
-    } catch (failure) {
-      setConfirmError(clientError(failure))
-      setRefresh((previous) => previous + 1)
-    } finally {
-      confirmPending.current = false
-      setConfirming(false)
     }
   }
 
@@ -225,7 +125,7 @@ export default function DateTimeSelection({
             ))}
           </div>
           {loading && <p role="status" className="py-4 text-sm text-muted-foreground">Consultando horários disponíveis…</p>}
-          {slotError && <div className="space-y-2"><p role="alert" className="text-sm text-destructive">{slotError}</p><Button type="button" variant="outline" onClick={() => setRefresh((previous) => previous + 1)} className="min-h-10 rounded-xl px-3">Tentar novamente</Button></div>}
+          {slotError && <div className="space-y-2"><p role="alert" className="text-sm text-destructive">{slotError}</p><Button type="button" variant="outline" onClick={() => void selection.reload()} className="min-h-10 rounded-xl px-3">Tentar novamente</Button></div>}
           <div role="group" aria-labelledby={`${id}-time-heading`} className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {visibleSlots.map(({ time, disabled }) => (
               <Button
@@ -254,7 +154,7 @@ export default function DateTimeSelection({
               <p className="text-sm text-muted-foreground">{barberName}</p>
               <p className="text-sm font-semibold text-primary">{summary}</p>
               {onConfirm && (
-                <Button type="button" disabled={confirming} onClick={handleConfirm} className="mt-3 min-h-12 w-full gap-2 rounded-full bg-primary px-6 py-6 font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
+                <Button type="button" disabled={confirming} onClick={() => void selection.confirm()} className="mt-3 min-h-12 w-full gap-2 rounded-full bg-primary px-6 py-6 font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
                   {confirming ? "Confirmando…" : "Confirmar Agendamento"} <Check aria-hidden="true" className="size-4" />
                 </Button>
               )}

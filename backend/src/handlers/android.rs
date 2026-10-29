@@ -1,5 +1,6 @@
 use crate::{
     AppState,
+    android_release::AndroidRelease,
     error::{ApiResult, AppError},
 };
 use axum::{
@@ -8,15 +9,8 @@ use axum::{
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
-use serde::{Deserialize, Serialize};
-
-#[derive(Deserialize, Serialize)]
-pub(super) struct AndroidRelease {
-    version_code: u32,
-    version_name: String,
-    size_bytes: u64,
-    sha256: String,
-}
+use sha2::{Digest, Sha256};
+use std::io::Read;
 
 // Only version information is public. The APK still requires a staff session.
 pub(super) async fn release(State(state): State<AppState>) -> ApiResult<Response> {
@@ -33,23 +27,26 @@ pub(super) async fn release(State(state): State<AppState>) -> ApiResult<Response
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
                 Err(_) => return Err(AppError::Internal),
             };
-            let release: AndroidRelease =
-                serde_json::from_slice(&bytes).map_err(|_| AppError::Internal)?;
-            let apk = match std::fs::metadata(directory.join("NA-Barbearia-arm64-release.apk")) {
-                Ok(file) => file,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-                Err(_) => return Err(AppError::Internal),
-            };
-            if release.version_code == 0
-                || release.version_name.is_empty()
-                || release.size_bytes == 0
-                || release.size_bytes != apk.len()
-                || release.sha256.len() != 64
-                || !release
-                    .sha256
-                    .bytes()
-                    .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c))
-            {
+            let value = serde_json::from_slice(&bytes).map_err(|_| AppError::Internal)?;
+            let release = AndroidRelease::parse(&value).ok_or(AppError::Internal)?;
+            let mut apk =
+                match std::fs::File::open(directory.join("NA-Barbearia-arm64-release.apk")) {
+                    Ok(file) => file,
+                    Err(_) => return Err(AppError::Internal),
+                };
+            if release.size_bytes != apk.metadata().map_err(|_| AppError::Internal)?.len() {
+                return Err(AppError::Internal);
+            }
+            let mut hash = Sha256::new();
+            let mut buffer = [0_u8; 65536];
+            loop {
+                let count = apk.read(&mut buffer).map_err(|_| AppError::Internal)?;
+                if count == 0 {
+                    break;
+                }
+                hash.update(&buffer[..count]);
+            }
+            if format!("{:x}", hash.finalize()) != release.sha256 {
                 return Err(AppError::Internal);
             }
             Ok(Some(release))

@@ -118,10 +118,11 @@ padrão do backend:
 ```powershell
 rustup toolchain install stable-x86_64-pc-windows-gnu --profile minimal --target aarch64-linux-android
 npm run android:init
+$env:NABARBEARIA_ANDROID_CERT_SHA256 = 'f2c706099c3bbb66fc204751ab962129a885f7e2502075b34c570493c3185d16'
 npm run android:build
 ```
 
-`android:build` exige a assinatura existente para atualizar o app instalado.
+`android:build` exige a assinatura existente e o SHA-256 do certificado aprovado para atualizar o app instalado. O valor acima foi conferido no APK existente em 29/10/2026; uma instalação nova deve usar seu próprio certificado aprovado. A preparação verifica assinatura, pacote e versão embutida com `apksigner`/`aapt`, compara com `tauri.properties` e calcula tamanho/hash sobre o mesmo snapshot do APK.
 Somente em uma instalação inteiramente nova, sem assinatura anterior a preservar,
 use `npm run android:signing` para criar a chave.
 Guarde um backup privado destes dois arquivos, necessários para futuras
@@ -145,13 +146,12 @@ Cancelar a instalação mantém a tela de atualização. Navegadores comuns não
 `npm run android:build` gera `artifacts/NA-Barbearia-arm64-release.apk` e `artifacts/release.json`
 com versão, tamanho e SHA-256. Aumente `version` em `src-tauri/tauri.conf.json` e
 `src-tauri/Cargo.toml` a cada atualização nativa e preserve a chave de assinatura.
-Publique o backend e a interface junto com os dois arquivos Android no diretório `android/`
-ao lado do banco de produção (por exemplo, `/var/lib/nabarbearia/android/`).
-Envie primeiro os arquivos com nomes temporários, confira o SHA-256 e substitua o APK,
-depois `release.json`, por renomeação. Não anuncie um manifesto antes do respectivo APK.
+Web/backend e Android têm entregas independentes. O pacote web contém `backend`, `dist`, `REVISION` e `DELIVERY.json`, com inventário de hashes e protocolo do helper. O workflow manual verifica a compatibilidade do helper instalado antes de enviar o pacote. O usuário de deploy continua sem permissão para substituir código privilegiado ou instalar Android.
+
+Um administrador pode instalar o par Android aprovado com `sudo /usr/local/sbin/nabarbearia install-android /caminho/preparado`. O comando valida tamanho/hash antes da troca, mantém cópia privada anterior, disponibiliza APK antes do manifesto e recupera o par se o anúncio falhar. Consulte [o contrato e os estágios de entrega](docs/RELEASE-VALIDATION.md).
 
 `GET /api/v1/staff/android/release` disponibiliza somente informações da versão, sem cache;
-sem manifesto ou APK, retorna 204. O APK continua restrito a barbeiros e proprietário em
+sem manifesto, retorna 204 (nenhum APK anunciado). Manifesto presente com APK ausente, tamanho/hash divergente ou dados inválidos falha sem anunciar uma atualização. O APK continua restrito a barbeiros e proprietário em
 `GET /api/v1/staff/android/apk`. Uma falha na consulta oferece **Tentar novamente**.
 Apps antigos sem identificação de versão são reconhecidos pelo Android WebView e recebem
 a orientação para abrir o arquivo pela notificação de download nesta primeira atualização.
@@ -229,12 +229,24 @@ Para os fluxos completos no navegador:
 npm run test:client-flow
 npm run test:owner-flow
 npm run test:staff-flow
+npm run test:access-flow
+npm run test:booking-flow
 ```
 
 - **Cliente/barbeiro:** login, reserva, comprovante, remarcação, avaliação, cancelamento, encaixe, observações, início/conclusão, falta, pausas e navegação entre abas.
 - **Proprietário:** serviços ativos/inativos, edição de equipe, escalas, comissões, repasses, remanejamento/cancelamento em lote, rollback de conflitos e modo híbrido.
+- **Acesso:** entradas antigas de cliente/barbeiro/proprietário, permissões, voltar/avançar e expiração real por HTTP 401 nas entradas pública e da equipe.
+- **Reserva F2:** retorno da autenticação, domingo permitido pela escala com navegador em outro fuso, profissional concreto para “qualquer disponível”, clique repetido, resposta perdida depois da gravação, repetição com a mesma chave, comprovante após recarga, preço histórico na remarcação e recuperação de conflito. Preserva capturas em 320/390/1440 px e verifica o botão de confirmação alcançável com ampliação de 200%.
 
 Os testes de navegador requerem Google Chrome/Chromium e Rust. A variável `CHROME_BIN` permite indicar outro executável compatível. Eles iniciam uma API e um banco temporários nas portas **3011** e **9224**, sem alterar o banco local da barbearia. Execute um fluxo por vez.
+
+A infraestrutura comum fica em `scripts/test-support/flow-test.mjs`. Os cenários mantêm suas ações e asserções de negócio; o suporte cuida de processos, banco temporário, CDP, diagnóstico e limpeza. Portas ocupadas são recusadas, sem encerrar a execução que as utiliza. Em caso de falha, o log informa etapa, causa e diretório temporário de evidências, com captura quando possível e credenciais redigidas.
+
+Para verificar o suporte: `npm run test:flow-support`, após o build. Com `NABARBEARIA_TEST_BACKEND` apontando para o backend compilado, também é executado o teste de recuperação após falha do Chrome; sem essa variável, somente esse caso é ignorado. O workflow executa todos os casos após compilar o backend. Essa variável também permite reutilizar um executável nos fluxos em vez de iniciar por `cargo run`.
+
+A coordenação de acesso fica em `src/lib/access/`: `session.ts` concentra restauração, expiração, logout e respostas atrasadas; `AccessProvider` integra essa coordenação ao React e à retomada do app; `routing.ts` define os destinos por perfil/canal. Os dashboards recebem a sessão controlada. O serviço HTTP mantém cookies/CSRF e uma assinatura de expiração, sem consultar URLs de tela. `/painel` e `/agendar` preservam compatibilidade encaminhando aos painéis atuais; perfil desconhecido recebe acesso negado. A entrada `/equipe` continua dentro do bloqueio de atualização Android.
+
+O calendário usado na reserva fica em `src/lib/shop-calendar.ts`. O módulo `src/lib/booking/` concentra intenção de reserva/remarcação, valores reais em centavos, seleção de profissional, chave de repetição, disponibilidade e falhas de confirmação. A tela real permite consultar todos os dias do período; a API decide se a escala permite reservar. A demonstração mantém os horários institucionais. Uma falha de conexão na confirmação preserva a seleção para repetir a mesma intenção; um conflito confirmado atualiza os horários.
 
 ## Limites das integrações atuais
 

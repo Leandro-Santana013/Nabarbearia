@@ -1,87 +1,17 @@
-import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
-import { stopTestProcesses } from './stop-test-processes.mjs'
-import { randomBytes } from 'node:crypto'
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { createFlowTest } from './test-support/flow-test.mjs'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 
-const root = fileURLToPath(new URL('../', import.meta.url))
-const temp = mkdtempSync(join(tmpdir(), 'na-staff-flow-'))
-const origin = 'http://127.0.0.1:3011'
-const token = randomBytes(32).toString('hex')
-const password = randomBytes(24).toString('base64url')
-const processes = []
-const logs = []
-let socket
-let evaluate
-const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-async function until(fn, label, timeout = 60000) {
-  const deadline = Date.now() + timeout
-  while (Date.now() < deadline) {
-    try { const result = await fn(); if (result) return result } catch {}
-    await pause(150)
-  }
-  throw new Error(`Tempo esgotado: ${label}`)
-}
-function launch(command, args, environment = {}) {
-  const child = spawn(command, args, { cwd: root, env: { ...process.env, ...environment }, stdio: ['ignore', 'pipe', 'pipe'] })
-  child.on('error', (error) => logs.push(error.message))
-  child.stderr.on('data', (chunk) => logs.push(chunk.toString()))
-  processes.push(child)
-}
-async function request(path, data, auth, extra = {}) {
-  const response = await fetch(`${origin}/api/v1${path}`, {
-    method: data ? 'POST' : 'GET',
-    headers: { Origin: origin, 'Content-Type': 'application/json', ...(auth ? { Cookie: auth.cookie, 'X-CSRF-Token': auth.csrf } : {}), ...extra },
-    body: data ? JSON.stringify(data) : undefined,
-  })
-  const body = await response.json()
-  assert(response.ok, `${path}: ${response.status}`)
-  return { body, cookie: response.headers.get('set-cookie')?.split(';')[0] }
-}
+const test = createFlowTest('staff', { timeout: 60000 })
+const { root, temp, origin, token, password, until, request, send, evaluate, runtimeErrors: errors } = test
 try {
-  launch(process.env.NABARBEARIA_TEST_BACKEND ?? 'cargo', process.env.NABARBEARIA_TEST_BACKEND ? [] : ['run', '--manifest-path', 'backend/Cargo.toml'], {
-    NABARBEARIA_BIND: '127.0.0.1:3011', NABARBEARIA_DB_PATH: join(temp, 'test.db'),
-    NABARBEARIA_FRONTEND_DIR: join(root, 'dist'), NABARBEARIA_BOOTSTRAP_TOKEN: token,
-    NABARBEARIA_ALLOWED_ORIGINS: origin, NABARBEARIA_SECURE_COOKIES: 'false',
-  })
-  await until(async () => (await fetch(`${origin}/api/v1/health`)).ok, 'API isolada', 120000)
+  await test.startBackend()
   const setup = await request('/setup/owner', { business_name: 'NA Teste', timezone: 'America/Sao_Paulo', email: 'owner@staff-flow.test', password, display_name: 'Dono Teste' }, null, { 'X-Bootstrap-Token': token })
   await request('/admin/barbers', { email: 'barber@staff-flow.test', password, display_name: 'Barbeiro Teste' }, { cookie: setup.cookie, csrf: setup.body.csrf_token })
   await request('/auth/register', { email: 'client@staff-flow.test', password, display_name: 'Cliente Teste' })
-  launch(process.env.CHROME_BIN ?? 'google-chrome', ['--headless', '--no-sandbox', '--disable-dev-shm-usage', '--no-first-run', '--remote-debugging-port=9224', `--user-data-dir=${join(temp, 'chrome')}`, 'about:blank'])
-  const target = await until(async () => (await (await fetch('http://127.0.0.1:9224/json/list')).json()).find((item) => item.type === 'page'), 'Chrome')
-  socket = new WebSocket(target.webSocketDebuggerUrl)
-  await new Promise((resolve, reject) => {
-    socket.addEventListener('open', resolve, { once: true })
-    socket.addEventListener('error', reject, { once: true })
-  })
-  let sequence = 0
-  const pending = new Map()
-  const errors = []
-  socket.addEventListener('message', (event) => {
-    const message = JSON.parse(event.data)
-    if (message.method === 'Runtime.exceptionThrown') errors.push(message.params.exceptionDetails.text)
-    if (pending.has(message.id)) {
-      const { resolve, reject, timer } = pending.get(message.id)
-      clearTimeout(timer); pending.delete(message.id)
-      if (message.error) reject(new Error(message.error.message))
-      else resolve(message.result)
-    }
-  })
-  const send = (method, params = {}) => new Promise((resolve, reject) => {
-    const id = ++sequence
-    const timer = setTimeout(() => { pending.delete(id); reject(new Error(method)) }, 20000)
-    pending.set(id, { resolve, reject, timer })
-    socket.send(JSON.stringify({ id, method, params }))
-  })
-  evaluate = async (expression) => {
-    const result = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true, userGesture: true })
-    if (result.exceptionDetails) throw new Error(result.exceptionDetails.text)
-    return result.result?.value
-  }
+  await test.startBrowser()
   const text = () => evaluate('document.body.innerText')
   const waitText = (value) => until(async () => (await text()).includes(value), value)
   const navigate = (path) => send('Page.navigate', { url: origin + path })
@@ -156,8 +86,9 @@ try {
   const androidAgent = 'Mozilla/5.0 (Linux; Android 14; Test; wv) AppleWebKit/537.36 NABarbearia/'
   const androidDirectory = join(temp, 'android')
   mkdirSync(androidDirectory)
-  writeFileSync(join(androidDirectory, 'NA-Barbearia-arm64-release.apk'), Buffer.alloc(12000000))
-  writeFileSync(join(androidDirectory, 'release.json'), JSON.stringify({ version_code: 2002, version_name: '0.2.2', size_bytes: 12000000, sha256: 'a'.repeat(64) }))
+  const apkBytes = Buffer.alloc(12000000)
+  writeFileSync(join(androidDirectory, 'NA-Barbearia-arm64-release.apk'), apkBytes)
+  writeFileSync(join(androidDirectory, 'release.json'), JSON.stringify({ version_code: 2002, version_name: '0.2.2', size_bytes: apkBytes.length, sha256: createHash('sha256').update(apkBytes).digest('hex') }))
   await send('Network.setUserAgentOverride', { userAgent: androidAgent + '2001' })
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
   await navigate('/equipe/gestao/financeiro')
@@ -210,11 +141,8 @@ try {
   assert.deepEqual(errors, [])
   console.log('OK: acesso da equipe, sessão e download; atualização antes do login/painel, retorno ao app, falha de rede/download, login para atualizar, versões iguais/maiores, APK antigo e navegador comum verificados.')
 } catch (error) {
-  console.error(error.message)
-  if (evaluate) console.error(await evaluate('document.body.innerText').catch(() => 'Página indisponível'))
-  console.error(logs.slice(-3).join('').slice(-1500))
+  await test.reportFailure(error)
   process.exitCode = 1
 } finally {
-  socket?.close()
-  stopTestProcesses(processes)
+  await test.close()
 }

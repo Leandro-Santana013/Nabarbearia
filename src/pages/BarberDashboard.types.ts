@@ -2,8 +2,7 @@ import type { Appointment } from '@/types'
 import type { AuthResponse } from '@/services/api'
 
 export interface BarberDashboardProps {
-  session?: AuthResponse
-  onLogout?: () => void
+  session: AuthResponse
 }
 export interface BarberScheduleProps {
   loading?: boolean

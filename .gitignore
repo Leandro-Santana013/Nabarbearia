@@ -4,6 +4,7 @@ node_modules/
 backend/target/
 portable/release/
 artifacts/
+.slim/
 *.keystore
 *.jks
 *.p12

@@ -33,9 +33,9 @@ import {
 } from "@/components/ui/dialog";
 import OwnerEditor, { type Editor } from "@/components/owner/OwnerEditor";
 import OwnerSelect from "@/components/owner/OwnerSelect";
-import LoginScreen from "./LoginScreen";
+import { useAccess } from "@/lib/access/AccessProvider";
 import BarberDashboard from "./BarberDashboard";
-import { ApiError, api, type AuthResponse } from "@/services/api";
+import { api, type AuthResponse } from "@/services/api";
 import { money, scheduleTime, shopDate } from "@/lib/barber-schedule";
 import {
   noShowRate,
@@ -60,16 +60,13 @@ const button = "min-h-10 rounded-xl px-3 text-xs! font-semibold!";
 export default function OwnerDashboard({
   path,
   onNavigate,
-  session: initialSession,
-  onLogout,
+  session,
 }: {
   path: string;
   onNavigate: (path: string) => void;
-  session?: AuthResponse;
-  onLogout?: () => void;
+  session: AuthResponse;
 }) {
-  const [session, setSession] = useState<AuthResponse | null>(initialSession ?? null);
-  const [checking, setChecking] = useState(!initialSession);
+  const { refresh: refreshSession, logout: logoutSession } = useAccess();
   const [summary, setSummary] = useState<OwnerSummary | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -134,24 +131,6 @@ export default function OwnerDashboard({
       document.documentElement.style.removeProperty("--owner-viewport-left");
     };
   }, []);
-  useEffect(() => {
-    if (initialSession) return;
-    let active = true;
-    api
-      .authSession()
-      .then((value) => {
-        if (active) setSession(value);
-      })
-      .catch(() => {
-        if (active) setError("Não foi possível verificar a sessão.");
-      })
-      .finally(() => {
-        if (active) setChecking(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, [initialSession]);
   const refresh = useCallback(async () => {
     if (!allowed) return;
     const request = ++sequence.current;
@@ -175,8 +154,6 @@ export default function OwnerDashboard({
             ? failure.message
             : "Falha ao carregar gestão.",
         );
-        if (failure instanceof ApiError && failure.status === 401)
-          setSession(null);
       }
     } finally {
       if (request === sequence.current) setLoading(false);
@@ -254,53 +231,14 @@ export default function OwnerDashboard({
     if (
       await run(async () => {
         await api.enableHybrid();
-        const updated = await api.authSession();
+        const updated = await refreshSession();
         if (!updated) throw new Error("Entre novamente para acessar a agenda.");
-        setSession(updated);
       }, "Agenda pessoal ativada.")
     ) {
       setHybridPrompt(false);
       onNavigate("/gestao/minha-agenda");
     }
   }
-  if (checking)
-    return (
-      <main
-        role="status"
-        className="flex min-h-dvh items-center justify-center bg-background p-5 text-sm text-muted-foreground"
-      >
-        Verificando sessão…
-      </main>
-    );
-  if (!session)
-    return (
-      <LoginScreen
-        initialError={error}
-        onAuthenticated={setSession}
-        onGuest={() => onNavigate("/home")}
-      />
-    );
-  if (!allowed)
-    return (
-      <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 p-5 text-center">
-        <h1 className="text-xl font-semibold">
-          Área exclusiva do proprietário
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          Sua conta não possui acesso à gestão.
-        </p>
-        <Button
-          className={button}
-          onClick={() =>
-            onNavigate(
-              session.user.roles.includes("barber") ? "/barbeiro" : "/home",
-            )
-          }
-        >
-          Voltar ao meu painel
-        </Button>
-      </main>
-    );
   const team = summary?.team ?? [];
   const visible = appointments
     .filter((item) => barberFilter === "all" || item.barberId === barberFilter)
@@ -389,9 +327,7 @@ export default function OwnerDashboard({
               disabled={busy}
               onClick={() =>
                 void run(async () => {
-                  await api.logout();
-                  if (onLogout) onLogout();
-                  else onNavigate("/login");
+                  await logoutSession();
                 }, "")
               }
               className="size-10 rounded-xl"
@@ -401,7 +337,7 @@ export default function OwnerDashboard({
           </div>
         </header>
         {hybrid ? (
-          <BarberDashboard session={session} onLogout={onLogout} />
+          <BarberDashboard session={session} />
         ) : (
           <>
             <Tabs

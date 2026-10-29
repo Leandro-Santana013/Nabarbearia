@@ -85,6 +85,106 @@ class AndroidContractTests(unittest.TestCase):
                 operations.android_artifacts(root)
 
 
+class DeliveryTests(unittest.TestCase):
+    def test_shared_fixtures(self):
+        cases = json.loads((Path(__file__).resolve().parents[1] / 'tests/fixtures/android-release/cases.json').read_text())
+        for case in cases:
+            with self.subTest(case=case['name']):
+                if case['valid']:
+                    self.assertGreater(operations.validate_android_manifest(case['value'])['version_code'], 0)
+                else:
+                    with self.assertRaises(RuntimeError):
+                        operations.validate_android_manifest(case['value'])
+
+    def test_package_roundtrip_revision_protocol_and_hash(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'dist').mkdir()
+            (root / 'dist/index.html').write_text('web')
+            (root / 'backend').write_bytes(b'backend')
+            archive = root / 'release.tar.gz'
+            operations.package_web(root / 'backend', root / 'dist', 'revision-1', archive)
+            self.assertTrue(archive.with_name(archive.name + '.sha256').is_file())
+            with tarfile.open(archive) as bundle:
+                self.assertEqual(set(bundle.getnames()), {'backend', 'dist', 'dist/index.html', 'REVISION', 'DELIVERY.json'})
+            with patch.object(operations, 'RELEASES', root / 'releases'):
+                directory = operations.extract_release(archive, 'revision-1')
+                with self.assertRaisesRegex(RuntimeError, 'revision mismatch'):
+                    operations.extract_release(archive, 'revision-2')
+                self.assertFalse((root / 'releases/revision-2').exists())
+            (directory / 'dist/index.html').write_text('tampered')
+            with self.assertRaisesRegex(RuntimeError, 'hash mismatch'):
+                operations.verify_delivery(directory, 'revision-1')
+            with tarfile.open(archive, 'w:gz') as bundle:
+                for path in directory.iterdir():
+                    bundle.add(path, arcname=path.name)
+            with patch.object(operations, 'RELEASES', root / 'other-releases'):
+                with self.assertRaisesRegex(RuntimeError, 'hash mismatch'):
+                    operations.extract_release(archive, 'revision-1')
+                self.assertFalse((root / 'other-releases/revision-1').exists())
+            (root / 'dist/private.apk').write_bytes(b'private')
+            with self.assertRaisesRegex(RuntimeError, 'Private artifact'):
+                operations.package_web(root / 'backend', root / 'dist', 'revision-3', root / 'private.tar.gz')
+            self.assertFalse((root / 'private.tar.gz').exists())
+            for capability in ({}, {'delivery_protocol': 1}, {'delivery_protocol': True}, {'delivery_protocol': 3}):
+                with self.assertRaisesRegex(RuntimeError, 'incompat'):
+                    operations.check_helper(capability)
+            operations.check_helper({'delivery_protocol': 2})
+
+    def test_android_install_order_validation_and_recovery(self):
+        with tempfile.TemporaryDirectory() as temp:
+            data = Path(temp)
+            source, target = data / 'prepared', data / 'android'
+            source.mkdir()
+            target.mkdir()
+            old = AndroidContractTests.manifest
+            new = {**old, 'version_code': 2003, 'version_name': '0.2.3', 'sha256': hashlib.sha256(b'new').hexdigest()}
+            for directory, content, manifest in ((source, b'new', new), (target, b'apk', old)):
+                (directory / operations.APK_NAME).write_bytes(content)
+                (directory / 'release.json').write_text(json.dumps(manifest))
+            original_replace = Path.replace
+            order = []
+            def replace(path, destination):
+                if Path(destination).parent == target:
+                    order.append(path.name)
+                return original_replace(path, destination)
+            with patch.object(operations, 'DATA', data), patch.object(operations.shutil, 'chown', create=True), patch.object(Path, 'replace', replace):
+                operations.install_android(source)
+            self.assertEqual(order, [operations.APK_NAME, 'release.json'])
+            self.assertEqual(operations.android_artifacts(target), new)
+
+            self.assertTrue(any(data.glob('android-backup-*/release.json')))
+            # A failed announcement restores the previous complete pair.
+            failed = False
+            def fail_once(path, destination):
+                nonlocal failed
+                if path.name == 'release.json' and Path(destination).parent == target and not failed:
+                    failed = True
+                    raise OSError('announcement failure')
+                return original_replace(path, destination)
+            (source / operations.APK_NAME).write_bytes(b'apk')
+            (source / 'release.json').write_text(json.dumps(old))
+            with patch.object(operations, 'DATA', data), patch.object(operations.shutil, 'chown', create=True), patch.object(Path, 'replace', fail_once):
+                with self.assertRaisesRegex(OSError, 'announcement failure'):
+                    operations.install_android(source)
+            self.assertEqual(operations.android_artifacts(target), new)
+            (source / operations.APK_NAME).write_bytes(b'bad')
+            with patch.object(operations, 'DATA', data):
+                with self.assertRaisesRegex(RuntimeError, 'SHA-256'):
+                    operations.install_android(source)
+            self.assertEqual(operations.android_artifacts(target), new)
+
+
+    def test_incomplete_announcement_blocks_web_deploy_before_service_stop(self):
+        with tempfile.TemporaryDirectory() as temp:
+            data = Path(temp)
+            (data / 'android').mkdir()
+            (data / 'android/release.json').write_text(json.dumps(AndroidContractTests.manifest))
+            with patch.object(operations, 'DATA', data), patch.object(operations, 'run') as service:
+                with self.assertRaisesRegex(RuntimeError, 'incompletos'):
+                    operations.deploy(data / 'unused.tar.gz', 'revision-1')
+                service.assert_not_called()
+
 class SnapshotTests(unittest.TestCase):
     @unittest.skipUnless(os.name == 'posix', 'Release links are tested on Linux')
     def test_failed_release_restores_previous_database_and_application(self):
@@ -114,6 +214,12 @@ class SnapshotTests(unittest.TestCase):
                     entry = tarfile.TarInfo(name)
                     entry.size = len(content)
                     bundle.addfile(entry, io.BytesIO(content))
+            # Produce the exact delivery contract consumed by the installed helper.
+            build = Path(temp) / 'build'
+            (build / 'dist').mkdir(parents=True)
+            (build / 'backend').write_bytes(b'fake-binary')
+            (build / 'dist/index.html').write_text('html')
+            operations.package_web(build / 'backend', build / 'dist', 'new-code', archive)
             stored = {}
             class Storage:
                 def get_bucket(self, *args):

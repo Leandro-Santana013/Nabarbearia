@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import Home from './pages/Home'
 import ServiceDetail from './pages/ServiceDetail'
 import DateTimeSelection from './pages/DateTimeSelection'
@@ -8,44 +8,48 @@ import UserProfile from './pages/UserProfile'
 import LoginScreen from './pages/LoginScreen'
 import { Button } from './components/ui/button'
 import { Alert, AlertDescription } from './components/ui/alert'
-import { ApiError, api, type AuthResponse } from './services/api'
+import { ApiError, api } from './services/api'
+import { useAccess } from './lib/access/AccessProvider'
+import { publicHome } from './lib/access/routing'
+import { AccessDenied } from './lib/access/AccessScreen'
 import { appointmentFromApi, barbersFromApi, catalogFromApi, clientError } from './lib/client-api'
 import { splitAppointments } from './lib/client-appointments'
-import { toServiceInfo } from './data/bookingCatalog'
+import { BookingError, createReservation, serviceForDisplay } from './lib/booking/reservation'
 import type { Appointment } from './types'
 import type { CatalogService } from './data/barbershopData'
-import type { Barber, ServiceInfo } from './pages/ServiceDetail.types'
-import type { BookingReview, DateTimeChoice } from './pages/DateTimeSelection.types'
+import type { Barber } from './pages/ServiceDetail.types'
+import type { BookingReview } from './pages/DateTimeSelection.types'
 import type { ClientAppointment } from './pages/MyAppointments.types'
 
-const ANY_BARBER: Barber = { id: 'any', name: 'Qualquer disponível', specialty: 'Barbeiro(a)', isAny: true }
-
 export default function ClientApp({ path, onNavigate }: { path: string; onNavigate: (path: string) => void }) {
-  const [session, setSession] = useState<AuthResponse | null>(null)
+  const { session, refresh: refreshSession, logout: logoutSession, accept, notice } = useAccess()
   const [services, setServices] = useState<CatalogService[]>([])
   const [barbers, setBarbers] = useState<Barber[]>([])
   const [records, setRecords] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [booking, setBooking] = useState<{ service: ServiceInfo; barber: Barber } | null>(null)
-  const [dateTime, setDateTime] = useState<DateTimeChoice>({ date: '', time: '' })
+  const userId = useRef<string | null>(null)
+  userId.current = session?.user.id ?? null
+  const [reservation] = useState(() => createReservation(api, () => userId.current))
+  const { draft: booking, choice: dateTime } = useSyncExternalStore(reservation.subscribe, reservation.getSnapshot, reservation.getSnapshot)
+  const bookingService = booking ? serviceForDisplay(booking.service) : null
   const [completed, setCompleted] = useState<ClientAppointment | null>(null)
-  const [reschedulingId, setReschedulingId] = useState<string | null>(null)
+  const reschedulingId = booking?.mode.kind === 'reschedule' ? booking.mode.appointmentId : null
   const requestId = useRef(0)
-  const idempotency = useRef<{ fingerprint: string; key: string } | null>(null)
 
   const refresh = useCallback(async () => {
     const request = ++requestId.current
     setLoading(true)
     setError('')
     try {
-      const [auth, serviceList, barberList] = await Promise.all([api.authSession(), api.getPublicServices(), api.getPublicBarbers()])
+      const [auth, serviceList, barberList] = await Promise.all([refreshSession(), api.getPublicServices(), api.getPublicBarbers()])
       if (request !== requestId.current) return
       if (auth && !auth.user.roles.includes('client')) {
-        onNavigate(auth.user.roles.includes('owner') ? '/painel' : '/barbeiro')
+        const destination = publicHome(auth.user)
+        if (destination) onNavigate(destination)
         return
       }
-      setSession(auth)
+      reservation.setCatalog(serviceList, barberList)
       setServices(catalogFromApi(serviceList))
       setBarbers(barbersFromApi(barberList))
       if (auth) {
@@ -54,72 +58,54 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
       } else setRecords([])
     } catch (failure) {
       if (request === requestId.current) {
-        if (failure instanceof ApiError && failure.status === 401) { setSession(null); setRecords([]) }
+        if (failure instanceof ApiError && failure.status === 401) setRecords([])
         setError(clientError(failure))
       }
     } finally {
       if (request === requestId.current) setLoading(false)
     }
-  }, [onNavigate])
+  }, [onNavigate, refreshSession, reservation])
 
   useEffect(() => {
     void refresh()
     return () => { requestId.current += 1 }
   }, [refresh])
 
-  const appointments = useMemo(() => records.map((item) => appointmentFromApi(item, barbers)), [records, barbers])
+  useEffect(() => { setRecords([]); setCompleted(null) }, [session?.user.id])
+
+  const appointments = useMemo(() => records.filter((item) => item.clientUserId === session?.user.id).map((item) => appointmentFromApi(item, barbers)), [records, barbers, session?.user.id])
   const { upcoming } = splitAppointments(appointments)
   const successId = new URLSearchParams(window.location.search).get('id')
   const success = completed?.id === successId ? completed : appointments.find((item) => item.id === successId && item.status === 'confirmed')
 
   function chooseService(service: CatalogService) {
-    setBooking({ service: toServiceInfo(service), barber: ANY_BARBER })
-    setDateTime({ date: '', time: '' })
-    setCompleted(null)
-    setReschedulingId(null)
-    idempotency.current = null
-    onNavigate('/servico')
+    try {
+      reservation.start(service.id)
+      setCompleted(null)
+      onNavigate('/servico')
+    } catch (failure) { setError(clientError(failure)) }
   }
 
   function reuseAppointment(appointment: ClientAppointment, reschedule = false) {
-    const service = services.find((item) => item.id === appointment.service.id)
-    if (!service) { setError('Este serviço não está mais disponível no catálogo. Escolha outro serviço.'); return }
-    const barber = barbers.find((item) => item.id === appointment.barber.id)
-    if (reschedule && !barber) { setError('Este profissional não está disponível para remarcação. Fale com a recepção.'); return }
-    setBooking({ service: reschedule ? appointment.service : toServiceInfo(service), barber: barber ?? ANY_BARBER })
-    setDateTime({ date: reschedule ? appointment.date : '', time: '' })
-    setReschedulingId(reschedule ? appointment.id : null)
-    setCompleted(null)
-    idempotency.current = null
-    onNavigate(reschedule ? '/horarios' : '/servico')
+    try {
+      const record = records.find((item) => item.id === appointment.id && item.clientUserId === session?.user.id)
+      if (!record) throw new BookingError('Agendamento não encontrado. Atualize seus agendamentos.')
+      reservation.reuse(record, reschedule)
+      setCompleted(null)
+      onNavigate(reschedule ? '/horarios' : '/servico')
+    } catch (failure) { setError(clientError(failure)) }
   }
 
-  const loadAvailability = useCallback(async (date: string) => {
-    if (!booking?.service.id) return []
-    return api.getAvailability(booking.service.id, date, booking.barber.isAny ? undefined : booking.barber.id)
-  }, [booking?.service.id, booking?.barber.id, booking?.barber.isAny])
+  function selectProfessional(barber: Barber) {
+    try { reservation.selectProfessional(barber.id); onNavigate('/horarios') }
+    catch (failure) { setError(clientError(failure)) }
+  }
 
   async function confirmBooking(review: BookingReview) {
-    if (!session || !review.startsAt || !review.barberId || !review.service.id) throw new Error('Escolha um horário válido para continuar.')
-    const chosen = barbers.find((barber) => barber.id === review.barberId)
-    if (!chosen) throw new Error('Profissional indisponível.')
-    try {
-      let saved: Appointment
-      if (reschedulingId) saved = await api.rescheduleAppointment(reschedulingId, review.startsAt)
-      else {
-        const fingerprint = `${session.user.id}:${review.service.id}:${review.barberId}:${review.startsAt}`
-        if (idempotency.current?.fingerprint !== fingerprint) idempotency.current = { fingerprint, key: crypto.randomUUID() }
-        saved = await api.bookAppointment({ barber_user_id: review.barberId, service_id: review.service.id, starts_at: review.startsAt }, idempotency.current.key)
-      }
-      saved = { ...saved, serviceName: saved.serviceName ?? review.service.title, barberName: saved.barberName ?? chosen.name }
-      setRecords((previous) => [saved, ...previous.filter((item) => item.id !== saved.id)])
-      setCompleted(appointmentFromApi(saved, barbers))
-      setReschedulingId(null)
-      onNavigate(`/confirmacao?id=${encodeURIComponent(saved.id)}`)
-    } catch (failure) {
-      if (failure instanceof ApiError && failure.status === 401) { setSession(null); setRecords([]) }
-      throw failure
-    }
+    const saved = await reservation.confirm(review)
+    setRecords((previous) => [saved, ...previous.filter((item) => item.id !== saved.id)])
+    setCompleted(appointmentFromApi(saved, barbers))
+    onNavigate(`/confirmacao?id=${encodeURIComponent(saved.id)}`)
   }
 
   async function cancelAppointment(id: string) {
@@ -127,7 +113,7 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
       await api.cancelAppointment(id)
       setRecords((previous) => previous.map((item) => item.id === id ? { ...item, status: 'cancelled' } : item))
     } catch (failure) {
-      if (failure instanceof ApiError && failure.status === 401) { setSession(null); setRecords([]); setError(clientError(failure)) }
+      if (failure instanceof ApiError && failure.status === 401) { setRecords([]); setError(clientError(failure)) }
       throw failure
     }
   }
@@ -136,25 +122,22 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
       await api.rateAppointment(id, rating)
       setRecords((previous) => previous.map((item) => item.id === id ? { ...item, rating } : item))
     } catch (failure) {
-      if (failure instanceof ApiError && failure.status === 401) { setSession(null); setRecords([]); setError(clientError(failure)) }
+      if (failure instanceof ApiError && failure.status === 401) { setRecords([]); setError(clientError(failure)) }
       if (failure instanceof ApiError && failure.code === 'RATING_EXISTS') void refresh()
       throw failure
     }
   }
   async function logout() {
-    await api.logout()
-    setSession(null)
+    await logoutSession()
     setRecords([])
-    setBooking(null)
+    reservation.clear()
     setCompleted(null)
-    setReschedulingId(null)
-    idempotency.current = null
-    onNavigate('/login')
   }
 
   if (loading) return <main role="status" className="flex min-h-dvh items-center justify-center bg-background p-5 text-sm text-muted-foreground">Carregando sua barbearia…</main>
+  if (session && !publicHome(session.user)) return <AccessDenied />
   const needsLogin = ['/perfil', '/meus-agendamentos', '/horarios', '/confirmacao'].includes(path)
-  if (needsLogin && !session) return <LoginScreen initialError={error} onAuthenticated={() => { void refresh() }} onGuest={() => onNavigate('/home')} />
+  if (needsLogin && !session) return <LoginScreen key={notice} initialError={error || notice} onAuthenticated={(value) => { accept(value); void refresh() }} onGuest={() => onNavigate('/home')} />
 
   let page
   if (path === '/home' || path === '/mobile') {
@@ -182,12 +165,12 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
       onViewAppointments={() => onNavigate('/meus-agendamentos')} onLogout={logout} />
   } else if (path === '/confirmacao' && success) {
     page = <BookingSuccess booking={success} isDemo={false} whatsappStatus="unavailable" onViewAppointments={() => onNavigate('/meus-agendamentos')} onGoHome={() => onNavigate('/home')} />
-  } else if ((path === '/servico' || path === '/detalhes') && booking) {
-    page = <ServiceDetail key={booking.service.id} service={booking.service} barbers={barbers} initialBarberId={booking.barber.id}
-      onBack={() => onNavigate('/home')} onSelectSchedule={(barber, service) => { setBooking({ barber, service }); setDateTime({ date: '', time: '' }); onNavigate('/horarios') }} />
-  } else if (path === '/horarios' && booking) {
-    page = <DateTimeSelection key={`${booking.service.id}:${booking.barber.id}:${reschedulingId ?? ''}`} service={booking.service} barber={booking.barber}
-      initialDate={dateTime.date} initialTime={dateTime.time} onSelectionChange={setDateTime} loadAvailability={loadAvailability} lockBarber={Boolean(reschedulingId)}
+  } else if ((path === '/servico' || path === '/detalhes') && booking && bookingService) {
+    page = <ServiceDetail key={booking.service.id} service={bookingService} barbers={barbers} initialBarberId={booking.barber.id}
+      onBack={() => onNavigate('/home')} onSelectSchedule={selectProfessional} />
+  } else if (path === '/horarios' && booking && bookingService) {
+    page = <DateTimeSelection key={`${booking.service.id}:${booking.barber.id}:${reschedulingId ?? ''}`} service={bookingService} barber={booking.barber}
+      initialDate={dateTime.date} initialTime={dateTime.time} onSelectionChange={reservation.setChoice} loadAvailability={reservation.loadAvailability} lockBarber={Boolean(reschedulingId)}
       onBack={() => onNavigate(reschedulingId ? '/meus-agendamentos' : '/servico')} onChangeBarber={() => onNavigate('/servico')} onConfirm={confirmBooking} />
   } else {
     page = <main className="mx-auto max-w-md space-y-4 px-4 py-8 text-center"><h1 className="text-lg font-semibold">Escolha um serviço para continuar</h1><Button type="button" onClick={() => onNavigate('/home')} className="min-h-11 rounded-xl px-5">Ver serviços</Button></main>

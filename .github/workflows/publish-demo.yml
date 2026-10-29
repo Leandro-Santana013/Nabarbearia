@@ -51,6 +51,7 @@ jobs:
           npm run build
           python3 -m unittest discover -s deploy -p test_operations.py -v
           python3 -m py_compile deploy/operations.py deploy/bootstrap.py
+          node --test scripts/release/*.test.mjs
           node --check scripts/check-staff-flow.mjs
           node --check scripts/tauri-android.mjs
       - name: Testar backend e fluxos reais
@@ -59,18 +60,17 @@ jobs:
           cargo test --locked --manifest-path backend/Cargo.toml
           cargo clippy --locked --manifest-path backend/Cargo.toml -- -D warnings
           cargo build --locked --manifest-path backend/Cargo.toml
+          node --test scripts/test-support/flow-test.test.mjs
           node scripts/check-client-flow.mjs
           node scripts/check-owner-flow.mjs
           node scripts/check-staff-flow.mjs
+          node scripts/check-access-flow.mjs
+          node scripts/check-booking-flow.mjs
+          node scripts/check-android-update-flow.mjs
       - name: Compilar e empacotar Linux AMD64
         run: |
           cargo build --release --locked --manifest-path backend/Cargo.toml
-          mkdir -p build-release
-          install -m755 backend/target/release/nabarbearia-backend build-release/backend
-          cp -R dist build-release/dist
-          printf '%s\n' "$RELEASE_ID" > build-release/REVISION
-          tar -czf release.tar.gz -C build-release backend dist REVISION
-          sha256sum release.tar.gz > release.tar.gz.sha256
+          python3 deploy/operations.py package-web --backend backend/target/release/nabarbearia-backend --dist dist --revision "$RELEASE_ID" --output release.tar.gz
       - uses: actions/upload-artifact@v4
         with:
           name: linux-amd64-${{ github.sha }}
@@ -91,6 +91,8 @@ jobs:
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           trap 'rm -f ~/.ssh/deploy_key' EXIT
           target="${DEPLOY_USER}@${DEPLOY_HOST}"
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "$target" "/usr/local/sbin/nabarbearia capabilities" > helper-capabilities.json
+          python3 deploy/operations.py check-helper helper-capabilities.json
           scp -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes release.tar.gz "$target:/tmp/nabarbearia-${RELEASE_ID}.tar.gz"
           ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "$target" "sudo /usr/local/sbin/nabarbearia deploy /tmp/nabarbearia-${RELEASE_ID}.tar.gz ${RELEASE_ID}"
           curl --fail --retry 3 --retry-delay 5 "https://${DEPLOY_DOMAIN}/api/v1/health"

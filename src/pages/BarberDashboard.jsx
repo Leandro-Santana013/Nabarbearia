@@ -7,16 +7,15 @@ import { WHATSAPP_URL } from "@/data/barbershopData"
 import BarberDayTools from "@/components/BarberDayTools"
 import BarberAgendaHeader from "@/components/BarberAgendaHeader"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import LoginScreen from "./LoginScreen"
+import { useAccess } from "@/lib/access/AccessProvider"
 import BarberSchedule from "./BarberSchedule"
 import { ApiError, api } from "@/services/api"
 import { dailySchedule, isAppointmentInProgress, money, shopDate, scheduleTime } from "@/lib/barber-schedule"
 
 /** @param {import("./BarberDashboard.types").BarberDashboardProps} props */
-export default function BarberDashboard({ session: initialSession, onLogout } = {}) {
+export default function BarberDashboard({ session }) {
+  const { logout: logoutSession } = useAccess()
   const [activeTab, setActiveTab] = useState("agenda")
-  const [session, setSession] = useState(initialSession ?? null)
-  const [checkingSession, setCheckingSession] = useState(!initialSession)
   const [appointments, setAppointments] = useState([])
   const [blocks, setBlocks] = useState([])
   const [date, setDate] = useState(() => shopDate())
@@ -58,15 +57,6 @@ export default function BarberDashboard({ session: initialSession, onLogout } = 
       window.removeEventListener("resize", updateViewport)
     }
   }, [allowed])
-
-  useEffect(() => {
-    if (initialSession) return
-    let active = true
-    api.authSession().then((result) => { if (active) setSession(result) })
-      .catch(() => { if (active) setError("Não foi possível verificar sua sessão. Tente entrar novamente.") })
-      .finally(() => { if (active) setCheckingSession(false) })
-    return () => { active = false }
-  }, [initialSession])
 
   const load = useCallback(async () => {
     if (!allowed) return
@@ -136,19 +126,13 @@ export default function BarberDashboard({ session: initialSession, onLogout } = 
     setBusy(true)
     setError("")
     try {
-      await api.logout()
-      if (onLogout) onLogout()
-      else window.location.assign("/login")
+      await logoutSession()
     } catch {
       setError("Não foi possível sair da conta. Tente novamente.")
       actionPending.current = false
       setBusy(false)
     }
   }
-
-  if (checkingSession) return <main role="status" className="flex min-h-dvh items-center justify-center bg-background p-5 text-sm text-muted-foreground">Verificando sua sessão…</main>
-  if (!session) return <LoginScreen initialError={error} onAuthenticated={(result) => { setError(""); setSession(result) }} />
-  if (!allowed) return <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-4 bg-background p-5 text-center"><h1 className="text-xl font-semibold">Área exclusiva do barbeiro</h1><p className="text-sm text-muted-foreground">Sua conta não possui acesso à agenda profissional.</p><Button nativeButton={false} render={<a href="/home" />} className="min-h-11 rounded-xl px-4">Voltar ao início</Button></main>
 
   const schedule = dailySchedule(appointments, session.user.id, date)
   const inProgress = date === shopDate() && schedule.items.some((item) => isAppointmentInProgress(item, startedIds))

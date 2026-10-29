@@ -1,0 +1,324 @@
+[
+  {
+    "name": "valid",
+    "valid": true,
+    "value": {
+      "version_code": 2002,
+      "version_name": "0.2.2",
+      "size_bytes": 3,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "future-field",
+    "valid": true,
+    "value": {
+      "version_code": 2002,
+      "version_name": "0.2.2",
+      "size_bytes": 3,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04",
+      "future": 1
+    }
+  },
+  {
+    "name": "limits",
+    "valid": true,
+    "value": {
+      "version_code": 2147483647,
+      "version_name": "0.2.2",
+      "size_bytes": 9007199254740991,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "null",
+    "valid": false,
+    "value": null
+  },
+  {
+    "name": "array",
+    "valid": false,
+    "value": []
+  },
+  {
+    "name": "html",
+    "valid": false,
+    "value": "<html>Site</html>"
+  },
+  {
+    "name": "version_code-0",
+    "valid": false,
+    "value": {
+      "version_code": 0,
+      "version_name": "0.2.2",
+      "size_bytes": 3,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "version_code-1",
+    "valid": false,
+    "value": {
+      "version_code": -1,
+      "version_name": "0.2.2",
+      "size_bytes": 3,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "version_code-2",
+    "valid": false,
+    "value": {
+      "version_code": true,
+      "version_name": "0.2.2",
+      "size_bytes": 3,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "version_code-3",
+    "valid": false,
+    "value": {
+      "version_code": "2002",
+      "version_name": "0.2.2",
+      "size_bytes": 3,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "version_code-4",
+    "valid": false,
+    "value": {
+      "version_code": 1.5,
+      "version_name": "0.2.2",
+      "size_bytes": 3,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "version_code-5",
+    "valid": false,
+    "value": {
+      "version_code": 2147483648,
+      "version_name": "0.2.2",
+      "size_bytes": 3,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "version_code-6",
+    "valid": false,
+    "value": {
+      "version_code": null,
+      "version_name": "0.2.2",
+      "size_bytes": 3,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "size_bytes-0",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": "0.2.2",
+      "size_bytes": 0,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "size_bytes-1",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": "0.2.2",
+      "size_bytes": -1,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "size_bytes-2",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": "0.2.2",
+      "size_bytes": true,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "size_bytes-3",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": "0.2.2",
+      "size_bytes": "3",
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "size_bytes-4",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": "0.2.2",
+      "size_bytes": 1.5,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "size_bytes-5",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": "0.2.2",
+      "size_bytes": 9007199254740992,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "size_bytes-6",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": "0.2.2",
+      "size_bytes": null,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "version_name-0",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": "",
+      "size_bytes": 3,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "version_name-1",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": " \t\r\n",
+      "size_bytes": 3,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "version_name-2",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": 2,
+      "size_bytes": 3,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "version_name-3",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": null,
+      "size_bytes": 3,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "sha256-0",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": "0.2.2",
+      "size_bytes": 3,
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  {
+    "name": "sha256-1",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": "0.2.2",
+      "size_bytes": 3,
+      "sha256": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    }
+  },
+  {
+    "name": "sha256-2",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": "0.2.2",
+      "size_bytes": 3,
+      "sha256": "gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg"
+    }
+  },
+  {
+    "name": "sha256-3",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": "0.2.2",
+      "size_bytes": 3,
+      "sha256": null
+    }
+  },
+  {
+    "name": "missing-version_code",
+    "valid": false,
+    "value": {
+      "version_name": "0.2.2",
+      "size_bytes": 3,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "missing-version_name",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "size_bytes": 3,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "missing-size_bytes",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": "0.2.2",
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "missing-sha256",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": "0.2.2",
+      "size_bytes": 3
+    }
+  },
+  {
+    "name": "integral-json-number",
+    "valid": true,
+    "value": {
+      "version_code": 2002.0,
+      "version_name": "0.2.2",
+      "size_bytes": 3.0,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04"
+    }
+  },
+  {
+    "name": "sha256-newline",
+    "valid": false,
+    "value": {
+      "version_code": 2002,
+      "version_name": "0.2.2",
+      "size_bytes": 3,
+      "sha256": "dd37c2d7274f7ea982cb83390c36918fee9ce8889073c44b68cdc00bdb8c3e04\n"
+    }
+  }
+]

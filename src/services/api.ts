@@ -95,9 +95,23 @@ function mapAppointment(appointment: AppointmentDto): Appointment {
 
 class ApiService {
   private csrfToken: string | null = null
+  private sessionRevision = 0
+  private expiryListeners = new Set<() => void>()
+
+  onSessionExpired(listener: () => void): () => void {
+    this.expiryListeners.add(listener)
+    return () => { this.expiryListeners.delete(listener) }
+  }
+
+  private clearSession(expired = false) {
+    const authenticated = this.csrfToken !== null
+    this.csrfToken = null
+    this.sessionRevision += 1
+    if (expired && authenticated) for (const listener of this.expiryListeners) listener()
+  }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
-    const requestSession = this.csrfToken
+    const requestSession = this.sessionRevision
     const headers = new Headers(init.headers)
     if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
     if (this.csrfToken) headers.set('X-CSRF-Token', this.csrfToken)
@@ -120,10 +134,7 @@ class ApiService {
     }
     const body = await response.json().catch(() => null)
     if (!response.ok) {
-      if (response.status === 401 && requestSession !== null && this.csrfToken === requestSession && typeof window !== 'undefined' && window.location.pathname.startsWith('/equipe') && !path.startsWith('/auth/')) {
-        this.csrfToken = null
-        window.dispatchEvent(new Event('staff-session-expired'))
-      }
+      if (response.status === 401 && this.csrfToken !== null && this.sessionRevision === requestSession && !path.startsWith('/auth/')) this.clearSession(true)
       const code = typeof body?.code === 'string' ? body.code : 'REQUEST_FAILED'
       const login = path === '/auth/login' || path === '/auth/staff/login'
       throw new ApiError(apiErrorMessage(code, response.status, login), code, response.status,
@@ -132,7 +143,9 @@ class ApiService {
     return body as T
   }
 
-  private setSession(data: AuthResponse) {
+  private setSession(data: AuthResponse, restored = false) {
+    // Restoring the same token is not a new login: its pending 401s still apply.
+    if (!restored || this.csrfToken !== data.csrf_token) this.sessionRevision += 1
     this.csrfToken = data.csrf_token
     return data
   }
@@ -151,10 +164,15 @@ class ApiService {
   }
 
   async authSession(): Promise<AuthResponse | null> {
+    const revision = this.sessionRevision
     try {
-      return this.setSession(await this.request<AuthResponse>('/auth/session'))
+      const data = await this.request<AuthResponse>('/auth/session')
+      return revision === this.sessionRevision ? this.setSession(data, true) : data
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) return null
+      if (error instanceof ApiError && error.status === 401) {
+        if (revision === this.sessionRevision) this.clearSession(true)
+        return null
+      }
       throw error
     }
   }
@@ -181,8 +199,9 @@ class ApiService {
   }
 
   async logout(): Promise<void> {
+    const revision = this.sessionRevision
     await this.request('/auth/logout', { method: 'POST', body: '{}' })
-    this.csrfToken = null
+    if (revision === this.sessionRevision) this.clearSession()
   }
 
   async getPublicServices(): Promise<Service[]> {

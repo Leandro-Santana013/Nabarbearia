@@ -8,6 +8,16 @@ export interface AndroidRelease {
   sha256: string
 }
 
+export function parseAndroidRelease(value: unknown): AndroidRelease {
+  const release = value as AndroidRelease | null
+  if (!release || typeof release !== 'object' || Array.isArray(release) ||
+      !Number.isInteger(release.version_code) || release.version_code <= 0 || release.version_code > 2147483647 ||
+      typeof release.version_name !== 'string' || !release.version_name.trim() ||
+      !Number.isSafeInteger(release.size_bytes) || release.size_bytes <= 0 ||
+      typeof release.sha256 !== 'string' || release.sha256.length !== 64 || !/^[a-f0-9]{64}$/.test(release.sha256)) throw new Error('Versão de atualização inválida.')
+  return { version_code: release.version_code, version_name: release.version_name, size_bytes: release.size_bytes, sha256: release.sha256 }
+}
+
 export function installedAndroidVersion(userAgent: string): number | null {
   if (userAgent.includes('NABarbeariaDebug/')) return null
   const match = /\bNABarbearia\/(\d+)\b/.exec(userAgent)
@@ -30,11 +40,6 @@ export async function availableAndroidUpdate(installed: number, signal?: AbortSi
   if (response.status !== 200 || response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
     throw new Error('A atualização está indisponível no servidor. Tente novamente mais tarde.')
   }
-  const release = await response.json().catch(() => null)
-  if (!release || typeof release !== 'object') throw new Error('Versão de atualização inválida.')
-  if (!Number.isSafeInteger(release.version_code) || release.version_code <= 0 ||
-      typeof release.version_name !== 'string' || !release.version_name ||
-      !Number.isSafeInteger(release.size_bytes) || release.size_bytes <= 0 ||
-      typeof release.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(release.sha256)) throw new Error('Versão de atualização inválida.')
+  const release = parseAndroidRelease(await response.json().catch(() => null))
   return release.version_code > installed ? release : null
 }

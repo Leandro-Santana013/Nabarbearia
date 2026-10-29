@@ -28,6 +28,125 @@ DB = DATA / 'nabarbearia.db'
 RELEASES = ROOT / 'releases'
 MAINTENANCE = ROOT / 'maintenance'
 SERVICE = 'nabarbearia.service'
+HELPER_PROTOCOL = 2
+APK_NAME = 'NA-Barbearia-arm64-release.apk'
+
+
+def valid_revision(value):
+    if not isinstance(value, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,79}', value):
+        raise ValueError('Invalid release ID')
+    return value
+
+
+def check_helper(value):
+    if not isinstance(value, dict) or type(value.get('delivery_protocol')) is not int or value['delivery_protocol'] != HELPER_PROTOCOL:
+        raise RuntimeError('Helper administrativo incompatível; instalação revisada pelo administrador necessária')
+
+
+def delivery_files(directory):
+    """Inventory only application files; never copy arbitrary checkout contents."""
+    directory = Path(directory)
+    files = [directory / 'backend', directory / 'REVISION']
+    files += sorted((directory / 'dist').rglob('*'))
+    result = {}
+    for path in files:
+        if path.is_symlink() or not (path.is_file() or path.is_dir()):
+            raise RuntimeError('Unsafe delivery file')
+        if path.is_file():
+            if path.suffix.lower() in {'.apk', '.db', '.sqlite', '.sqlite3', '.p12', '.keystore', '.jks'} or path.name.startswith('.env') or path.name.endswith(('.db-wal', '.db-shm')) or path.name == 'keystore.properties':
+                raise RuntimeError('Private artifact in web delivery')
+            with path.open('rb') as source:
+                result[path.relative_to(directory).as_posix()] = hashlib.file_digest(source, 'sha256').hexdigest()
+    if 'dist/index.html' not in result:
+        raise RuntimeError('Incomplete release')
+    return result
+
+
+def verify_delivery(directory, release_id):
+    directory = Path(directory)
+    metadata = json.loads((directory / 'DELIVERY.json').read_text(encoding='utf-8'))
+    check_helper(metadata)
+    if metadata.get('revision') != valid_revision(release_id) or (directory / 'REVISION').read_text().strip() != release_id:
+        raise RuntimeError('Release revision mismatch')
+    if metadata.get('files') != delivery_files(directory):
+        raise RuntimeError('Release inventory/hash mismatch')
+
+
+def package_web(backend, dist, release_id, output):
+    release_id = valid_revision(release_id)
+    backend, dist, output = Path(backend), Path(dist), Path(output)
+    if backend.is_symlink() or not backend.is_file() or dist.is_symlink() or not (dist / 'index.html').is_file():
+        raise RuntimeError('Incomplete release')
+    # Reject links before copytree can dereference them, including directory links.
+    if any(path.is_symlink() for path in dist.rglob('*')):
+        raise RuntimeError('Unsafe delivery file')
+    with tempfile.TemporaryDirectory() as temp:
+        staged = Path(temp)
+        shutil.copyfile(backend, staged / 'backend')
+        shutil.copytree(dist, staged / 'dist')
+        (staged / 'REVISION').write_text(release_id + '\n', encoding='utf-8')
+        metadata = {'delivery_protocol': HELPER_PROTOCOL, 'revision': release_id, 'files': delivery_files(staged)}
+        (staged / 'DELIVERY.json').write_text(json.dumps(metadata, sort_keys=True) + '\n', encoding='utf-8')
+        verify_delivery(staged, release_id)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        # Build beside the destination so replacing it never crosses filesystems.
+        with tempfile.NamedTemporaryFile(dir=output.parent, delete=False) as target:
+            incoming = Path(target.name)
+        try:
+            with tarfile.open(incoming, 'w:gz') as bundle:
+                for name in ('backend', 'dist', 'REVISION', 'DELIVERY.json'):
+                    bundle.add(staged / name, arcname=name)
+            incoming.replace(output)
+        finally:
+            incoming.unlink(missing_ok=True)
+    with output.open('rb') as source:
+        checksum = hashlib.file_digest(source, 'sha256').hexdigest()
+    output.with_name(output.name + '.sha256').write_text(f'{checksum}  {output.name}\n', encoding='utf-8')
+
+
+def install_android(source):
+    """Administrative operation, under the same maintenance lock as web deployment.
+
+    Copy and verify before touching live files. Keep the previous pair for recovery.
+    The deploy user gets no new sudo permission for this operation.
+    """
+    source = Path(source)
+    expected = android_artifacts(source)
+    if expected is None:
+        raise RuntimeError('Nenhum APK e manifesto encontrados no diretório informado')
+    target = DATA / 'android'
+    target.mkdir(mode=0o750, exist_ok=True)
+    android_artifacts(target)  # Refuse to overwrite an already incomplete/corrupt pair.
+    backup = Path(tempfile.mkdtemp(prefix='android-backup-', dir=DATA))
+    with tempfile.TemporaryDirectory(prefix='.android-incoming-', dir=DATA) as temp:
+        incoming = Path(temp)
+        for name in (APK_NAME, 'release.json'):
+            shutil.copyfile(source / name, incoming / name)
+            (incoming / name).chmod(0o640)
+            shutil.chown(incoming / name, user='root', group='nabarbearia')
+            if (target / name).exists():
+                shutil.copyfile(target / name, backup / name)
+        if android_artifacts(incoming) != expected:
+            raise RuntimeError('Artefatos alterados durante preparação')
+        shutil.chown(target, user='root', group='nabarbearia')
+        target.chmod(0o750)
+        try:
+            (incoming / APK_NAME).replace(target / APK_NAME)
+            (incoming / 'release.json').replace(target / 'release.json')
+            android_artifacts(target)
+        except Exception:
+            # Withdraw announcement first, then restore APK -> manifest.
+            (target / 'release.json').unlink(missing_ok=True)
+            for name in (APK_NAME, 'release.json'):
+                if (backup / name).is_file():
+                    shutil.copyfile(backup / name, incoming / name)
+                    (incoming / name).chmod(0o640)
+                    shutil.chown(incoming / name, user='root', group='nabarbearia')
+                    (incoming / name).replace(target / name)
+                else:
+                    (target / name).unlink(missing_ok=True)
+            raise
+    print('Android instalado; cópia anterior privada:', backup)
 
 
 def run(*args):
@@ -172,8 +291,8 @@ def wait_health(port=3001):
 
 
 def validate_android_manifest(value):
-    if not isinstance(value, dict) or any(type(value.get(key)) is not int or not 0 < value[key] <= 9007199254740991
-                                         for key in ('version_code', 'size_bytes')):
+    if not isinstance(value, dict) or any(type(value.get(key)) not in (int, float) or not 0 < value[key] <= maximum or value[key] % 1 != 0
+                                         for key, maximum in (('version_code', 2147483647), ('size_bytes', 9007199254740991))):
         raise RuntimeError('Manifesto Android inválido: versão ou tamanho')
     if not isinstance(value.get('version_name'), str) or not value['version_name'].strip():
         raise RuntimeError('Manifesto Android inválido: nome da versão')
@@ -185,7 +304,7 @@ def validate_android_manifest(value):
 def android_artifacts(directory):
     directory = Path(directory)
     manifest = directory / 'release.json'
-    apk = directory / 'NA-Barbearia-arm64-release.apk'
+    apk = directory / APK_NAME
     if not manifest.exists() and not apk.exists():
         return None
     if not manifest.is_file() or not apk.is_file():
@@ -250,27 +369,29 @@ def replace_database(source):
 
 
 def extract_release(archive, release_id):
-    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,79}', release_id):
-        raise ValueError('Invalid release ID')
+    valid_revision(release_id)
     destination = RELEASES / release_id
     if destination.exists():
         raise RuntimeError('Release already exists; use a new revision')
     destination.mkdir(parents=True)
     try:
         with tarfile.open(archive, 'r:gz') as bundle:
+            names = set()
             for member in bundle.getmembers():
                 parts = Path(member.name).parts
+                if member.name in names:
+                    raise RuntimeError('Duplicate archive member')
+                names.add(member.name)
                 if member.issym() or member.islnk() or not (member.isfile() or member.isdir()) or Path(member.name).is_absolute() or '..' in parts:
                     raise RuntimeError('Unsafe archive member')
-                if not parts or parts[0] not in {'backend', 'dist', 'REVISION'}:
-                    raise RuntimeError('Release may only contain backend, dist and REVISION; no database or secrets')
-                if parts[0] in {'backend', 'REVISION'} and len(parts) != 1:
+                if not parts or parts[0] not in {'backend', 'dist', 'REVISION', 'DELIVERY.json'}:
+                    raise RuntimeError('Release may only contain backend, dist, REVISION and DELIVERY.json; no database or secrets')
+                if parts[0] in {'backend', 'REVISION', 'DELIVERY.json'} and len(parts) != 1:
                     raise RuntimeError('Invalid release layout')
             bundle.extractall(destination, filter='data')
         if not (destination / 'dist/index.html').is_file() or not (destination / 'backend').is_file():
             raise RuntimeError('Incomplete release')
-        if (destination / 'REVISION').read_text().strip() != release_id:
-            raise RuntimeError('Release revision mismatch')
+        verify_delivery(destination, release_id)
         (destination / 'backend').chmod(0o755)
         return destination
     except Exception:
@@ -279,9 +400,12 @@ def extract_release(archive, release_id):
 
 
 def deploy(archive, release_id):
+    valid_revision(release_id)
+    android_artifacts(DATA / 'android')  # Before maintenance, service stop or backup.
     if not DB.is_file():
         raise RuntimeError('Import the initial database before publishing')
     if revision() == release_id and health():
+        verify_delivery(ROOT / 'current', release_id)
         verify_android_contract('http://127.0.0.1:3001', android_artifacts(DATA / 'android'))
         print('Esta revisão já está publicada e saudável:', release_id)
         return
@@ -391,6 +515,16 @@ def main():
     publish = sub.add_parser('deploy')
     publish.add_argument('archive', type=Path)
     publish.add_argument('revision')
+    install = sub.add_parser('install-android')
+    install.add_argument('directory', type=Path)
+    sub.add_parser('capabilities')
+    helper = sub.add_parser('check-helper')
+    helper.add_argument('path', type=Path)
+    package = sub.add_parser('package-web')
+    package.add_argument('--backend', type=Path, required=True)
+    package.add_argument('--dist', type=Path, required=True)
+    package.add_argument('--revision', required=True)
+    package.add_argument('--output', type=Path, required=True)
     sub.add_parser('backup')
     sub.add_parser('dns-update')
     verify = sub.add_parser('verify-release')
@@ -398,6 +532,15 @@ def main():
     verify.add_argument('--android-dir', type=Path)
     verify.add_argument('--require-published', action='store_true')
     args = parser.parse_args()
+    if args.command == 'capabilities':
+        print(json.dumps({'delivery_protocol': HELPER_PROTOCOL}))
+        return
+    if args.command == 'check-helper':
+        check_helper(json.loads(args.path.read_text(encoding='utf-8')))
+        return
+    if args.command == 'package-web':
+        package_web(args.backend, args.dist, args.revision, args.output)
+        return
     if args.command == 'verify-release':
         expected = android_artifacts(args.android_dir) if args.android_dir else None
         if args.android_dir and expected is None:
@@ -417,6 +560,8 @@ def main():
         fcntl.flock(lock, fcntl.LOCK_EX)
         if args.command == 'deploy':
             deploy(args.archive, args.revision)
+        elif args.command == 'install-android':
+            install_android(args.directory)
         elif args.command == 'import':
             import_database(Path(args.value))
         elif args.command == 'backup':

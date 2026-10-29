@@ -117,6 +117,22 @@ As migrações ficam em `backend/migrations/` e são aplicadas automaticamente. 
 
 As versões 0007 e 0008 acrescentam detalhes operacionais ao agendamento e registros de repasses com associação às comissões. O banco versionado é um snapshot de demonstração. Bancos em uso e arquivos WAL/SHM locais não devem ser incluídos nas atualizações de código.
 
+## Organização das operações de agenda
+
+`src/appointments/` oferece comandos completos de criação, recepção/encaixe, remarcação, cancelamento, início, conclusão, falta, detalhes e lote. Cada comando recebe `Db`, a identidade autenticada e dados de entrada; concentra permissões de negócio, conflitos, gravações, histórico e auditoria sob uma transação imediata. Os handlers mantêm autenticação/CSRF, validação sintática e respostas HTTP. O módulo de operações usa erros próprios, traduzidos em `src/error.rs`, sem depender de Axum.
+
+O lote libera e ocupa horários dentro da mesma transação, permitindo trocas entre selecionados e revertendo todos os itens em caso de falha. A conclusão grava execução, receita e comissão antes do mesmo commit, chamando `commissions/settlement.rs` dentro dessa transação. Não houve migração de esquema nesta extração.
+
+Os testes em `src/appointments/tests.rs` usam SQLite real e incluem conexões independentes concorrentes, repetição idempotente, isolamento por negócio e falhas induzidas de auditoria/comissão. O resultado local e os limites estão em [RESULTADO-F3-ARQUITETURA](../docs/RESULTADO-F3-ARQUITETURA.md).
+
+## Organização financeira
+
+`src/commissions/` concentra regras, cálculo histórico, regularização, elegibilidade, repasses e projeções financeiras. Criar regra e registrar repasse são operações completas com identidade autenticada e uma transação imediata própria. O cálculo participa da transação de conclusão sem confirmar alterações por conta própria. Comissões já postadas não são recalculadas; regularização e pagamento têm rollback integral, incluindo auditoria. Saldo exibido e repasse usam a mesma política de elegibilidade.
+
+O resumo do proprietário seleciona produção pela data de início da agenda; o relatório de ganhos seleciona pela conclusão. Saldo a repassar é acumulado, sem filtro de período, e comissões pagas continuam na produção. Cada projeção usa um snapshot transacional. Repasse registra pagamento já efetuado e exige o saldo esperado; repetir a mesma chave devolve o registro original, sem consumir novos ganhos. `retained_cents` significa receita menos comissão, sem apuração de despesas/impostos ou lucro líquido. Os contratos HTTP permanecem compatíveis.
+
+Os testes em `src/commissions/tests.rs` cobrem regras/vigência, centavos, histórico, regularização, permissões, períodos, rollback e repasses concorrentes por duas conexões SQLite. Resultado, evidências e limites em [RESULTADO-F4-ARQUITETURA](../docs/RESULTADO-F4-ARQUITETURA.md).
+
 ## Verificações
 
 ```bash

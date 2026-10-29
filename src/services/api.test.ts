@@ -36,8 +36,8 @@ it('usa mensagens seguras para falhas desconhecidas, rede e timeout', async () =
 })
 
 it('uma resposta atrasada da sessão anterior não encerra um novo login da equipe', async () => {
-  const dispatchEvent = vi.fn()
-  vi.stubGlobal('window', { location: { pathname: '/equipe/barbeiro' }, dispatchEvent })
+  const expired = vi.fn()
+  const unsubscribe = api.onSessionExpired(expired)
   const auth = (csrf: string) => new Response(JSON.stringify({
     user: { id: 'barber', business_id: 'shop', email: 'barber@test.invalid', display_name: 'Barbeiro', roles: ['barber'] },
     csrf_token: csrf, expires_at: '2026-11-02T00:00:00Z',
@@ -54,10 +54,64 @@ it('uma resposta atrasada da sessão anterior não encerra um novo login da equi
   await api.staffLogin('barber@test.invalid', 'password')
   release(new Response(JSON.stringify({ code: 'UNAUTHORIZED' }), { status: 401 }))
   expect(await stale).toBeInstanceOf(ApiError)
-  expect(dispatchEvent).not.toHaveBeenCalled()
+  expect(expired).not.toHaveBeenCalled()
 
   fetch.mockResolvedValueOnce(new Response('{}', { status: 401 }))
   await expect(api.listAppointments()).rejects.toBeInstanceOf(ApiError)
-  expect(dispatchEvent).toHaveBeenCalledOnce()
-  expect(dispatchEvent.mock.calls[0][0].type).toBe('staff-session-expired')
+  expect(expired).toHaveBeenCalledOnce()
+  unsubscribe()
+})
+
+it.each([200, 401])('restauração atrasada HTTP %s não substitui CSRF nem expira um novo login', async (status) => {
+  const expired = vi.fn()
+  const unsubscribe = api.onSessionExpired(expired)
+  const auth = (csrf: string) => Response.json({ user: { id: csrf, roles: ['barber'] }, csrf_token: csrf })
+  let release!: (response: Response) => void
+  const pending = new Promise<Response>((resolve) => { release = resolve })
+  const fetch = vi.fn().mockReturnValueOnce(pending).mockResolvedValueOnce(auth('fresh-csrf')).mockResolvedValueOnce(Response.json([]))
+  vi.stubGlobal('fetch', fetch)
+  try {
+    const restoring = api.authSession()
+    await api.staffLogin('barber@test.invalid', 'password')
+    release(status === 200 ? auth('stale-csrf') : Response.json({}, { status }))
+    await restoring
+    await api.listAppointments()
+    expect(fetch.mock.calls[2][1].headers.get('X-CSRF-Token')).toBe('fresh-csrf')
+    expect(expired).not.toHaveBeenCalled()
+  } finally { unsubscribe() }
+})
+
+it('expira sessão sem depender de window ou da rota e permite cancelar assinatura', async () => {
+  const expired = vi.fn()
+  const unsubscribe = api.onSessionExpired(expired)
+  vi.stubGlobal('window', undefined)
+  vi.stubGlobal('fetch', vi.fn()
+    .mockResolvedValueOnce(Response.json({ user: { roles: ['client'] }, csrf_token: 'client-csrf' }))
+    .mockResolvedValueOnce(Response.json({}, { status: 401 }))
+    .mockResolvedValueOnce(Response.json({ user: { roles: ['client'] }, csrf_token: 'another-csrf' }))
+    .mockResolvedValueOnce(Response.json({}, { status: 401 })))
+  await api.login('client@test.invalid', 'password')
+  await expect(api.listAppointments()).rejects.toBeInstanceOf(ApiError)
+  expect(expired).toHaveBeenCalledOnce()
+  unsubscribe()
+  await api.login('client@test.invalid', 'password')
+  await expect(api.listAppointments()).rejects.toBeInstanceOf(ApiError)
+  expect(expired).toHaveBeenCalledOnce()
+})
+
+it('restaurar a mesma sessão não mascara um 401 concorrente dessa sessão', async () => {
+  const expired = vi.fn()
+  const unsubscribe = api.onSessionExpired(expired)
+  const auth = () => Response.json({ user: { roles: ['barber'] }, csrf_token: 'same-session' })
+  let release!: (response: Response) => void
+  const pending = new Promise<Response>((resolve) => { release = resolve })
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(auth()).mockReturnValueOnce(pending).mockResolvedValueOnce(auth()))
+  try {
+    await api.staffLogin('barber@test.invalid', 'password')
+    const operation = api.listAppointments().catch((error: unknown) => error)
+    await api.authSession()
+    release(Response.json({}, { status: 401 }))
+    expect(await operation).toBeInstanceOf(ApiError)
+    expect(expired).toHaveBeenCalledOnce()
+  } finally { unsubscribe() }
 })

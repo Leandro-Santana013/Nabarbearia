@@ -1,5 +1,5 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, statSync } from 'node:fs'
-import { createHash } from 'node:crypto'
+import { existsSync, readdirSync } from 'node:fs'
+import { prepareAndroidRelease } from './release/android-release.mjs'
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url'
 const root = fileURLToPath(new URL('../', import.meta.url))
 const env = { ...process.env }
 if (process.argv[2] === 'build' && !process.argv.includes('--debug')) {
+  if (env.NABARBEARIA_ANDROID_CERT_SHA256?.length !== 64 || !/^[a-f0-9]{64}$/.test(env.NABARBEARIA_ANDROID_CERT_SHA256)) throw new Error('Defina NABARBEARIA_ANDROID_CERT_SHA256 com o certificado aprovado antes do build release.')
   for (const name of ['nabarbearia-release.p12', 'keystore.properties']) {
     if (!existsSync(join(root, 'src-tauri/gen/android', name))) {
       throw new Error(`Assinatura ausente: ${name}. Restaure o backup para atualizar o app existente. Para uma primeira instalação nova, execute android:signing explicitamente.`)
@@ -45,24 +46,26 @@ child.on('error', (error) => {
 child.on('exit', (code) => {
   process.exitCode = code ?? 1
   if (code === 0 && process.argv[2] === 'build' && !process.argv.includes('--debug')) {
-    const apk = join(root, 'src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk')
-    if (!existsSync(apk)) return
-    const artifacts = join(root, 'artifacts')
-    mkdirSync(artifacts, { recursive: true })
-    const delivery = join(artifacts, 'NA-Barbearia-arm64-release.apk')
-    copyFileSync(apk, delivery)
-    const properties = readFileSync(join(root, 'src-tauri/gen/android/app/tauri.properties'), 'utf8')
-    const versionCode = Number(properties.match(/^tauri.android.versionCode=(\d+)$/m)?.[1])
-    const versionName = properties.match(/^tauri.android.versionName=(.+)$/m)?.[1]?.trim()
-    if (!Number.isSafeInteger(versionCode) || versionCode <= 0 || !versionName) {
-      throw new Error('Não foi possível obter a versão do APK compilado.')
+    try {
+      const sdk = env.ANDROID_HOME
+      if (!sdk) throw new Error('Defina ANDROID_HOME para inspecionar o APK.')
+      const version = readdirSync(join(sdk, 'build-tools')).filter(name => /^\d+(\.\d+)+$/.test(name))
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).at(-1)
+      if (!version) throw new Error('Android build-tools ausente.')
+      const buildTools = join(sdk, 'build-tools', version)
+      const directory = join(root, 'artifacts')
+      const release = prepareAndroidRelease({
+        apk: join(root, 'src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk'),
+        properties: join(root, 'src-tauri/gen/android/app/tauri.properties'), directory,
+        expectedCertificate: env.NABARBEARIA_ANDROID_CERT_SHA256,
+        tools: { aapt: join(buildTools, process.platform === 'win32' ? 'aapt.exe' : 'aapt'),
+          apksigner: join(buildTools, 'lib/apksigner.jar'),
+          java: env.JAVA_HOME ? join(env.JAVA_HOME, 'bin', process.platform === 'win32' ? 'java.exe' : 'java') : 'java' },
+      })
+      console.info(`Entrega Android preparada: ${release.version_name} (${release.version_code}) em ${directory}`)
+    } catch (error) {
+      console.error(error.message)
+      process.exitCode = 1
     }
-    writeFileSync(join(artifacts, 'release.json'), JSON.stringify({
-      version_code: versionCode,
-      version_name: versionName,
-      size_bytes: statSync(delivery).size,
-      sha256: createHash('sha256').update(readFileSync(delivery)).digest('hex'),
-    }, null, 2) + '\n')
-    console.info(`APK de entrega: ${delivery}`)
   }
 })

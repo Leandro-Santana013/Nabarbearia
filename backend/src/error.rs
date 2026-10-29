@@ -120,3 +120,52 @@ impl IntoResponse for AppError {
 }
 
 pub type ApiResult<T> = Result<T, AppError>;
+
+impl From<crate::commissions::Error> for AppError {
+    fn from(error: crate::commissions::Error) -> Self {
+        use crate::commissions::{Error, Rejection};
+        match error {
+            Error::Rejected {
+                kind,
+                code,
+                message,
+            } => Self::Api {
+                status: match kind {
+                    Rejection::Invalid => StatusCode::BAD_REQUEST,
+                    Rejection::Forbidden => StatusCode::FORBIDDEN,
+                    Rejection::Missing => StatusCode::NOT_FOUND,
+                    Rejection::Conflict => StatusCode::CONFLICT,
+                },
+                code,
+                message,
+            },
+            Error::Db(error) => Self::Db(error),
+            Error::Sqlite(error) => Self::Sqlite(error),
+        }
+    }
+}
+
+impl From<crate::appointments::Error> for AppError {
+    fn from(error: crate::appointments::Error) -> Self {
+        use crate::appointments::{Error, Rejection};
+        match error {
+            Error::Rejected {
+                kind,
+                code,
+                message,
+            } => Self::Api {
+                status: match kind {
+                    Rejection::Invalid => StatusCode::BAD_REQUEST,
+                    Rejection::Forbidden => StatusCode::FORBIDDEN,
+                    Rejection::Missing => StatusCode::NOT_FOUND,
+                    Rejection::Conflict => StatusCode::CONFLICT,
+                },
+                code,
+                message,
+            },
+            Error::Db(error) => Self::Db(error),
+            Error::Sqlite(error) => Self::Sqlite(error),
+            Error::Internal => Self::Internal,
+        }
+    }
+}
