@@ -1,5 +1,6 @@
 import type { OwnerSummary } from '@/lib/owner-dashboard'
 import type { Appointment, Barber, Service, UserRole } from '../types'
+import { apiErrorMessage } from './api-errors'
 
 const API_BASE_URL = '/api/v1'
 
@@ -33,12 +34,14 @@ export interface RevenueReport {
 export class ApiError extends Error {
   code: string
   status: number
+  technicalMessage?: string
 
-  constructor(message: string, code = 'REQUEST_FAILED', status = 400) {
+  constructor(message: string, code = 'REQUEST_FAILED', status = 400, technicalMessage?: string) {
     super(message)
     this.name = 'ApiError'
     this.code = code
     this.status = status
+    this.technicalMessage = technicalMessage
   }
 }
 
@@ -99,19 +102,32 @@ class ApiService {
     if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
     if (this.csrfToken) headers.set('X-CSRF-Token', this.csrfToken)
 
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-      ...init,
-      headers,
-      credentials: 'include',
-      signal: init.signal ?? AbortSignal.timeout(20000),
-    })
+    let response: Response
+    try {
+      response = await fetch(`${API_BASE_URL}${path}`, {
+        ...init,
+        headers,
+        credentials: 'include',
+        signal: init.signal ?? AbortSignal.timeout(20000),
+      })
+    } catch (error) {
+      if (init.signal?.aborted) throw error
+      const timeout = error instanceof Error && error.name === 'TimeoutError'
+      throw new ApiError(timeout
+        ? 'A conexão demorou para responder. Tente novamente.'
+        : 'Não foi possível conectar à barbearia. Verifique sua conexão e tente novamente.',
+      timeout ? 'REQUEST_TIMEOUT' : 'NETWORK_ERROR', 0)
+    }
     const body = await response.json().catch(() => null)
     if (!response.ok) {
       if (response.status === 401 && requestSession !== null && this.csrfToken === requestSession && typeof window !== 'undefined' && window.location.pathname.startsWith('/equipe') && !path.startsWith('/auth/')) {
         this.csrfToken = null
         window.dispatchEvent(new Event('staff-session-expired'))
       }
-      throw new ApiError(body?.message ?? 'Não foi possível concluir a operação.', body?.code, response.status)
+      const code = typeof body?.code === 'string' ? body.code : 'REQUEST_FAILED'
+      const login = path === '/auth/login' || path === '/auth/staff/login'
+      throw new ApiError(apiErrorMessage(code, response.status, login), code, response.status,
+        typeof body?.message === 'string' ? body.message : undefined)
     }
     return body as T
   }

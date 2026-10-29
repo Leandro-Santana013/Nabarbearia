@@ -94,3 +94,4 @@ jobs:
           scp -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes release.tar.gz "$target:/tmp/nabarbearia-${RELEASE_ID}.tar.gz"
           ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes "$target" "sudo /usr/local/sbin/nabarbearia deploy /tmp/nabarbearia-${RELEASE_ID}.tar.gz ${RELEASE_ID}"
           curl --fail --retry 3 --retry-delay 5 "https://${DEPLOY_DOMAIN}/api/v1/health"
+          python3 deploy/operations.py verify-release --origin "https://${DEPLOY_DOMAIN}"

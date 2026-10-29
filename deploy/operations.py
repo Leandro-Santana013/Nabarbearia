@@ -18,6 +18,7 @@ import tempfile
 import time
 import urllib.parse
 import urllib.request
+import urllib.error
 
 ROOT = Path('/opt/nabarbearia')
 DATA = Path('/var/lib/nabarbearia')
@@ -170,6 +171,64 @@ def wait_health(port=3001):
     raise RuntimeError('Backend health check failed')
 
 
+def validate_android_manifest(value):
+    if not isinstance(value, dict) or any(type(value.get(key)) is not int or not 0 < value[key] <= 9007199254740991
+                                         for key in ('version_code', 'size_bytes')):
+        raise RuntimeError('Manifesto Android inválido: versão ou tamanho')
+    if not isinstance(value.get('version_name'), str) or not value['version_name'].strip():
+        raise RuntimeError('Manifesto Android inválido: nome da versão')
+    if not isinstance(value.get('sha256'), str) or not re.fullmatch('[a-f0-9]{64}', value['sha256']):
+        raise RuntimeError('Manifesto Android inválido: SHA-256')
+    return {key: value[key] for key in ('version_code', 'version_name', 'size_bytes', 'sha256')}
+
+
+def android_artifacts(directory):
+    directory = Path(directory)
+    manifest = directory / 'release.json'
+    apk = directory / 'NA-Barbearia-arm64-release.apk'
+    if not manifest.exists() and not apk.exists():
+        return None
+    if not manifest.is_file() or not apk.is_file():
+        raise RuntimeError('Artefatos Android incompletos: publique APK e manifesto juntos')
+    value = validate_android_manifest(json.loads(manifest.read_text(encoding='utf-8')))
+    if apk.stat().st_size != value['size_bytes']:
+        raise RuntimeError('Tamanho do APK difere do manifesto')
+    with apk.open('rb') as source:
+        checksum = hashlib.file_digest(source, 'sha256').hexdigest()
+    if checksum != value['sha256']:
+        raise RuntimeError('SHA-256 do APK difere do manifesto')
+    return value
+
+
+def verify_android_contract(origin, expected=None, require_published=False):
+    origin = origin.rstrip('/')
+    request = urllib.request.Request(origin + '/api/v1/staff/android/release', headers={'Cache-Control': 'no-cache'})
+    with urllib.request.urlopen(request, timeout=15) as response:
+        if 'no-store' not in [part.strip().lower() for part in response.headers.get('Cache-Control', '').split(',')]:
+            raise RuntimeError('Manifesto Android permite cache indevido')
+        if response.status == 204:
+            if expected is not None or require_published:
+                raise RuntimeError('Manifesto retornou 204, mas uma versão publicada era esperada')
+            value = None
+        else:
+            if response.status != 200 or response.headers.get_content_type() != 'application/json':
+                raise RuntimeError('Manifesto Android deve retornar JSON (200) ou 204; HTML não é válido')
+            try:
+                value = validate_android_manifest(json.loads(response.read(65537)))
+            except (ValueError, UnicodeError) as error:
+                raise RuntimeError('Manifesto Android não contém JSON válido') from error
+            if expected is not None and value != validate_android_manifest(expected):
+                raise RuntimeError('Versão publicada difere do manifesto esperado')
+    # No cookie is sent. HTML/login redirects or a public download must never pass.
+    try:
+        with urllib.request.urlopen(origin + '/api/v1/staff/android/apk', timeout=15):
+            raise RuntimeError('APK acessível sem autenticação da equipe')
+    except urllib.error.HTTPError as error:
+        if error.code not in (401, 403):
+            raise RuntimeError('Proteção do APK retornou uma resposta inesperada') from error
+    return value
+
+
 def link_current(target):
     if target.parent != RELEASES or not target.is_dir():
         raise RuntimeError('Invalid release directory')
@@ -223,6 +282,7 @@ def deploy(archive, release_id):
     if not DB.is_file():
         raise RuntimeError('Import the initial database before publishing')
     if revision() == release_id and health():
+        verify_android_contract('http://127.0.0.1:3001', android_artifacts(DATA / 'android'))
         print('Esta revisão já está publicada e saudável:', release_id)
         return
     destination = extract_release(archive, release_id)
@@ -235,6 +295,7 @@ def deploy(archive, release_id):
         link_current(destination)
         run('systemctl', 'start', SERVICE)
         wait_health()
+        verify_android_contract('http://127.0.0.1:3001', android_artifacts(DATA / 'android'))
         if previous:
             old = ROOT / 'previous'
             old.unlink(missing_ok=True)
@@ -332,7 +393,19 @@ def main():
     publish.add_argument('revision')
     sub.add_parser('backup')
     sub.add_parser('dns-update')
+    verify = sub.add_parser('verify-release')
+    verify.add_argument('--origin', required=True)
+    verify.add_argument('--android-dir', type=Path)
+    verify.add_argument('--require-published', action='store_true')
     args = parser.parse_args()
+    if args.command == 'verify-release':
+        expected = android_artifacts(args.android_dir) if args.android_dir else None
+        if args.android_dir and expected is None:
+            raise RuntimeError('Nenhum APK e manifesto encontrados no diretório informado')
+        value = verify_android_contract(args.origin, expected, args.require_published)
+        print('Manifesto e proteção do APK verificados:' if value else 'Contrato verificado; nenhum APK anunciado (204).',
+              json.dumps(value) if value else '')
+        return
     if args.command == 'export':
         copy_database(args.source, args.destination, args.revoke_sessions)
         print('Snapshot consistente criado:', args.destination)

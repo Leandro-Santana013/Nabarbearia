@@ -29,4 +29,12 @@ describe('atualizações Android', () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json({ ...release, version_code: '2002' })))
     await expect(availableAndroidUpdate(2001)).rejects.toThrow()
   })
+  it('explica a publicação inválida quando o endpoint devolve HTML ou JSON malformado', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('<!doctype html><html>Site</html>', { headers: { 'Content-Type': 'text/html' } })))
+    await expect(availableAndroidUpdate(2001)).rejects.toThrow('A atualização está indisponível no servidor. Tente novamente mais tarde.')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{invalid', { headers: { 'Content-Type': 'application/json' } })))
+    await expect(availableAndroidUpdate(2001)).rejects.toThrow('Versão de atualização inválida.')
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(null)))
+    await expect(availableAndroidUpdate(2001)).rejects.toThrow('Versão de atualização inválida.')
+  })
 })

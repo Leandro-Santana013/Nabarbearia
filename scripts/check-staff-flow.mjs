@@ -89,9 +89,9 @@ try {
     await until(() => evaluate(`Boolean([...document.querySelectorAll('button')].find(b => !b.disabled && b.textContent.trim() === ${JSON.stringify(label)}))`), label)
     await evaluate(`[...document.querySelectorAll('button')].find(b => !b.disabled && b.textContent.trim() === ${JSON.stringify(label)}).click()`)
   }
-  const login = async (email) => {
+  const login = async (email, enteredPassword = password) => {
     await evaluate(`(() => {
-      for (const [name, value] of ${JSON.stringify([['email', ''], ['password', password]])}) {
+      for (const [name, value] of ${JSON.stringify([['email', ''], ['password', enteredPassword]])}) {
         const input = document.querySelector('input[name="' + name + '"]');
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, name === 'email' ? ${JSON.stringify(email)} : value);
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -109,6 +109,9 @@ try {
   await waitText('Acesso da equipe')
   assert.equal(await evaluate('location.pathname'), '/equipe/login')
   for (const forbidden of ['Cadastre-se', 'Continuar como visitante', 'Continuar com o Google']) assert(!(await text()).includes(forbidden))
+  await login('barber@staff-flow.test', 'incorrect-password')
+  await waitText('E-mail ou senha incorretos.')
+  assert.equal(await evaluate('document.querySelector(\'input[name="email"]\').value'), 'barber@staff-flow.test')
   await login('client@staff-flow.test')
   await waitText('Este acesso é exclusivo')
   assert.equal(await evaluate('location.pathname'), '/equipe/login')

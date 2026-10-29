@@ -161,6 +161,10 @@ Não coloque o token em arquivos versionados, comandos registrados no histórico
 
 ## APK e atualizações nativas
 
+Consulte também [a preparação da entrega e as verificações de contrato](RELEASE-VALIDATION.md).
+O helper atualizado valida manifesto e artefatos antes de aceitar uma versão; sua
+instalação administrativa na VM deve acompanhar a adoção dessa verificação.
+
 No Windows, mantenha Android SDK/NDK, JDK e o toolchain GNU usados pelo projeto:
 
 ```powershell

@@ -47,7 +47,6 @@ export function clientError(error: unknown) {
   if (error instanceof ApiError) {
     if (error.status === 401) return 'Sua sessão expirou. Entre novamente para continuar.'
     if (error.code === 'RATING_EXISTS') return 'Este atendimento já foi avaliado.'
-    if (error.status === 409) return 'O agendamento mudou ou o horário ficou indisponível. Atualize a agenda e escolha novamente.'
     return error.message
   }
   return 'Não foi possível conectar à barbearia. Tente novamente.'
