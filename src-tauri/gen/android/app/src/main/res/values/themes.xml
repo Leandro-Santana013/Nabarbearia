@@ -1,6 +1,11 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Theme.app" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your theme here. -->
+    <!-- Match the light web UI from the first native frame. -->
+    <style name="Theme.app" parent="Theme.Material3.Light.NoActionBar">
+        <item name="android:windowBackground">@color/app_background</item>
+        <item name="android:colorBackground">@color/app_background</item>
+        <item name="android:statusBarColor">@color/app_background</item>
+        <item name="android:navigationBarColor">@color/app_background</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 </resources>

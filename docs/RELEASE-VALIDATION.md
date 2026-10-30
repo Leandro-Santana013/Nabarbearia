@@ -24,7 +24,7 @@ O APK local `0.2.2` (`2002`) foi conferido contra `artifacts/release.json`:
 - certificado SHA-256: `f2c706099c3bbb66fc204751ab962129a885f7e2502075b34c570493c3185d16`;
 - certificado igual ao APK anterior preservado em `artifacts/NA-Barbearia-before-online.apk`.
 
-Estas correções não alteram código nativo. Não gerar outro APK apenas para publicar
+As correções de mensagens de 29/10 não alteram código nativo. Não gerar outro APK apenas para publicar
 as mensagens. Antes da atualização no aparelho, conferir a versão instalada e manter
 a mesma assinatura; nunca criar outra chave para substituir a existente.
 
@@ -86,7 +86,7 @@ hash divergentes impedem a aceitação pelo helper no servidor.
 
 ## Contrato local de F5
 
-`tests/fixtures/android-release/cases.json` contém os mesmos 34 casos usados por Node, TypeScript, Rust e Python. Versão: inteiro positivo até `2147483647`; tamanho: inteiro positivo até `9007199254740991`; nome não vazio após trim; SHA-256 minúsculo com exatamente 64 caracteres. Campos futuros são aceitos e desconsiderados. HTML, tipos incorretos, frações, dados incompletos e hashes com quebra de linha são recusados. O endpoint Rust também calcula o hash do APK antes de anunciar; uma troca parcial falha sem liberar o aplicativo. Manifesto e download autenticado usam `no-store`.
+`tests/fixtures/android-release/cases.json` contém os mesmos 34 casos usados por Node, TypeScript, Rust e Python. Versão: inteiro positivo até `2147483647`; tamanho: inteiro positivo até `9007199254740991`; nome não vazio após trim; SHA-256 minúsculo com exatamente 64 caracteres. Campos futuros são aceitos e desconsiderados. HTML, tipos incorretos, frações, dados incompletos e hashes com quebra de linha são recusados. O endpoint Rust também calcula o hash do APK antes de anunciar; uma troca parcial impede o anúncio. Manifesto e download autenticado usam `no-store`.
 
 `scripts/release/android-release.mjs` concentra inspeção do APK assinado, pacote `br.com.nabarbearia.app`, certificado aprovado, comparação da versão com `tauri.properties` e preparação APK → manifesto. `android:build` executa essa política ao terminar e falha se o APK esperado não existir. Defina `NABARBEARIA_ANDROID_CERT_SHA256` conforme o README. O snapshot temporário permite inspecionar e copiar os mesmos bytes, inclusive em checkouts Windows com acentos. O instalador nativo continua verificando pacote, versão crescente e assinatura; seu código não foi alterado no F5.
 
@@ -108,6 +108,26 @@ O helper recusa revisão divergente, inventário/hash alterado, protocolo incomp
 Verificações: `npm.cmd run test:release`, `npm.cmd test`, `npm.cmd run build`, testes Rust e `python -m unittest discover -s deploy -p test_operations.py -v`. Após build frontend/backend, `node scripts/check-android-update-flow.mjs` usa Chrome/API/SQLite isolados para verificar navegador comum, versão anterior/atual, corrupção/recuperação e 204. Os dois testes de recuperação web com symlinks são executados em Linux no workflow manual e ignorados no Windows. Nenhum desses testes substitui instalação no Android.
 
 ## Aceite no aparelho
+
+### Abertura fluida — ajuste local de 30/10/2026
+
+A consulta de versão ocorre em segundo plano na abertura e ao recuperar visibilidade.
+Não exibe tela de verificação nem desmonta o conteúdo durante a consulta. Sem resposta
+válida, mantém a entrada disponível e tenta novamente na próxima retomada. Quando uma
+versão superior é confirmada, mostra o bloqueio obrigatório; uma falha posterior de
+consulta não remove esse bloqueio. Download, autenticação e validação nativa continuam
+com seus controles existentes.
+
+O tema Android, inclusive no modo noturno, o fundo da WebView/Tauri e o HTML inicial
+usam o fundo claro `#F4F4F6`, para evitar contraste preto entre as primeiras telas.
+O [Android usa o fundo do tema na abertura](https://developer.android.com/develop/ui/views/launch/splash-screen).
+A mudança do tema/WebView exige um novo APK; a consulta silenciosa exige publicar a
+interface. O APK de depuração local não substitui a entrega assinada de produção.
+
+O fluxo `test:android-update-flow` cobre consulta pendente, preservação do campo de
+login ao recuperar visibilidade, modo escuro emulado, erro/recuperação do manifesto,
+bloqueio confirmado, versão atual e 204. No aparelho, conferir abertura a frio e
+retomada em modo claro/escuro, com rede rápida/lenta, além dos cenários abaixo.
 
 Com um Android disponível, validar atualização sobre a versão anterior, dados/sessão,
 cancelamento da instalação, falha de rede, retorno do segundo plano e Wi-Fi/4G.

@@ -74,7 +74,7 @@ A ordem recomendada é **F0 → F1 → F2 → F3 → F4**. F5 entra antes da pr�
 
 **Contrato pretendido:** telas recebem estado de acesso e ações de autenticação/saída; não escolhem repetidamente destino, tratamento de 401 e retomada. A API continua responsável pela autorização real.
 
-**Aceite / Gate 1:** login, recarga, logout, expiração, resposta antiga após novo login, perda/retorno de rede e destinos dos três perfis passam; cliente permanece impedido de entrar como equipe. Proprietário híbrido conserva gestão e agenda. Rotas antigas continuam levando ao destino aprovado; `/equipe/download` conserva seu fluxo. O bloqueio de atualização permanece antes do painel/login da equipe no Android. Conferir navegação, foco, telas estreitas e zoom.
+**Aceite / Gate 1:** login, recarga, logout, expiração, resposta antiga após novo login, perda/retorno de rede e destinos dos três perfis passam; cliente permanece impedido de entrar como equipe. Proprietário híbrido conserva gestão e agenda. Rotas antigas continuam levando ao destino aprovado; `/equipe/download` conserva seu fluxo. No Android, uma atualização confirmada bloqueia o acesso da equipe; por solicitação de 30/10/2026, a consulta ocorre em segundo plano, sem tela de verificação na entrada. Conferir navegação, foco, telas estreitas e zoom.
 
 **Risco principal:** alterar compatibilidade ou criar duas fontes de sessão. A inspeção estrutural deve comprovar a direção `tela → coordenação de acesso → API`, sem serviço HTTP importando componentes ou regras de URL.
 

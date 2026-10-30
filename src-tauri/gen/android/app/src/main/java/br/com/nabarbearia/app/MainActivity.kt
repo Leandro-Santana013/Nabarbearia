@@ -42,6 +42,7 @@ class MainActivity : TauriActivity() {
   }
 
   override fun onWebViewCreate(webView: WebView) {
+    webView.setBackgroundColor(getColor(R.color.app_background))
     super.onWebViewCreate(webView)
     appWebView = webView
     val marker = if (BuildConfig.DEBUG) "NABarbeariaDebug" else "NABarbearia"
@@ -136,13 +137,14 @@ class MainActivity : TauriActivity() {
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
+    val background = getColor(R.color.app_background)
     enableEdgeToEdge(
-      statusBarStyle = SystemBarStyle.light(Color.WHITE, Color.WHITE),
-      navigationBarStyle = SystemBarStyle.light(Color.WHITE, Color.WHITE),
+      statusBarStyle = SystemBarStyle.light(background, background),
+      navigationBarStyle = SystemBarStyle.light(background, background),
     )
     super.onCreate(savedInstanceState)
     val content = findViewById<android.view.View>(android.R.id.content)
-    content.setBackgroundColor(Color.WHITE)
+    content.setBackgroundColor(background)
     ViewCompat.setOnApplyWindowInsetsListener(content) { view, insets ->
       val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
       view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
