@@ -11,6 +11,7 @@ import { useAccess } from "@/lib/access/AccessProvider"
 import BarberSchedule from "./BarberSchedule"
 import { ApiError, api } from "@/services/api"
 import { dailySchedule, isAppointmentInProgress, money, shopDate, scheduleTime } from "@/lib/barber-schedule"
+import { useAndroidReady } from "@/lib/android-startup"
 
 /** @param {import("./BarberDashboard.types").BarberDashboardProps} props */
 export default function BarberDashboard({ session }) {
@@ -19,7 +20,8 @@ export default function BarberDashboard({ session }) {
   const [appointments, setAppointments] = useState([])
   const [blocks, setBlocks] = useState([])
   const [date, setDate] = useState(() => shopDate())
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  useAndroidReady(!loading)
   const [busy, setBusy] = useState(false)
   const [startedIds, setStartedIds] = useState(() => new Set())
   const [error, setError] = useState("")

@@ -23,6 +23,7 @@
     "test:staff-flow": "npm run build && node scripts/check-staff-flow.mjs",
     "test:access-flow": "npm run build && node scripts/check-access-flow.mjs",
     "test:android-update-flow": "npm run build && node scripts/check-android-update-flow.mjs",
+    "test:android-startup-flow": "npm run build && node scripts/check-android-startup-flow.mjs",
     "test:booking-flow": "npm run build && node scripts/check-booking-flow.mjs",
     "test:barber-responsive": "npm run build && node scripts/check-barber-responsive.mjs",
     "test:watch": "vitest"

@@ -8,6 +8,7 @@ import BarberDashboard from './pages/BarberDashboard'
 import OwnerDashboard from './pages/OwnerDashboard'
 import { Button } from './components/ui/button'
 import AndroidUpdateGate from './components/AndroidUpdateGate'
+import { useAndroidReady } from './lib/android-startup'
 
 export default function StaffApp({ path }: { path: string }) {
   return <AndroidUpdateGate><AccessProvider channel="staff"><StaffSessionApp path={path} /></AccessProvider></AndroidUpdateGate>
@@ -16,6 +17,7 @@ export default function StaffApp({ path }: { path: string }) {
 function StaffSessionApp({ path }: { path: string }) {
   const [downloadRequested] = useState(path === '/equipe/download')
   const { session, checking, connectionError, notice, accept } = useAccess()
+  useAndroidReady(connectionError || (!checking && (!session || path === '/equipe/download')))
   useEffect(() => {
     if (checking || connectionError) return
     const destination = staffDestination(path, session?.user ?? null)
@@ -23,7 +25,7 @@ function StaffSessionApp({ path }: { path: string }) {
   }, [path, session, checking, connectionError])
 
   if (connectionError) return <ConnectionFailure />
-  if (checking) return <CheckingAccess />
+  if (checking && !session) return <CheckingAccess />
   if (!session) return <LoginScreen key={notice} staffOnly initialError={notice} onAuthenticated={(value) => {
     accept(value)
     navigate(downloadRequested ? '/equipe/download' : staffHome(value.user), true)

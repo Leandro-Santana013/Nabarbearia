@@ -7,7 +7,7 @@ import { navigate } from './navigation'
 import { publicHome } from './routing'
 
 export function CheckingAccess() {
-  return <main role="status" className="flex min-h-dvh items-center justify-center bg-background p-5 text-sm text-muted-foreground">Verificando sua sessão…</main>
+  return <main aria-busy="true" aria-label="Carregando" className="min-h-dvh bg-background" />
 }
 
 export function ConnectionFailure() {

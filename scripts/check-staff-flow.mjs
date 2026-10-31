@@ -101,11 +101,23 @@ try {
   writeFileSync(join(root, 'artifacts/android-update-screen.png'), Buffer.from(screenshot.data, 'base64'))
   await evaluate("history.pushState({}, '', '/equipe/barbeiro'); dispatchEvent(new Event('popstate'))")
   await waitText('Atualize para continuar')
+  await evaluate(`(() => {
+    const originalFetch = window.fetch.bind(window);
+    window.restoreVersionFetch = () => { window.fetch = originalFetch; };
+    window.versionCheckFailed = false;
+    window.fetch = (...args) => originalFetch(...args).catch(error => {
+      if (String(args[0]) === '/api/v1/staff/android/release') window.versionCheckFailed = true;
+      throw error;
+    });
+  })()`)
   await send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: -1, uploadThroughput: -1 })
   await evaluate("dispatchEvent(new Event('staff-resume'))")
-  await waitText('Não foi possível verificar a versão')
+  await until(() => evaluate('window.versionCheckFailed'), 'falha da reconsulta de versão')
+  assert((await text()).includes('Atualize para continuar'))
+  assert(!(await text()).includes('Não foi possível verificar a versão'))
+  await evaluate('window.restoreVersionFetch()')
   await send('Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 })
-  await click('Tentar novamente')
+  await evaluate("dispatchEvent(new Event('staff-resume'))")
   await waitText('Atualize para continuar')
   await click('Atualizar aplicativo')
   await waitText('Baixando atualização…')

@@ -111,6 +111,21 @@ Verificações: `npm.cmd run test:release`, `npm.cmd test`, `npm.cmd run build`,
 
 ### Abertura fluida — ajuste local de 30/10/2026
 
+O [resultado do teste físico](RESULTADO-ABERTURA-ANDROID.md) registra a reprodução,
+a instalação do APK 0.2.3/2003 com a mesma assinatura e a comparação de quadros.
+Esse teste registra o ajuste nativo instalado e a posterior publicação autorizada
+somente da interface, com validação final no aplicativo principal.
+
+A continuação usa o APK 0.2.4/2004: a logo nativa cobre a WebView até o destino
+publicar `data-na-ready="true"`, após sessão, dados iniciais e fontes. O Android
+aguarda `postVisualStateCallback` antes de removê-la. Ao retornar, revalida a sessão
+preservando o painel; só recarrega a página quando o bundle servido mudou.
+Erros de conexão/timeout liberam uma recuperação acionável em vez de prender a logo.
+Execute `npm.cmd run test:android-startup-flow` e, no celular autenticado,
+`python scripts/check-android-startup.py --serial SERIAL --duration 30 --no-empty-loading --expect-dashboard --output-dir artifacts/startup-logo`.
+Inspecione o vídeo até o painel: uma gravação que termina na logo não comprova
+a transição. O estado da publicação/instalação está detalhado no relatório físico.
+
 A consulta de versão ocorre em segundo plano na abertura e ao recuperar visibilidade.
 Não exibe tela de verificação nem desmonta o conteúdo durante a consulta. Sem resposta
 válida, mantém a entrada disponível e tenta novamente na próxima retomada. Quando uma

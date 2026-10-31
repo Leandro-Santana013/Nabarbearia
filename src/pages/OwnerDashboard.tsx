@@ -34,6 +34,7 @@ import {
 import OwnerEditor, { type Editor } from "@/components/owner/OwnerEditor";
 import OwnerSelect from "@/components/owner/OwnerSelect";
 import { useAccess } from "@/lib/access/AccessProvider";
+import { useAndroidReady } from "@/lib/android-startup";
 import BarberDashboard from "./BarberDashboard";
 import { api, type AuthResponse } from "@/services/api";
 import { money, scheduleTime, shopDate } from "@/lib/barber-schedule";
@@ -91,6 +92,7 @@ export default function OwnerDashboard({
     ? path.split("/").at(-1)!
     : "financeiro";
   const hybrid = path === "/gestao/minha-agenda";
+  useAndroidReady(!hybrid && !loading && (tab !== "agenda-geral" || !agendaLoading));
   const range = useMemo(
     () => ownerRange(reportDate, period),
     [reportDate, period],

@@ -4,6 +4,7 @@ import { api } from '../services/api'
 import { isStaff } from '../lib/staff-routing'
 import { ANDROID_APK_URL, availableAndroidUpdate, installedAndroidVersion, type AndroidRelease } from '../lib/android-update'
 import LoginScreen from '../pages/LoginScreen'
+import { useAndroidReady } from '../lib/android-startup'
 import { Button } from './ui/button'
 
 type CheckState = { kind: 'current' } | { kind: 'update'; release: AndroidRelease }
@@ -12,6 +13,7 @@ type DownloadState = 'idle' | 'downloading' | 'ready' | 'permission' | 'installi
 export default function AndroidUpdateGate({ children }: { children: ReactNode }) {
   const [installed] = useState(() => installedAndroidVersion(navigator.userAgent))
   const [state, setState] = useState<CheckState>({ kind: 'current' })
+  useAndroidReady(state.kind === 'update')
   const [download, setDownload] = useState<DownloadState>('idle')
   const [message, setMessage] = useState('')
   const [login, setLogin] = useState(false)

@@ -22,13 +22,31 @@ class MainActivity : TauriActivity() {
   private var appWebView: WebView? = null
   private var hasResumed = false
   private var updater: AppUpdater? = null
+  private var startup: AppStartup? = null
 
   override fun onResume() {
     super.onResume()
-    // A backgrounded Activity can keep the old JavaScript alive indefinitely.
-    // Reload the no-store HTTPS page on return so server updates reach this APK.
-    if (updater?.onResume() != true && hasResumed) appWebView?.reload()
+    if (updater?.onResume() != true && hasResumed) refreshSessionAndInterface()
     hasResumed = true
+  }
+
+  // Revalidate access without tearing down a live dashboard. Fetch the entry
+  // in the background; only a changed bundle needs a covered full reload.
+  private fun refreshSessionAndInterface() {
+    appWebView?.evaluateJavascript("""
+      (async () => {
+        window.dispatchEvent(new Event('staff-resume'));
+        try {
+          const response = await fetch('/equipe', {cache:'no-store', signal:AbortSignal.timeout(5000)});
+          if (!response.ok) return;
+          const html = new DOMParser().parseFromString(await response.text(), 'text/html');
+          const selector = 'script[type="module"][src]';
+          const next = html.querySelector(selector)?.getAttribute('src');
+          const current = document.querySelector(selector)?.getAttribute('src');
+          if (next && current && next !== current) location.reload();
+        } catch (_) { /* Session handling presents real connection failures. */ }
+      })();
+    """.trimIndent(), null)
   }
 
   override fun onPause() {
@@ -37,6 +55,7 @@ class MainActivity : TauriActivity() {
   }
 
   override fun onDestroy() {
+    startup?.close()
     updater?.close()
     super.onDestroy()
   }
@@ -65,6 +84,7 @@ class MainActivity : TauriActivity() {
       errorPanel = null
     }
     fun showError() {
+      startup?.dismiss()
       if (errorPanel != null) return
       val panel = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
@@ -89,6 +109,7 @@ class MainActivity : TauriActivity() {
       (findViewById<View>(android.R.id.content) as ViewGroup).addView(panel,
         ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
     }
+    startup?.onTimeout = { failed = true; showError() }
     webView.webViewClient = object : WebViewClient() {
       override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
         delegate.shouldInterceptRequest(view, request)
@@ -114,13 +135,14 @@ class MainActivity : TauriActivity() {
         return true
       }
       override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+        startup?.begin()
         failed = false
         retryUrl = url
         delegate.onPageStarted(view, url, favicon)
       }
       override fun onPageFinished(view: WebView, url: String) {
         delegate.onPageFinished(view, url)
-        if (!failed) hideError()
+        if (!failed) { hideError(); startup?.waitForContent(view) }
       }
       override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
         if (request.isForMainFrame) { failed = true; showError() }
@@ -143,6 +165,7 @@ class MainActivity : TauriActivity() {
       navigationBarStyle = SystemBarStyle.light(background, background),
     )
     super.onCreate(savedInstanceState)
+    startup = AppStartup(this)
     val content = findViewById<android.view.View>(android.R.id.content)
     content.setBackgroundColor(background)
     ViewCompat.setOnApplyWindowInsetsListener(content) { view, insets ->
