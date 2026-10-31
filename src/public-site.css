@@ -1,0 +1,196 @@
+@import '@fontsource-variable/geist';
+
+/* Public brand palette stays local to the landing page. */
+.public-site {
+  --blue: #006487;
+  --blue-dark: #062d40;
+  --cyan: #01a6e0;
+  --line: #cbdfe7;
+  --muted-foreground: #52616b;
+  --brand-paper: #eef8fc;
+  background: #fff;
+  color: var(--blue-dark);
+  font-family: 'Geist Variable', sans-serif;
+}
+
+.public-site :is(h1, h2, h3, .public-team-lead) {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+.public-site .public-header {
+  min-height: 88px;
+  padding: 12px max(32px, calc((100% - 1280px) / 2));
+  gap: 28px;
+  border-bottom: 1px solid #0087b8;
+  background: var(--cyan);
+  backdrop-filter: none;
+}
+
+.public-site .public-brand { flex-shrink: 0; }
+
+/* Use the standalone brand symbol in the header and footer. */
+.public-brand-symbol { position: relative; display: block; width: 76px; height: 60px; overflow: hidden; }
+.public-brand-symbol img { position: absolute; top: 50%; left: 50%; width: 94px; max-width: none; height: 94px; transform: translate(-50%, -50%); }
+
+.public-site .public-nav {
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.public-site .public-nav a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 13px;
+  border-radius: 9px;
+  transition: background .18s ease, color .18s ease;
+}
+
+.public-site .public-nav a:not(.public-nav-cta):hover { color: #fff; background: #062d4012; }
+.public-site .public-nav-cta { color: #fff; background: var(--blue-dark); }
+.public-site .public-nav-cta:hover { background: #005c7d; }
+.public-site .public-social-link { display: inline-flex; align-items: center; justify-content: center; width: 44px; min-height: 44px; flex-shrink: 0; }
+.public-site .public-nav .public-social-link { padding: 10px; color: #fff; }
+.public-site .public-menu-button { border: 0; color: #fff; background: transparent; }
+.public-site a:focus-visible, .public-site .public-menu-button:focus-visible { outline: 3px solid #006487; outline-offset: 3px; }
+.public-site .public-header > a:focus-visible { outline-color: var(--blue-dark); }
+
+.public-site .public-hero { min-height: 650px; padding-block: 72px 80px; background: #fff; }
+.public-site .public-hero-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); gap: 64px; }
+.public-site .public-hero h1 { font-size: clamp(42px, 4.7vw, 68px); letter-spacing: -.065em; line-height: 1.03; }
+.public-site .hero-line-accent { color: #007fa9; }
+.public-site .public-kicker { color: var(--blue); letter-spacing: .13em; }
+.public-site .public-hero-copy > p:not(.public-hero-note) { color: var(--muted-foreground); }
+.public-site .public-hero-note { color: #52616b; line-height: 1.6; }
+.public-site .public-button { border-radius: 8px; padding: 13px 20px; line-height: 1.45; }
+.public-site .public-button-dark { box-shadow: none; }
+.public-site .public-text-link:hover { color: #003f58; }
+.public-site .public-hero-art { min-height: 455px; width: 100%; max-width: 470px; margin: 0 auto; }
+.public-hero-emblem { position: absolute; inset: 0 20px 46px 0; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 190px 190px 20px 20px; background: var(--cyan); }
+.public-hero-emblem img { width: 90%; height: auto; }
+.public-art-booking { position: absolute; right: 0; bottom: 60px; display: flex; align-items: center; gap: 16px; max-width: 100%; padding: 20px 24px; border: 4px solid #fff; border-radius: 12px; color: #fff; background: var(--blue-dark); box-shadow: 0 10px 24px #062d4017; }
+.public-art-booking > svg:first-child { color: #54d0fc; }
+.public-art-booking span { font-size: 13px; line-height: 1.6; }
+.public-art-booking strong { font-weight: 650; }
+.public-art-booking:hover { background: #00516e; }
+.public-site .public-art-label { bottom: 0; left: 0; color: var(--blue); font-size: 10px; letter-spacing: .15em; }
+
+.public-site .public-trust-row { border-block: 1px solid #c6e5f0; background: var(--brand-paper); }
+.public-site .public-trust-row > div { border-color: #c6e5f0; }
+.public-site .public-trust-row svg { color: var(--blue); }
+.public-site .public-section { padding-block: 96px; }
+.public-site .public-section-heading h2, .public-site .location-grid h2, .public-site .public-map-copy h2 { letter-spacing: -.055em; line-height: 1.12; }
+.public-site .public-eyebrow { color: var(--blue); font-weight: 750; }
+.public-site .public-feature-card { border-radius: 12px; box-shadow: none; }
+.public-site .public-feature-card-highlight { border-color: var(--blue-dark); background: var(--blue-dark); }
+.public-site .public-feature-card-highlight h3 { color: #fff; }
+.public-site .public-feature-card-highlight p { color: #cbe6f0; }
+.public-site .public-feature-card-highlight .public-card-link { color: #6ed9ff; }
+.public-site .public-feature-icon { margin-top: 0; color: var(--blue); background: #e5f6fc; }
+.public-site .public-how { background: var(--blue-dark); }
+.public-site .public-how .public-eyebrow, .public-site .public-map-copy .public-eyebrow { color: #6ed9ff; }
+.public-site .public-how .public-button, .public-site .public-map-copy .public-button, .public-site .public-button-cyan { color: var(--blue-dark); background: var(--cyan); }
+.public-site .public-how .public-button:hover, .public-site .public-map-copy .public-button:hover, .public-site .public-button-cyan:hover { background: #67d7ff; }
+.public-site .public-steps li > span { border-color: #409ebc; color: #6ed9ff; }
+.public-site .public-location { background: var(--brand-paper); }
+.public-site .location-card { border-top: 4px solid var(--cyan); box-shadow: none; }
+
+.public-site .public-team { background: #fff; }
+.public-team-story { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); overflow: hidden; border-radius: 18px; background: var(--blue-dark); }
+.public-team-group { position: relative; min-width: 0; margin: 0; }
+.public-team-group > img { display: block; width: 100%; height: 100%; aspect-ratio: 1; object-fit: cover; }
+.public-team-group figcaption { position: absolute; inset: auto 20px 20px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; padding: 12px 16px; border-radius: 6px; color: #fff; background: var(--blue-dark); font-size: 11px; font-weight: 750; letter-spacing: .06em; }
+.public-team-group figcaption span { color: #d0e9f3; font-weight: 400; letter-spacing: 0; }
+.public-team-intro { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; min-width: 0; padding: clamp(28px, 4vw, 56px); color: #fff; }
+.public-site .public-team-intro .public-eyebrow { color: #6ed9ff; }
+.public-team-intro h2 { margin: 22px 0 24px; font-size: clamp(32px, 4vw, 54px); font-weight: 750; line-height: 1.12; letter-spacing: -.055em; }
+.public-team-intro h2 em { color: #6ed9ff; font-style: normal; }
+.public-team-intro p { max-width: 370px; margin: 0 0 26px; color: #cce2ec; font-size: 16px; line-height: 1.75; }
+.public-team-intro .public-team-lead { margin-bottom: 12px; color: #fff; font-size: 19px; font-weight: 650; line-height: 1.5; }
+.public-team-intro .public-button { text-align: left; }
+.public-team-signature { margin-top: 32px; padding-top: 20px; width: 100%; border-top: 1px solid #ffffff30; color: #bbd7e3; font-size: 12px; }
+.public-team-list-heading { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 12px 24px; margin: 48px 0 24px; }
+.public-team-list-heading h3 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -.045em; }
+.public-team-list-heading p { margin: 0; color: var(--muted-foreground); font-size: 15px; }
+.public-site .public-team-grid { margin-top: 0; gap: 20px; }
+.public-site .public-team-card { border-radius: 10px; box-shadow: none; }
+.public-site .public-team-copy { padding: 18px; border-top: 3px solid var(--cyan); }
+.public-site .public-team-copy strong { letter-spacing: -.025em; }
+.public-site .public-team-recommendations { color: var(--blue-dark); background: #eef8fc; }
+.public-site .public-map-section { background: var(--blue-dark); }
+.public-site .public-map-frame { border-width: 3px; border-radius: 12px; box-shadow: none; }
+.public-site .public-footer { background: #041e2b; }
+.public-site .public-footer .public-brand { padding: 0; background: transparent; }
+.public-site .public-footer .public-social-link { border: 1px solid #ffffff45; border-radius: 50%; color: #fff; }
+.public-site .public-footer a:focus-visible, .public-site :is(.public-how, .public-team, .public-map-section) a:focus-visible { outline-color: #01a6e0; }
+
+@media (max-width: 1100px) {
+  .public-site .public-header { min-height: 80px; padding: 12px 24px; }
+  .public-site .public-nav { padding: 10px; border-radius: 12px; gap: 4px; background: var(--cyan); }
+  .public-site .public-nav a { justify-content: flex-start; padding-inline: 16px; }
+  .public-site .public-nav .public-nav-cta { justify-content: center; }
+  .public-site .public-nav .public-social-link { width: 48px; padding: 12px; border: 0; }
+  .public-site .public-hero-grid { gap: 32px; }
+  .public-site .public-hero-art { min-height: 400px; }
+  .public-team-intro { padding: 32px; }
+  .public-team-intro h2 { font-size: 40px; }
+}
+
+@media (max-width: 900px) {
+  .public-site .public-hero-grid { grid-template-columns: minmax(0, 1fr) minmax(0, .85fr); }
+  .public-site .public-hero h1 { font-size: clamp(36px, 5.4vw, 48px); }
+  .public-site .public-hero-art { min-height: 360px; }
+  .public-hero-emblem { inset: 0 10px 46px 0; }
+  .public-art-booking { gap: 12px; padding: 14px; }
+  .public-team-story { grid-template-columns: minmax(0, 1fr); }
+  .public-team-group > img { height: auto; aspect-ratio: 1; }
+  .public-team-intro { padding: 40px; }
+  .public-team-intro h2 br { display: none; }
+  .public-team-intro p { max-width: 560px; }
+}
+
+@media (max-width: 700px) {
+  .public-site .public-header { min-height: 72px; padding: 10px 16px; gap: 12px; }
+  .public-brand-symbol { width: 64px; height: 48px; }
+  .public-brand-symbol img { width: 80px; height: 80px; }
+  .public-site .public-nav { max-height: calc(100dvh - 88px); }
+  .public-site .public-hero { min-height: 0; padding-block: 40px 48px; }
+  .public-site .public-hero-grid { grid-template-columns: minmax(0, 1fr); gap: 40px; }
+  .public-site .public-hero h1 { font-size: clamp(30px, 8.7vw, 60px); line-height: 1.06; }
+  .public-site .public-hero-art { max-width: 360px; min-height: 380px; }
+  .public-hero-emblem { inset: 0 16px 40px 0; }
+  .public-art-booking { bottom: 52px; padding: 15px 18px; }
+  .public-site .public-section, .public-site .public-map-section { padding-block: 64px; }
+  .public-site .public-team-story { border-radius: 12px; }
+  .public-team-intro { padding: 30px 24px; }
+  .public-team-intro h2 { font-size: clamp(30px, 8vw, 42px); margin-block: 18px; }
+  .public-team-intro .public-team-lead { font-size: 18px; }
+  .public-team-group figcaption { inset: auto 12px 12px; padding: 10px 12px; }
+  .public-team-list-heading { margin-top: 36px; }
+  .public-team-list-heading h3 { font-size: 24px; }
+  .public-site .public-team-grid { gap: 12px; }
+  .public-site .public-team-copy { padding: 14px; }
+  .public-site .public-footer-inner { flex-direction: row; align-items: center; flex-wrap: wrap; }
+  .public-site .public-footer-inner > span { order: 3; flex-basis: 100%; }
+}
+
+@media (max-width: 380px) {
+  .public-site .public-header { gap: 8px; padding-inline: 12px; }
+  .public-site .public-hero-art { min-height: 320px; }
+  .public-art-booking { gap: 10px; padding: 12px; }
+  .public-team-intro { padding: 26px 20px; }
+  .public-team-group figcaption { font-size: 10px; }
+  .public-team-intro .public-button { padding-inline: 14px; font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-site .public-nav a { transition: none; }
+}
