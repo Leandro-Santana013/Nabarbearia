@@ -24,6 +24,7 @@ struct Fixture {
 async fn fixture(db: Db) -> Fixture {
     let business = new_id();
     let user = |role| AuthUser {
+        phone: String::new(),
         id: new_id(),
         business_id: business.clone(),
         email: format!("{}@test.invalid", new_id()),

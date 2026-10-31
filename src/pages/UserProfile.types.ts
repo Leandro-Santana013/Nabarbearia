@@ -17,5 +17,6 @@ export interface UserProfileProps {
   onBack?: () => void
   onViewAppointments?: () => void
   onSaveProfile?: (profile: ClientProfile) => void | Promise<void>
+  onSaveAccount?: (input: import('@/services/api').AccountUpdate) => Promise<import('@/services/api').UserSession>
   onLogout?: () => void | Promise<void>
 }

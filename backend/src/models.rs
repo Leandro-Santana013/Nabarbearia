@@ -63,7 +63,18 @@ pub struct AuthUser {
     pub business_id: String,
     pub email: String,
     pub display_name: String,
+    pub phone: String,
     pub roles: Vec<Role>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateAccountRequest {
+    pub display_name: String,
+    pub email: String,
+    pub phone: String,
+    pub current_password: Option<String>,
+    pub new_password: Option<String>,
 }
 
 #[derive(Debug, Clone)]

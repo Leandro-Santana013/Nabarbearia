@@ -1,11 +1,11 @@
-import { useId, useRef, useState } from "react"
+import { useEffect, useId, useRef, useState } from "react"
 import { ArrowLeft, User, Calendar, Star, MessageSquare, MapPin, HelpCircle, ChevronRight, LogOut } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Switch } from "@/components/ui/switch"
-import { Input } from "@/components/ui/input"
+import AccountDetailsForm from "@/components/AccountDetailsForm"
 import { siteConfig } from "@/config/siteConfig"
 import { api } from "@/services/api"
 
@@ -17,17 +17,16 @@ export const DEFAULT_PROFILE = {
 
 /** @param {import("./UserProfile.types").UserProfileProps} props */
 export default function UserProfile({
-  profile = DEFAULT_PROFILE, isDemo = true, onBack, onViewAppointments, onSaveProfile, onLogout, accountEditable = true, remindersAvailable = true,
+  profile = DEFAULT_PROFILE, isDemo = true, onBack, onViewAppointments, onSaveProfile, onSaveAccount, onLogout, accountEditable = true, remindersAvailable = true,
 } = {}) {
   const [user, setUser] = useState(profile)
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState({ name: profile.name, phone: profile.phone })
   const [saving, setSaving] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const [feedback, setFeedback] = useState("")
   const [error, setError] = useState("")
-  const nameRef = useRef(null)
   const editButtonRef = useRef(null)
+  useEffect(() => { setUser(profile) }, [profile.name, profile.email, profile.phone, profile.completedCuts, profile.activeAppointments, profile.favoriteBarber])
   const id = useId()
   const initials = user.name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "NA"
   const viewAppointments = onViewAppointments ?? (() => window.location.assign("/meus-agendamentos"))
@@ -118,10 +117,8 @@ export default function UserProfile({
 
         <Card aria-label="Configurações da conta" className="gap-1 rounded-3xl bg-white p-2 shadow-sm">
           <Button ref={editButtonRef} type="button" variant="ghost" aria-expanded={editing} aria-controls={`${id}-editor`} disabled={saving || loggingOut || !accountEditable} onClick={() => {
-            setDraft({ name: user.name, phone: user.phone })
             setEditing(true)
             setFeedback("")
-            requestAnimationFrame(() => nameRef.current?.focus())
           }} className={actionClass}>
             <User aria-hidden="true" className="size-5 text-primary" />
             <span className="min-w-0 flex-1">Informações da Conta</span>
@@ -149,25 +146,18 @@ export default function UserProfile({
         {!accountEditable && <p className="mt-4 text-center text-xs leading-relaxed text-muted-foreground">Para alterar os dados da conta, fale com a recepção pelo WhatsApp.</p>}
         {editing && (
           <Card id={`${id}-editor`} className="mt-6 rounded-3xl bg-white p-5 shadow-sm">
-            <form onSubmit={async (event) => {
-              event.preventDefault()
-              if (!draft.name.trim() || !draft.phone.trim()) return
-              if (await saveProfile({ ...user, name: draft.name.trim(), phone: draft.phone.trim() })) closeEditor()
-            }} className="space-y-4">
-              <h2 className="font-semibold">Informações da Conta</h2>
-              <div className="space-y-2">
-                <label htmlFor={`${id}-name`} className="block text-sm font-medium">Nome</label>
-                <Input ref={nameRef} id={`${id}-name`} name="name" autoComplete="name" required maxLength={120} disabled={saving || loggingOut} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className="rounded-2xl" />
-              </div>
-              <div className="space-y-2">
-                <label htmlFor={`${id}-phone`} className="block text-sm font-medium">Telefone / WhatsApp</label>
-                <Input id={`${id}-phone`} name="phone" type="tel" autoComplete="tel" required maxLength={25} disabled={saving || loggingOut} value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} className="rounded-2xl" />
-              </div>
-              <div className="flex flex-wrap justify-end gap-3">
-                <Button type="button" variant="outline" disabled={saving} onClick={closeEditor} className="min-h-11 rounded-full px-5 transition-colors">Cancelar</Button>
-                <Button type="submit" disabled={saving || loggingOut || !draft.name.trim() || !draft.phone.trim()} className="min-h-11 rounded-full bg-primary px-5 text-primary-foreground transition-colors">{saving ? "Salvando…" : "Salvar alterações"}</Button>
-              </div>
-            </form>
+            <AccountDetailsForm account={{ display_name: user.name, email: user.email, phone: user.phone }}
+              credentialsEditable={!isDemo} disabled={loggingOut} onBusyChange={setSaving} onCancel={closeEditor}
+              onSave={async (input) => {
+                if (onSaveAccount) {
+                  const saved = await onSaveAccount(input)
+                  setUser({ ...user, name: saved.display_name, email: saved.email, phone: saved.phone ?? "" })
+                  setFeedback("Informações da conta atualizadas.")
+                  closeEditor()
+                } else if (isDemo) {
+                  if (await saveProfile({ ...user, name: input.display_name, phone: input.phone })) closeEditor()
+                } else throw new Error("Não foi possível salvar as alterações. Tente novamente.")
+              }} />
           </Card>
         )}
         {error && <p role="alert" className="mt-4 text-sm text-destructive">{error}</p>}

@@ -22,6 +22,7 @@
     "test:owner-flow": "npm run build && node scripts/check-owner-flow.mjs",
     "test:staff-flow": "npm run build && node scripts/check-staff-flow.mjs",
     "test:access-flow": "npm run build && node scripts/check-access-flow.mjs",
+    "test:account-flow": "npm run build && node scripts/check-account-flow.mjs",
     "test:android-update-flow": "npm run build && node scripts/check-android-update-flow.mjs",
     "test:android-startup-flow": "npm run build && node scripts/check-android-startup-flow.mjs",
     "test:booking-flow": "npm run build && node scripts/check-booking-flow.mjs",

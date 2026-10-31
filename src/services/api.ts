@@ -9,7 +9,16 @@ export interface UserSession {
   business_id: string
   email: string
   display_name: string
+  phone?: string
   roles: UserRole[]
+}
+
+export interface AccountUpdate {
+  display_name: string
+  email: string
+  phone: string
+  current_password?: string
+  new_password?: string
 }
 
 export interface AuthResponse {
@@ -202,6 +211,10 @@ class ApiService {
     const revision = this.sessionRevision
     await this.request('/auth/logout', { method: 'POST', body: '{}' })
     if (revision === this.sessionRevision) this.clearSession()
+  }
+
+  async updateAccount(input: AccountUpdate): Promise<UserSession> {
+    return this.request('/account', { method: 'PATCH', body: JSON.stringify(input) })
   }
 
   async getPublicServices(): Promise<Service[]> {

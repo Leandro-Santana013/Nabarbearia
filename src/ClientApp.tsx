@@ -159,9 +159,14 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
       favorites.set(item.barber.id, { count: (existing?.count ?? 0) + 1, name: item.barber.name })
     }
     const favorite = [...favorites.values()].sort((a, b) => b.count - a.count)[0]?.name ?? ''
-    page = <UserProfile key={session.user.id} profile={{ name: session.user.display_name, email: session.user.email, phone: '',
+    page = <UserProfile key={session.user.id} profile={{ name: session.user.display_name, email: session.user.email, phone: session.user.phone ?? '',
       completedCuts: completedAppointments.length, activeAppointments: upcoming.length, favoriteBarber: favorite, remindersEnabled: false }}
-      isDemo={false} accountEditable={false} remindersAvailable={false} onBack={() => onNavigate('/home')}
+      isDemo={false} remindersAvailable={false} onBack={() => onNavigate('/home')}
+      onSaveAccount={async (input) => {
+        const user = await api.updateAccount(input)
+        accept({ ...session, user })
+        return user
+      }}
       onViewAppointments={() => onNavigate('/meus-agendamentos')} onLogout={logout} />
   } else if (path === '/confirmacao' && success) {
     page = <BookingSuccess booking={success} isDemo={false} whatsappStatus="unavailable" onViewAppointments={() => onNavigate('/meus-agendamentos')} onGoHome={() => onNavigate('/home')} />

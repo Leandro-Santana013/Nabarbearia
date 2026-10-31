@@ -57,6 +57,7 @@ Todos os caminhos abaixo têm o prefixo `/api/v1`.
 | --- | --- |
 | Saúde e configuração | `GET /health`, `GET /setup/status`, `POST /setup/owner` |
 | Autenticação | `POST /auth/register`, `POST /auth/login`, `GET /auth/session`, `POST /auth/logout` |
+| Própria conta | `PATCH /account` (nome, e-mail, telefone e senha; sem comissão ou permissões) |
 | Catálogo público | `GET /public/services`, `GET /public/barbers`, `GET /public/availability` |
 | Agendamentos | `GET/POST /appointments`, `PATCH /appointments/{id}/reschedule`, `POST /appointments/{id}/cancel` |
 | Execução e avaliação | `POST /appointments/{id}/start`, `POST /appointments/{id}/complete`, `POST /appointments/{id}/no-show`, `POST /appointments/{id}/rating` |
@@ -72,6 +73,8 @@ Todos os caminhos abaixo têm o prefixo `/api/v1`.
 Mutações autenticadas exigem cookie de sessão, `Origin` permitido e `X-CSRF-Token`. Criação de agendamentos, encaixes e registro de repasses também exigem `Idempotency-Key`, de 16 a 128 caracteres no formato aceito pela API. Repetir a mesma chave com dados diferentes gera conflito.
 
 Clientes acessam seus próprios agendamentos. Barbeiros acessam a própria operação. Gestão de catálogo, equipe, comissões e repasses exige papel `owner`. As consultas e alterações são isoladas por negócio.
+
+`PATCH /account` altera somente a conta da sessão. Recebe `display_name`, `email` e `phone` (vazio ou de 10 a 13 dígitos com DDD), além de `current_password` e `new_password` opcionais. A senha atual é obrigatória ao alterar e-mail ou senha; a nova senha segue o limite de 12 a 128 caracteres. Essas mudanças encerram as outras sessões e mantêm a sessão atual. Campos de comissão, papel, negócio ou identidade de outro usuário são rejeitados. Dados e auditoria são gravados na mesma transação; o retorno contém o usuário atualizado, sem senhas.
 
 ## Agenda e execução
 

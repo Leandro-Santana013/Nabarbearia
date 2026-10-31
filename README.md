@@ -230,12 +230,14 @@ npm run test:client-flow
 npm run test:owner-flow
 npm run test:staff-flow
 npm run test:access-flow
+npm run test:account-flow
 npm run test:booking-flow
 ```
 
 - **Cliente/barbeiro:** login, reserva, comprovante, remarcação, avaliação, cancelamento, encaixe, observações, início/conclusão, falta, pausas e navegação entre abas.
 - **Proprietário:** serviços ativos/inativos, edição de equipe, escalas, comissões, repasses, remanejamento/cancelamento em lote, rollback de conflitos e modo híbrido.
 - **Acesso:** entradas antigas de cliente/barbeiro/proprietário, permissões, voltar/avançar e expiração real por HTTP 401 nas entradas pública e da equipe.
+- **Conta:** cliente e barbeiro editam nome, e-mail, telefone e senha; cancelamento, erros recuperáveis, persistência, novo login e comissão protegida, com formulários em 320/390/1440 px e ampliação de 200%.
 - **Reserva F2:** retorno da autenticação, domingo permitido pela escala com navegador em outro fuso, profissional concreto para “qualquer disponível”, clique repetido, resposta perdida depois da gravação, repetição com a mesma chave, comprovante após recarga, preço histórico na remarcação e recuperação de conflito. Preserva capturas em 320/390/1440 px e verifica o botão de confirmação alcançável com ampliação de 200%.
 
 Os testes de navegador requerem Google Chrome/Chromium e Rust. A variável `CHROME_BIN` permite indicar outro executável compatível. Eles iniciam uma API e um banco temporários nas portas **3011** e **9224**, sem alterar o banco local da barbearia. Execute um fluxo por vez.
@@ -251,7 +253,8 @@ O calendário usado na reserva fica em `src/lib/shop-calendar.ts`. O módulo `sr
 ## Limites das integrações atuais
 
 - Os links de WhatsApp abrem o contato; envio automático de comprovantes e lembretes ainda não está integrado.
-- Edição dos dados pessoais do cliente, recuperação de senha e login Google dependem de integrações próprias; a interface não simula sucesso dessas operações.
+- Cliente e barbeiro podem editar nome, e-mail e telefone no próprio perfil e trocar a senha. E-mail e senha exigem a senha atual; ao alterá-los, as outras sessões são encerradas. A comissão continua sob controle exclusivo do proprietário.
+- Recuperação de senha e login Google dependem de integrações próprias; a interface não simula sucesso dessas operações.
 - Forma de pagamento prevista não comprova recebimento. O faturamento exibido representa o valor dos serviços concluídos.
 - O saldo de comissões a pagar é acumulado; a produção financeira segue o período selecionado. O resultado após comissões é exibido, mas o lucro líquido permanece não apurado sem despesas e impostos.
 

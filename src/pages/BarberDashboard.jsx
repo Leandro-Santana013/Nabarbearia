@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Calendar, DollarSign, LogOut, RefreshCw, User, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import AccountDetailsForm from "@/components/AccountDetailsForm"
 import { Input } from "@/components/ui/input"
 import { WHATSAPP_URL } from "@/data/barbershopData"
 import BarberDayTools from "@/components/BarberDayTools"
@@ -15,7 +16,9 @@ import { useAndroidReady } from "@/lib/android-startup"
 
 /** @param {import("./BarberDashboard.types").BarberDashboardProps} props */
 export default function BarberDashboard({ session }) {
-  const { logout: logoutSession } = useAccess()
+  const { logout: logoutSession, accept } = useAccess()
+  const [editingAccount, setEditingAccount] = useState(false)
+  const editAccountRef = useRef(null)
   const [activeTab, setActiveTab] = useState("agenda")
   const [appointments, setAppointments] = useState([])
   const [blocks, setBlocks] = useState([])
@@ -178,9 +181,23 @@ export default function BarberDashboard({ session }) {
           <Card className="gap-4 rounded-2xl bg-white p-4 shadow-sm ring-0">
             <div><p className="text-[11px] text-muted-foreground">Nome</p><p className="break-words text-sm font-semibold">{name}</p></div>
             <div><p className="text-[11px] text-muted-foreground">E-mail</p><p className="break-all text-sm">{session.user.email}</p></div>
-            <p className="text-xs text-muted-foreground">Para alterar seus dados ou as regras de comissão, fale com a recepção.</p>
+            <div><p className="text-[11px] text-muted-foreground">Telefone / WhatsApp</p><p className="break-words text-sm">{session.user.phone || "Não informado"}</p></div>
+            <Button ref={editAccountRef} type="button" variant="outline" disabled={busy || editingAccount} aria-expanded={editingAccount} aria-controls="barber-account-editor" onClick={() => { setEditingAccount(true); setNotice("") }} className="min-h-11 rounded-xl text-xs!">Editar informações da conta</Button>
+            <p className="text-xs text-muted-foreground">As regras de comissão são definidas exclusivamente pelo proprietário.</p>
             <Button nativeButton={false} variant="outline" render={<a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" />} className="min-h-11 rounded-xl text-xs!"><MessageSquare className="size-4" />Falar com a recepção</Button>
           </Card>
+          {editingAccount && <Card id="barber-account-editor" className="rounded-2xl bg-white p-4 shadow-sm ring-0">
+            <AccountDetailsForm account={session.user} onBusyChange={setBusy} onCancel={() => {
+              setEditingAccount(false)
+              requestAnimationFrame(() => editAccountRef.current?.focus())
+            }} onSave={async (input) => {
+              const user = await api.updateAccount(input)
+              accept({ ...session, user })
+              setEditingAccount(false)
+              setNotice("Informações da conta atualizadas.")
+              requestAnimationFrame(() => editAccountRef.current?.focus())
+            }} />
+          </Card>}
           <Button type="button" variant="outline" disabled={busy} onClick={logout} className="min-h-11 w-full rounded-xl border-red-200 text-xs! text-red-600 hover:bg-red-50"><LogOut className="size-4" />Sair da conta</Button>
         </section>}
       </main>

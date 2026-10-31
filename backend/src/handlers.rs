@@ -1,3 +1,4 @@
+mod account;
 mod android;
 mod owner;
 use std::{collections::HashSet, str::FromStr, time::Duration};
@@ -79,6 +80,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/staff/android/release", get(android::release))
         .route("/api/v1/auth/session", get(auth_session))
         .route("/api/v1/auth/logout", post(logout))
+        .route("/api/v1/account", patch(account::update))
         .route("/api/v1/public/services", get(public_services))
         .route("/api/v1/public/barbers", get(public_barbers))
         .route("/api/v1/public/availability", get(public_availability))
@@ -269,6 +271,7 @@ async fn setup_owner(
         email,
         display_name,
         roles: vec![Role::Owner],
+        phone: String::new(),
     };
     let session = create_session(&state, &user).await?;
     auth_json_response(&state, user, session)
@@ -336,6 +339,7 @@ async fn register(
         email,
         display_name,
         roles: vec![Role::Client],
+        phone: String::new(),
     };
     let session = create_session(&state, &user).await?;
     auth_json_response(&state, user, session)
@@ -382,16 +386,16 @@ async fn login_for_channel(
             let business_id = single_active_business(connection)?;
             let result = connection
                 .query_row(
-                    "SELECT id, password_hash, display_name FROM users WHERE business_id = ?1 AND email = ?2 AND active = 1",
+                    "SELECT id, password_hash, display_name, phone FROM users WHERE business_id = ?1 AND email = ?2 AND active = 1",
                     params![business_id, email_for_query],
-                    |row| Ok((business_id.clone(), row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)),
+                    |row| Ok((business_id.clone(), row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?, row.get::<_, String>(3)?)),
                 )
                 .optional()?;
             Ok(result)
         })
         .await?;
 
-    let Some((business_id, user_id, password_hash, display_name)) = candidate else {
+    let Some((business_id, user_id, password_hash, display_name, phone)) = candidate else {
         // Perform a comparable Argon2 operation to reduce account-enumeration timing signal.
         let _ = crate::security::hash_password(password).await?;
         return Err(AppError::unauthorized());
@@ -412,6 +416,7 @@ async fn login_for_channel(
         business_id,
         email,
         display_name,
+        phone,
         roles,
     };
     let session = create_session(&state, &user).await?;
@@ -531,12 +536,12 @@ async fn authenticate(state: &AppState, headers: &HeaderMap) -> Result<AuthConte
     let token_hash = hash_token(&raw_token);
     let token_hash_for_query = token_hash.clone();
     let now = utc_text(Utc::now());
-    let (business_id, user_id, email, display_name, csrf_hash) = state
+    let (business_id, user_id, email, display_name, csrf_hash, phone) = state
         .db
         .with_conn(move |connection| -> Result<_, AppError> {
             connection
                 .query_row(
-                    "SELECT s.business_id, u.id, u.email, u.display_name, s.csrf_hash
+                    "SELECT s.business_id, u.id, u.email, u.display_name, s.csrf_hash, u.phone
                      FROM sessions s JOIN users u ON u.id = s.user_id AND u.business_id = s.business_id
                      JOIN businesses b ON b.id = s.business_id
                      WHERE s.token_hash = ?1 AND s.revoked_at_utc IS NULL AND s.expires_at_utc > ?2
@@ -548,6 +553,7 @@ async fn authenticate(state: &AppState, headers: &HeaderMap) -> Result<AuthConte
                         row.get::<_, String>(2)?,
                         row.get::<_, String>(3)?,
                         row.get::<_, String>(4)?,
+                        row.get::<_, String>(5)?,
                     )),
                 )
                 .optional()?
@@ -564,6 +570,7 @@ async fn authenticate(state: &AppState, headers: &HeaderMap) -> Result<AuthConte
             business_id,
             email,
             display_name,
+            phone,
             roles,
         },
         token_hash,
@@ -1926,7 +1933,7 @@ mod tests {
     use super::*;
     use crate::{config::Config, db::Db, security::RateLimiter};
 
-    fn test_state() -> AppState {
+    pub(super) fn test_state() -> AppState {
         let config = Config {
             bind_addr: "127.0.0.1:3001".parse::<SocketAddr>().unwrap(),
             db_path: ":memory:".into(),
@@ -1949,7 +1956,7 @@ mod tests {
         router(test_state())
     }
 
-    async fn request_json(
+    pub(super) async fn request_json(
         app: &Router,
         method: &str,
         path: &str,
@@ -1989,7 +1996,7 @@ mod tests {
         (status, headers, serde_json::from_slice(&bytes).unwrap())
     }
 
-    fn cookie(headers: &HeaderMap) -> String {
+    pub(super) fn cookie(headers: &HeaderMap) -> String {
         headers
             .get(header::SET_COOKIE)
             .unwrap()
