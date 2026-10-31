@@ -194,8 +194,17 @@ try {
     await request(`/admin/summary?${new URLSearchParams(range)}`, null, owner)
   ).body;
   assert.equal(summary.outstanding_cents, 0);
-  assert.equal(summary.payouts.length, 1);
-  assert.equal(summary.payouts[0].amount_cents, 5000);
+  // Production follows the scheduled appointment date; payouts follow the date
+  // they were recorded. Include today even if tomorrow's fixture is next month.
+  const payoutRange = {
+    from: `${new Date(Date.now() - 86400000).toISOString().slice(0, 10)}T00:00:00Z`,
+    to: range.to,
+  };
+  const payoutSummary = (
+    await request(`/admin/summary?${new URLSearchParams(payoutRange)}`, null, owner)
+  ).body;
+  assert.equal(payoutSummary.payouts.length, 1);
+  assert.equal(payoutSummary.payouts[0].amount_cents, 5000);
   await click("Novo barbeiro");
   await waitText("Senha inicial");
   await formField("Nome", "Barbeiro Novo");
