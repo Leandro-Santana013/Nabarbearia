@@ -117,13 +117,17 @@ publicação. A chave pessoal do operador não deve ser entregue ao GitHub. Cada
 Use a chave de host já validada pelo operador. Não substitua isso por aceitação automática de qualquer host.
 Somente pessoas com permissão de publicação devem poder alterar o workflow ou o código entregue.
 
-Para atualizar: commit/push para `master` → Actions → **Publicar demonstração** → **Run workflow**.
-O workflow é manual, serializado e restrito à branch `master`. Executa testes unitários, Clippy, testes de backup
-e os fluxos reais de cliente, dono e equipe no Chrome; compila Linux AMD64 e envia o pacote.
+Para atualizar: faça commit/push para `master` no repositório `Leandro-Santana013/Nabarbearia`.
+O workflow **Publicar demonstração** inicia automaticamente, executa os testes e publica no servidor se todas as verificações passarem.
+Acompanhe o resultado em Actions. Pushes em outras branches e forks não publicam neste servidor.
+O workflow é serializado, sem cancelar uma publicação em andamento. Executa testes unitários, Clippy, testes de backup
+e os fluxos reais de cliente, dono, equipe e edição de conta no Chrome; compila Linux AMD64 e envia o pacote.
 Runners padrão de repositórios públicos são gratuitos; não habilite runners pagos para essa demonstração.
 Cada pacote identifica commit, execução e tentativa do workflow, permitindo repetir uma publicação que
-falhou sem sobrescrever o diretório de uma tentativa anterior. Para testar a preparação inicial sem acesso
-de deploy, desmarque a opção de publicar: o workflow entrega somente o pacote Linux como artifact.
+falhou sem sobrescrever o diretório de uma tentativa anterior. A execução manual continua disponível em
+Actions → **Publicar demonstração** → **Run workflow**, selecionando `master`.
+Para testar a preparação inicial sem acesso de deploy, desmarque a opção de publicar na execução manual:
+o workflow entrega somente o pacote Linux como artifact. Em pushes para `master`, a publicação é automática.
 
 Durante a troca, o site responde 503 com `Retry-After`. O backend é parado, um backup privado é verificado,
 o link da versão é trocado e o serviço reinicia aplicando migrações. Se o health falhar, o código anterior

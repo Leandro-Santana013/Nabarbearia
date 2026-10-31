@@ -1,6 +1,9 @@
 name: Publicar demonstração
 
 on:
+  push:
+    branches:
+      - master
   workflow_dispatch:
     inputs:
       publish:
@@ -17,7 +20,7 @@ concurrency:
 
 jobs:
   publish:
-    if: github.ref == 'refs/heads/master'
+    if: github.repository == 'Leandro-Santana013/Nabarbearia' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -34,7 +37,7 @@ jobs:
           node-version: '24'
           cache: npm
       - name: Validar configurações
-        if: inputs.publish
+        if: github.event_name == 'push' || inputs.publish
         run: |
           test -n "$DEPLOY_HOST"
           test -n "$DEPLOY_USER"
@@ -65,6 +68,7 @@ jobs:
           node scripts/check-owner-flow.mjs
           node scripts/check-staff-flow.mjs
           node scripts/check-access-flow.mjs
+          node scripts/check-account-flow.mjs
           node scripts/check-booking-flow.mjs
           node scripts/check-android-update-flow.mjs
       - name: Compilar e empacotar Linux AMD64
@@ -79,7 +83,7 @@ jobs:
             release.tar.gz.sha256
           retention-days: 7
       - name: Publicar com backup e recuperação
-        if: inputs.publish
+        if: github.event_name == 'push' || inputs.publish
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}

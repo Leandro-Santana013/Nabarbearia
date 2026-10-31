@@ -108,7 +108,7 @@ landing page, cadastro e agendamento. Uma sessão válida é restaurada por até
 O aplicativo exige internet e usa o backend hospedado, sem depender de USB ou do computador ligado.
 
 O [guia de implantação e atualizações](docs/DEPLOY.md) explica Oracle, HTTPS, migração única do banco,
-backups privados, recuperação e o workflow manual **Publicar demonstração** no GitHub Actions.
+backups privados, recuperação e o workflow **Publicar demonstração** no GitHub Actions, executado automaticamente a cada push para `master` no repositório principal.
 
 São necessários Android SDK/NDK, JDK 21, depuração USB autorizada e Rust com o
 alvo `aarch64-linux-android`. No Windows, o script usa o JDK do Android Studio,
@@ -146,7 +146,7 @@ Cancelar a instalação mantém a tela de atualização. Navegadores comuns não
 `npm run android:build` gera `artifacts/NA-Barbearia-arm64-release.apk` e `artifacts/release.json`
 com versão, tamanho e SHA-256. Aumente `version` em `src-tauri/tauri.conf.json` e
 `src-tauri/Cargo.toml` a cada atualização nativa e preserve a chave de assinatura.
-Web/backend e Android têm entregas independentes. O pacote web contém `backend`, `dist`, `REVISION` e `DELIVERY.json`, com inventário de hashes e protocolo do helper. O workflow manual verifica a compatibilidade do helper instalado antes de enviar o pacote. O usuário de deploy continua sem permissão para substituir código privilegiado ou instalar Android.
+Web/backend e Android têm entregas independentes. O pacote web contém `backend`, `dist`, `REVISION` e `DELIVERY.json`, com inventário de hashes e protocolo do helper. A publicação automática após push para `master` no repositório principal executa os testes e verifica a compatibilidade do helper instalado antes de enviar o pacote. Também é possível executar manualmente e gerar somente o pacote. O usuário de deploy continua sem permissão para substituir código privilegiado ou instalar Android.
 
 Um administrador pode instalar o par Android aprovado com `sudo /usr/local/sbin/nabarbearia install-android /caminho/preparado`. O comando valida tamanho/hash antes da troca, mantém cópia privada anterior, disponibiliza APK antes do manifesto e recupera o par se o anúncio falhar. Consulte [o contrato e os estágios de entrega](docs/RELEASE-VALIDATION.md).
 
