@@ -1,17 +1,19 @@
-import { useEffect, useState } from 'react'
+import { lazy, useEffect, useState } from 'react'
 import { staffDestination, staffHome, staffPath } from './lib/access/routing'
 import { AccessProvider, useAccess } from './lib/access/AccessProvider'
 import { CheckingAccess, ConnectionFailure } from './lib/access/AccessScreen'
 import { navigate } from './lib/access/navigation'
 import LoginScreen from './pages/LoginScreen'
-import BarberDashboard from './pages/BarberDashboard'
-import OwnerDashboard from './pages/OwnerDashboard'
 import { Button } from './components/ui/button'
 import AndroidUpdateGate from './components/AndroidUpdateGate'
 import { useAndroidReady } from './lib/android-startup'
+import { RouteBoundary } from './components/RouteBoundary'
+
+const BarberDashboard = lazy(() => import('./pages/BarberDashboard'))
+const OwnerDashboard = lazy(() => import('./pages/OwnerDashboard'))
 
 export default function StaffApp({ path }: { path: string }) {
-  return <AndroidUpdateGate><AccessProvider channel="staff"><StaffSessionApp path={path} /></AccessProvider></AndroidUpdateGate>
+  return <AndroidUpdateGate><AccessProvider channel="staff"><RouteBoundary routeKey={path}><StaffSessionApp path={path} /></RouteBoundary></AccessProvider></AndroidUpdateGate>
 }
 
 function StaffSessionApp({ path }: { path: string }) {

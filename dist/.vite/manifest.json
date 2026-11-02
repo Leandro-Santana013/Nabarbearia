@@ -1,0 +1,214 @@
+{
+  "_AccessScreen-hRARzT-T.js": {
+    "file": "assets/AccessScreen-hRARzT-T.js",
+    "name": "AccessScreen",
+    "imports": [
+      "index.html",
+      "_alert-jHwjCuPh.js"
+    ]
+  },
+  "_AccountDetailsForm-BCxkVAim.js": {
+    "file": "assets/AccountDetailsForm-BCxkVAim.js",
+    "name": "AccountDetailsForm",
+    "imports": [
+      "index.html",
+      "_alert-jHwjCuPh.js",
+      "_AccessScreen-hRARzT-T.js"
+    ]
+  },
+  "_BarberDashboard-BBzjf93x.css": {
+    "file": "assets/BarberDashboard-BBzjf93x.css",
+    "src": "_BarberDashboard-BBzjf93x.css"
+  },
+  "_BarberDashboard-DQznEvYj.js": {
+    "file": "assets/BarberDashboard-DQznEvYj.js",
+    "name": "BarberDashboard",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_alert-jHwjCuPh.js",
+      "_badge-CQadQE-w.js",
+      "_AccountDetailsForm-BCxkVAim.js",
+      "_AccessScreen-hRARzT-T.js"
+    ],
+    "css": [
+      "assets/BarberDashboard-BBzjf93x.css"
+    ]
+  },
+  "_alert-jHwjCuPh.js": {
+    "file": "assets/alert-jHwjCuPh.js",
+    "name": "alert",
+    "imports": [
+      "index.html"
+    ]
+  },
+  "_badge-CQadQE-w.js": {
+    "file": "assets/badge-CQadQE-w.js",
+    "name": "badge",
+    "imports": [
+      "index.html",
+      "_alert-jHwjCuPh.js"
+    ]
+  },
+  "_radio-group-Cyt8S6_u.js": {
+    "file": "assets/radio-group-Cyt8S6_u.js",
+    "name": "radio-group",
+    "imports": [
+      "index.html",
+      "_alert-jHwjCuPh.js",
+      "_useValueChanged-D6iIDCko.js"
+    ]
+  },
+  "_tabs-B2CMejsg.js": {
+    "file": "assets/tabs-B2CMejsg.js",
+    "name": "tabs",
+    "imports": [
+      "index.html",
+      "_alert-jHwjCuPh.js",
+      "_useValueChanged-D6iIDCko.js"
+    ]
+  },
+  "_useValueChanged-D6iIDCko.js": {
+    "file": "assets/useValueChanged-D6iIDCko.js",
+    "name": "useValueChanged",
+    "imports": [
+      "_alert-jHwjCuPh.js",
+      "index.html"
+    ]
+  },
+  "index.html": {
+    "file": "assets/index-ZCiXjnQN.js",
+    "name": "index",
+    "src": "index.html",
+    "isEntry": true,
+    "dynamicImports": [
+      "src/PublicApp.tsx",
+      "src/StaffApp.tsx",
+      "src/StyleguideApp.tsx"
+    ],
+    "css": [
+      "assets/index-DHCAd7Ds.css"
+    ],
+    "assets": [
+      "assets/plus-jakarta-sans-vietnamese-wght-normal-qRpaaN48.woff2",
+      "assets/plus-jakarta-sans-latin-ext-wght-normal-DmpS2jIq.woff2",
+      "assets/plus-jakarta-sans-latin-wght-normal-eXO_dkmS.woff2",
+      "assets/geist-cyrillic-ext-wght-normal-DjL33-gN.woff2",
+      "assets/geist-cyrillic-wght-normal-BEAKL7Jp.woff2",
+      "assets/geist-vietnamese-wght-normal-6IgcOCM7.woff2",
+      "assets/geist-latin-ext-wght-normal-DC-KSUi6.woff2",
+      "assets/geist-latin-wght-normal-BgDaEnEv.woff2"
+    ]
+  },
+  "node_modules/@fontsource-variable/geist/files/geist-cyrillic-ext-wght-normal.woff2": {
+    "file": "assets/geist-cyrillic-ext-wght-normal-DjL33-gN.woff2",
+    "src": "node_modules/@fontsource-variable/geist/files/geist-cyrillic-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/geist/files/geist-cyrillic-wght-normal.woff2": {
+    "file": "assets/geist-cyrillic-wght-normal-BEAKL7Jp.woff2",
+    "src": "node_modules/@fontsource-variable/geist/files/geist-cyrillic-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/geist/files/geist-latin-ext-wght-normal.woff2": {
+    "file": "assets/geist-latin-ext-wght-normal-DC-KSUi6.woff2",
+    "src": "node_modules/@fontsource-variable/geist/files/geist-latin-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2": {
+    "file": "assets/geist-latin-wght-normal-BgDaEnEv.woff2",
+    "src": "node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/geist/files/geist-vietnamese-wght-normal.woff2": {
+    "file": "assets/geist-vietnamese-wght-normal-6IgcOCM7.woff2",
+    "src": "node_modules/@fontsource-variable/geist/files/geist-vietnamese-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-ext-wght-normal.woff2": {
+    "file": "assets/plus-jakarta-sans-latin-ext-wght-normal-DmpS2jIq.woff2",
+    "src": "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2": {
+    "file": "assets/plus-jakarta-sans-latin-wght-normal-eXO_dkmS.woff2",
+    "src": "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-latin-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-vietnamese-wght-normal.woff2": {
+    "file": "assets/plus-jakarta-sans-vietnamese-wght-normal-qRpaaN48.woff2",
+    "src": "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-vietnamese-wght-normal.woff2"
+  },
+  "src/ClientApp.tsx": {
+    "file": "assets/ClientApp-yU9hSiQZ.js",
+    "name": "ClientApp",
+    "src": "src/ClientApp.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_tabs-B2CMejsg.js",
+      "_alert-jHwjCuPh.js",
+      "_badge-CQadQE-w.js",
+      "_useValueChanged-D6iIDCko.js",
+      "_radio-group-Cyt8S6_u.js",
+      "_AccountDetailsForm-BCxkVAim.js",
+      "_AccessScreen-hRARzT-T.js"
+    ]
+  },
+  "src/PublicApp.tsx": {
+    "file": "assets/PublicApp-CI8S-0Ue.js",
+    "name": "PublicApp",
+    "src": "src/PublicApp.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_AccessScreen-hRARzT-T.js",
+      "_alert-jHwjCuPh.js"
+    ],
+    "dynamicImports": [
+      "src/ClientApp.tsx",
+      "_BarberDashboard-DQznEvYj.js",
+      "src/pages/OwnerDashboard.tsx"
+    ]
+  },
+  "src/StaffApp.tsx": {
+    "file": "assets/StaffApp-BsEGH2Ro.js",
+    "name": "StaffApp",
+    "src": "src/StaffApp.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_AccessScreen-hRARzT-T.js",
+      "_alert-jHwjCuPh.js"
+    ],
+    "dynamicImports": [
+      "_BarberDashboard-DQznEvYj.js",
+      "src/pages/OwnerDashboard.tsx"
+    ]
+  },
+  "src/StyleguideApp.tsx": {
+    "file": "assets/StyleguideApp-DKlxBW_x.js",
+    "name": "StyleguideApp",
+    "src": "src/StyleguideApp.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_alert-jHwjCuPh.js",
+      "_badge-CQadQE-w.js",
+      "_radio-group-Cyt8S6_u.js",
+      "_useValueChanged-D6iIDCko.js"
+    ]
+  },
+  "src/pages/OwnerDashboard.tsx": {
+    "file": "assets/OwnerDashboard-e-24NF36.js",
+    "name": "OwnerDashboard",
+    "src": "src/pages/OwnerDashboard.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html",
+      "_badge-CQadQE-w.js",
+      "_alert-jHwjCuPh.js",
+      "_tabs-B2CMejsg.js",
+      "_AccessScreen-hRARzT-T.js",
+      "_useValueChanged-D6iIDCko.js",
+      "_BarberDashboard-DQznEvYj.js",
+      "_AccountDetailsForm-BCxkVAim.js"
+    ],
+    "css": [
+      "assets/OwnerDashboard-DkumKzW3.css"
+    ]
+  }
+}

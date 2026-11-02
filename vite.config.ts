@@ -2,9 +2,15 @@ import path from 'path'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { publicMetadataTags } from './src/config/publicMetadata'
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  build: { manifest: true },
+  plugins: [
+    react(),
+    tailwindcss(),
+    { name: 'na-public-metadata', transformIndexHtml: () => publicMetadataTags() },
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

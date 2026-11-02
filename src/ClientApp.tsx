@@ -20,6 +20,8 @@ import type { CatalogService } from './data/barbershopData'
 import type { Barber } from './pages/ServiceDetail.types'
 import type { BookingReview } from './pages/DateTimeSelection.types'
 import type { ClientAppointment } from './pages/MyAppointments.types'
+import { claimLandingIntent, clearLandingIntent, readLandingIntent, saveLandingIntent, type LandingIntent } from './lib/booking/landing-intent'
+import { LandingChoiceNotice } from './components/LandingChoiceNotice'
 
 export default function ClientApp({ path, onNavigate }: { path: string; onNavigate: (path: string) => void }) {
   const { session, refresh: refreshSession, logout: logoutSession, accept, notice } = useAccess()
@@ -31,11 +33,22 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
   const userId = useRef<string | null>(null)
   userId.current = session?.user.id ?? null
   const [reservation] = useState(() => createReservation(api, () => userId.current))
-  const { draft: booking, choice: dateTime } = useSyncExternalStore(reservation.subscribe, reservation.getSnapshot, reservation.getSnapshot)
+  const { draft: booking, choice: dateTime, confirming } = useSyncExternalStore(reservation.subscribe, reservation.getSnapshot, reservation.getSnapshot)
   const bookingService = booking ? serviceForDisplay(booking.service) : null
   const [completed, setCompleted] = useState<ClientAppointment | null>(null)
   const reschedulingId = booking?.mode.kind === 'reschedule' ? booking.mode.appointmentId : null
   const requestId = useRef(0)
+  const currentPath = useRef(path)
+  currentPath.current = path
+  const appliedIntent = useRef('')
+  const [landingIntent, setLandingIntent] = useState<LandingIntent | null>(null)
+  const previousUserId = useRef(session?.user.id ?? null)
+
+  function forgetChoice() {
+    clearLandingIntent()
+    appliedIntent.current = ''
+    setLandingIntent(null)
+  }
 
   const refresh = useCallback(async () => {
     const request = ++requestId.current
@@ -44,7 +57,8 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
     try {
       const [auth, serviceList, barberList] = await Promise.all([refreshSession(), api.getPublicServices(), api.getPublicBarbers()])
       if (request !== requestId.current) return
-      if (auth && !auth.user.roles.includes('client')) {
+      if (auth && publicHome(auth.user) !== '/home') {
+        clearLandingIntent()
         const destination = publicHome(auth.user)
         if (destination) onNavigate(destination)
         return
@@ -54,7 +68,36 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
       setBarbers(barbersFromApi(barberList))
       if (auth) {
         const appointments = await api.listAppointments()
-        if (request === requestId.current) setRecords(appointments.filter((item) => item.clientUserId === auth.user.id))
+        if (request !== requestId.current || userId.current !== auth.user.id) return
+        setRecords(appointments.filter((item) => item.clientUserId === auth.user.id))
+        const intent = claimLandingIntent(auth.user.id)
+        setLandingIntent(intent)
+        if (intent) {
+          const source = intent.serviceId ? serviceList.find((item) => item.id === intent.serviceId && item.active !== false) : null
+          const professional = intent.barberId ? barberList.find((item) => item.id === intent.barberId && item.active !== false) : null
+          if (intent.serviceId && !source || intent.barberId && !professional) {
+            clearLandingIntent()
+            appliedIntent.current = ''
+            setLandingIntent(null)
+            reservation.clear()
+            setError('Sua escolha não está mais disponível. Escolha novamente no catálogo atualizado.')
+            if (['/servico', '/detalhes', '/horarios'].includes(currentPath.current)) onNavigate('/home')
+          } else if (appliedIntent.current !== JSON.stringify(intent)) {
+            try {
+              if (source) {
+                reservation.start(source.id)
+                if (professional) reservation.selectProfessional(professional.id)
+                if (['/home', '/mobile'].includes(currentPath.current)) onNavigate('/servico')
+              }
+              appliedIntent.current = JSON.stringify(intent)
+            } catch (failure) {
+              clearLandingIntent()
+              setLandingIntent(null)
+              reservation.clear()
+              setError(clientError(failure))
+            }
+          }
+        }
       } else setRecords([])
     } catch (failure) {
       if (request === requestId.current) {
@@ -71,7 +114,19 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
     return () => { requestId.current += 1 }
   }, [refresh])
 
-  useEffect(() => { setRecords([]); setCompleted(null) }, [session?.user.id])
+  useEffect(() => {
+    setRecords([])
+    setCompleted(null)
+    const nextUserId = session?.user.id ?? null
+    const changedAccount = previousUserId.current !== null && previousUserId.current !== nextUserId
+    previousUserId.current = nextUserId
+    if (changedAccount) {
+      reservation.clear()
+      appliedIntent.current = ''
+      setLandingIntent(null)
+      void refresh()
+    }
+  }, [session?.user.id, reservation, refresh])
 
   const appointments = useMemo(() => records.filter((item) => item.clientUserId === session?.user.id).map((item) => appointmentFromApi(item, barbers)), [records, barbers, session?.user.id])
   const { upcoming } = splitAppointments(appointments)
@@ -81,6 +136,13 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
   function chooseService(service: CatalogService) {
     try {
       reservation.start(service.id)
+      const intent = session ? claimLandingIntent(session.user.id) : null
+      if (intent) {
+        if (intent.barberId) reservation.selectProfessional(intent.barberId)
+        const next = saveLandingIntent({ serviceId: service.id, ...(intent.barberId ? { barberId: intent.barberId } : {}) }, session!.user.id)
+        setLandingIntent(next)
+        appliedIntent.current = JSON.stringify(next)
+      }
       setCompleted(null)
       onNavigate('/servico')
     } catch (failure) { setError(clientError(failure)) }
@@ -91,18 +153,28 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
       const record = records.find((item) => item.id === appointment.id && item.clientUserId === session?.user.id)
       if (!record) throw new BookingError('Agendamento não encontrado. Atualize seus agendamentos.')
       reservation.reuse(record, reschedule)
+      forgetChoice()
       setCompleted(null)
       onNavigate(reschedule ? '/horarios' : '/servico')
     } catch (failure) { setError(clientError(failure)) }
   }
 
   function selectProfessional(barber: Barber) {
-    try { reservation.selectProfessional(barber.id); onNavigate('/horarios') }
+    try {
+      reservation.selectProfessional(barber.id)
+      if (session && booking && readLandingIntent()) {
+        const next = saveLandingIntent({ serviceId: booking.service.id, ...(!barber.isAny ? { barberId: barber.id } : {}) }, session.user.id)
+        setLandingIntent(next)
+        appliedIntent.current = JSON.stringify(next)
+      }
+      onNavigate('/horarios')
+    }
     catch (failure) { setError(clientError(failure)) }
   }
 
   async function confirmBooking(review: BookingReview) {
     const saved = await reservation.confirm(review)
+    forgetChoice()
     setRecords((previous) => [saved, ...previous.filter((item) => item.id !== saved.id)])
     setCompleted(appointmentFromApi(saved, barbers))
     onNavigate(`/confirmacao?id=${encodeURIComponent(saved.id)}`)
@@ -181,5 +253,8 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
     page = <main className="mx-auto max-w-md space-y-4 px-4 py-8 text-center"><h1 className="text-lg font-semibold">Escolha um serviço para continuar</h1><Button type="button" onClick={() => onNavigate('/home')} className="min-h-11 rounded-xl px-5">Ver serviços</Button></main>
   }
 
-  return <>{error && <Alert variant="destructive" className="mx-auto mt-4 max-w-xl rounded-xl border-destructive/20 bg-white p-3"><AlertDescription>{error}</AlertDescription><Button type="button" variant="outline" onClick={() => { void refresh() }} className="mt-2 min-h-10 rounded-xl px-3">Atualizar dados</Button></Alert>}{page}</>
+  const chosenProfessional = barbers.find((item) => item.id === landingIntent?.barberId)
+  const chosenService = services.find((item) => item.id === landingIntent?.serviceId)
+  const choiceSummary = [chosenService?.name, chosenProfessional?.name].filter(Boolean).join(' · ')
+  return <>{error && <Alert variant="destructive" className="mx-auto mt-4 max-w-xl rounded-xl border-destructive/20 bg-white p-3"><AlertDescription>{error}</AlertDescription><Button type="button" variant="outline" onClick={() => { void refresh() }} className="mt-2 min-h-10 rounded-xl px-3">Atualizar dados</Button></Alert>}{landingIntent && ['/home', '/mobile', '/servico', '/detalhes', '/horarios'].includes(path) && <LandingChoiceNotice key={landingIntent.createdAt} disabled={confirming} summary={`Sua escolha: ${choiceSummary}`} onCancel={() => { forgetChoice(); reservation.clear(); onNavigate('/home') }} />}{page}</>
 }

@@ -11,9 +11,8 @@ export interface PublicHours {
 export interface PublicTeamMember {
   name: string
   role: string
-  specialty: string
+  specialty?: string
   photoUrl?: string
-  recommendations: number
 }
 
 export interface PublicSiteConfig {
@@ -55,8 +54,8 @@ export const siteConfig = {
   brandImageUrl: 'https://d39p7gjvbgwtet.cloudfront.net/Estabelecimentos/89157/800x500/logo_000089157.jpg?v=20240714190600',
   mapEmbedUrl: `https://www.google.com/maps?q=${encodeURIComponent(FULL_ADDRESS)}&output=embed`,
   hours: BARBERSHOP_INFO.businessHours.map((hours) => ({ ...hours, label: hours.days })),
-  team: BARBERS.map((barber) => ({
-    name: barber.name, role: barber.role, specialty: barber.role,
-    photoUrl: photoById[barber.id], recommendations: barber.likes,
+  team: BARBERS.map<PublicTeamMember>((barber) => ({
+    name: barber.name, role: barber.role,
+    photoUrl: photoById[barber.id],
   })),
 } satisfies PublicSiteConfig
