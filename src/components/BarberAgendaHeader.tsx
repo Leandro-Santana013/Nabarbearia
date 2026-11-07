@@ -29,22 +29,9 @@ export default function BarberAgendaHeader({ name, date, inProgress, paused, bus
         <p className="barber-agenda-eyebrow">Minha agenda</p>
         <h1>Olá, {name}!</h1>
       </div>
-      <div className="flex items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={onGoHome ?? (() => window.location.assign('/'))}
-          aria-label="Ir para a página principal"
-          className="h-8 gap-1.5 rounded-lg border-gray-200 bg-white px-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-        >
-          <Home aria-hidden="true" className="size-3.5 text-primary" />
-          <span>Início</span>
-        </Button>
-        <span className="barber-agenda-status" data-status={inProgress ? 'busy' : paused ? 'paused' : 'available'}>
-          <span aria-hidden="true" />{status}
-        </span>
-      </div>
+      <span className="barber-agenda-status" data-status={inProgress ? 'busy' : paused ? 'paused' : 'available'}>
+        <span aria-hidden="true" />{status}
+      </span>
     </div>
     <div className="barber-agenda-calendar">
       <div className="barber-agenda-calendar-heading">

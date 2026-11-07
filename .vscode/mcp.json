@@ -1,0 +1,14 @@
+{
+  "servers": {
+    "ai-memory": {
+      "type": "stdio",
+      "command": "C:\\Users\\nicky\\AppData\\Local\\Programs\\ai-memory\\ai-memory.exe",
+      "args": [
+        "mcp-bridge",
+        "--no-session-id",
+        "--server-url",
+        "http://127.0.0.1:49374/mcp"
+      ]
+    }
+  }
+}

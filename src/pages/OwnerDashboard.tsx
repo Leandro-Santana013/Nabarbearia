@@ -325,11 +325,13 @@ export default function OwnerDashboard({
             )}
             <Button
               variant="outline"
-              className={button}
+              size="sm"
               onClick={() => onNavigate("/")}
+              aria-label="Ir para a página principal"
+              className="h-10 gap-1.5 rounded-xl border-border bg-white px-3 text-xs! font-semibold! text-foreground shadow-xs transition-colors hover:bg-accent"
             >
-              <Home className="size-4" />
-              Página Principal
+              <Home aria-hidden="true" className="size-4 text-primary" />
+              <span>Início</span>
             </Button>
             <Button
               variant="ghost"
