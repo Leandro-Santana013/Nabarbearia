@@ -378,6 +378,22 @@ class ApiService {
       body: JSON.stringify({ action: 'cancel', changes }),
     })
   }
+  async createOwnerAppointment(input: {
+    barber_user_id: string
+    service_id: string
+    starts_at: string
+    client_name: string
+    client_phone?: string
+    payment_method?: string
+    client_note?: string
+  }, idempotencyKey: string): Promise<Appointment> {
+    const result = await this.request<AppointmentDto>('/admin/appointments', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(input),
+    })
+    return mapAppointment(result)
+  }
   async editOwnerAppointment(id: string, input: { service_id: string; barber_user_id: string; starts_at: string }): Promise<Appointment> {
     const result = await this.request<AppointmentDto>(`/admin/appointments/${encodeURIComponent(id)}`, {
       method: 'PATCH',

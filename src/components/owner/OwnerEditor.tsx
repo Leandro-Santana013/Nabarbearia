@@ -25,6 +25,7 @@ export type Editor =
   | { kind: "schedule"; item: OwnerBarber }
   | { kind: "payout"; item: OwnerBarber }
   | { kind: "appointment"; item: Appointment }
+  | { kind: "new-appointment"; date: string; time: string; barberId: string }
   | { kind: "bulk"; items: Appointment[] };
 export default function OwnerEditor({
   editor,
@@ -48,9 +49,17 @@ export default function OwnerEditor({
   const service = editor.kind === "service" ? editor.item : undefined;
   const barber = editor.kind === "barber" ? editor.item : undefined;
   const appointment = editor.kind === "appointment" ? editor.item : undefined;
+  const isNewAppointment = editor.kind === "new-appointment";
   const initialDateTime = appointment
     ? appointmentLocalDateTime(appointment.startsAt ?? appointment.date)
-    : undefined;
+    : isNewAppointment
+      ? { date: editor.date, time: editor.time }
+      : undefined;
+  const initialServiceId =
+    appointment?.serviceId ??
+    (isNewAppointment
+      ? services.find((item) => item.active !== false)?.id ?? ""
+      : "");
   const [name, setName] = useState(service?.name ?? barber?.name ?? "");
   const [price, setPrice] = useState(
     service ? (service.priceCents / 100).toFixed(2) : "",
@@ -66,12 +75,20 @@ export default function OwnerEditor({
   const [photo, setPhoto] = useState(barber?.photo_url ?? "");
   const [date, setDate] = useState(initialDateTime?.date ?? today());
   const [time, setTime] = useState(initialDateTime?.time ?? "10:00");
-  const [barberId, setBarberId] = useState(appointment?.barberId ?? "keep");
-  const [serviceId, setServiceId] = useState(appointment?.serviceId ?? "");
+  const [barberId, setBarberId] = useState(
+    appointment?.barberId ??
+      (isNewAppointment ? editor.barberId : "keep"),
+  );
+  const [serviceId, setServiceId] = useState(initialServiceId);
+  const [clientName, setClientName] = useState("");
+  const [clientPhone, setClientPhone] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [clientNote, setClientNote] = useState("");
   const [weekday, setWeekday] = useState("1");
   const [start, setStart] = useState("10:00");
   const [end, setEnd] = useState("20:00");
   const key = useRef(crypto.randomUUID());
+  const appointmentKey = useRef({ fingerprint: "", id: "" });
   const field = "h-11 rounded-xl bg-white text-base! sm:text-sm!";
   const labels = {
     service: service ? "Editar serviço" : "Novo serviço",
@@ -80,6 +97,7 @@ export default function OwnerEditor({
     schedule: "Configurar escala",
     payout: "Registrar repasse",
     appointment: "Editar agendamento",
+    "new-appointment": "Novo agendamento",
     bulk: "Cancelar agendamentos",
   };
   async function submit(event: React.FormEvent) {
@@ -146,6 +164,25 @@ export default function OwnerEditor({
           barber_user_id: barberId,
           starts_at: moveToDateTime(date, time),
         });
+      else if (editor.kind === "new-appointment") {
+        if (!clientName.trim()) throw new Error("Informe o nome do cliente.");
+        if (!serviceId) throw new Error("Selecione um atendimento.");
+        if (!barberId) throw new Error("Selecione um barbeiro.");
+        const input = {
+          barber_user_id: barberId,
+          service_id: serviceId,
+          starts_at: moveToDateTime(date, time),
+          client_name: clientName.trim(),
+          client_phone: clientPhone.replace(/\D/g, "") || undefined,
+          payment_method: paymentMethod || undefined,
+          client_note: clientNote.trim() || undefined,
+        };
+        const fingerprint = JSON.stringify(input);
+        if (appointmentKey.current.fingerprint !== fingerprint) {
+          appointmentKey.current = { fingerprint, id: crypto.randomUUID() };
+        }
+        await api.createOwnerAppointment(input, appointmentKey.current.id);
+      }
       else if (editor.kind === "bulk")
         await api.bulkAgenda(editor.items.map((item) => ({ id: item.id })));
     };
@@ -186,6 +223,10 @@ export default function OwnerEditor({
       label: appointment.barberName ?? "Profissional atual",
     });
   }
+  const createServices = services.filter((item) => item.active !== false);
+  const createBarbers = team
+    .filter((item) => item.active)
+    .map((item) => ({ value: item.id, label: item.name }));
   return (
     <Dialog
       open
@@ -204,6 +245,8 @@ export default function OwnerEditor({
               ? `${editor.items.length} agendamento(s) selecionado(s). O lote será salvo somente se todas as alterações forem válidas.`
               : editor.kind === "appointment"
                 ? "Altere o serviço, a data, o horário e o profissional responsável. O novo horário precisa estar disponível na escala."
+              : editor.kind === "new-appointment"
+                ? "Preencha os dados necessários do cliente e do atendimento. Telefone, pagamento e observação são opcionais."
               : "As alterações são salvas na plataforma da NA Barbearia."}
         </DialogDescription>
         {error && (
@@ -430,6 +473,78 @@ export default function OwnerEditor({
                   />
                 </>
               )}
+              {editor.kind === "new-appointment" && (
+                <>
+                  <label className="block space-y-1 text-xs font-semibold">
+                    Nome do cliente
+                    <Input
+                      required
+                      minLength={2}
+                      maxLength={120}
+                      autoComplete="name"
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                      className={field}
+                    />
+                  </label>
+                  <label className="block space-y-1 text-xs font-semibold">
+                    WhatsApp (opcional)
+                    <Input
+                      type="tel"
+                      maxLength={20}
+                      autoComplete="tel"
+                      placeholder="DDD + número"
+                      value={clientPhone}
+                      onChange={(e) => setClientPhone(e.target.value)}
+                      className={field}
+                    />
+                  </label>
+                  <OwnerSelect
+                    label="Atendimento"
+                    value={serviceId}
+                    onChange={setServiceId}
+                    options={createServices.map((item) => ({
+                      value: item.id,
+                      label: `${item.name} · ${item.durationMinutes} min · ${money(item.priceCents)}`,
+                    }))}
+                  />
+                  <OwnerSelect
+                    label="Barbeiro responsável"
+                    value={barberId}
+                    onChange={setBarberId}
+                    options={createBarbers}
+                  />
+                  <label className="block space-y-1 text-xs font-semibold">
+                    Pagamento previsto (opcional)
+                    <select
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value)}
+                      className={`w-full ${field}`}
+                    >
+                      <option value="">Não informado</option>
+                      {["Presencial", "Pix", "Cartão"].map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block space-y-1 text-xs font-semibold">
+                    Observação (opcional)
+                    <Input
+                      maxLength={500}
+                      placeholder="Preferências para este atendimento"
+                      value={clientNote}
+                      onChange={(e) => setClientNote(e.target.value)}
+                      className={field}
+                    />
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    Horário selecionado: {date} às {time} · preço e duração
+                    seguem o serviço escolhido.
+                  </p>
+                </>
+              )}
               <div className="owner-dialog-actions flex justify-end gap-2">
                 <Button
                   type="button"
@@ -456,6 +571,8 @@ export default function OwnerEditor({
                         ? "Confirmar alterações"
                         : editor.kind === "appointment"
                           ? "Salvar alterações"
+                          : editor.kind === "new-appointment"
+                            ? "Confirmar agendamento"
                           : "Salvar"}
                 </Button>
               </div>

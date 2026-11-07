@@ -63,6 +63,54 @@ it('edita um atendimento pela rota de gestão e converte o agendamento salvo', a
   })
 })
 
+it('cria atendimento da recepção com idempotência e detalhes opcionais', async () => {
+  const appointment = {
+    id: 'appointment-new',
+    business_id: 'shop',
+    client_user_id: 'walk-in-client',
+    barber_user_id: 'barber-1',
+    service_id: 'service-1',
+    starts_at: '2026-11-09T18:00:00Z',
+    ends_at: '2026-11-09T18:45:00Z',
+    status: 'confirmed',
+    price_cents: 7500,
+    duration_minutes: 45,
+  }
+  const fetch = vi.fn()
+    .mockResolvedValueOnce(Response.json({
+      user: { id: 'owner', business_id: 'shop', email: 'owner@test.invalid', display_name: 'Proprietário', roles: ['owner'] },
+      csrf_token: 'owner-csrf',
+      expires_at: '2026-11-10T00:00:00Z',
+    }))
+    .mockResolvedValueOnce(Response.json(appointment, { status: 201 }))
+  vi.stubGlobal('fetch', fetch)
+
+  await api.login('owner@test.invalid', 'password')
+  await expect(api.createOwnerAppointment({
+    barber_user_id: 'barber-1',
+    service_id: 'service-1',
+    starts_at: appointment.starts_at,
+    client_name: 'Cliente',
+    client_phone: '11999991234',
+    payment_method: 'Pix',
+    client_note: 'Preferência',
+  }, 'owner-appointment-key')).resolves.toMatchObject({
+    id: 'appointment-new',
+    barberId: 'barber-1',
+    serviceId: 'service-1',
+    startsAt: appointment.starts_at,
+    durationMinutes: 45,
+  })
+  expect(fetch.mock.calls[1][0]).toBe('/api/v1/admin/appointments')
+  expect(fetch.mock.calls[1][1].headers.get('Idempotency-Key')).toBe('owner-appointment-key')
+  expect(JSON.parse(fetch.mock.calls[1][1].body)).toMatchObject({
+    client_name: 'Cliente',
+    client_phone: '11999991234',
+    payment_method: 'Pix',
+    client_note: 'Preferência',
+  })
+})
+
 it('diferencia credenciais incorretas de sessão expirada sem perder código/status', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => Response.json({ code: 'UNAUTHORIZED', message: 'Authentication required' }, { status: 401 })))
   await expect(api.login('client@test.invalid', 'wrong-password')).rejects.toMatchObject({

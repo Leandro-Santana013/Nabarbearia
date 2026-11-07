@@ -269,6 +269,14 @@ export default function OwnerDashboard({
     (item) => item.status === "confirmed" && !item.executionStarted,
   );
   const chosen = eligible.filter((item) => selected.includes(item.id));
+  const shopNow = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Sao_Paulo",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date());
+  const [shopHour, shopMinute] = shopNow.split(":").map(Number);
+  const currentMinute = shopHour * 60 + shopMinute;
   const periodLabel = new Intl.DateTimeFormat("pt-BR", {
     timeZone: "America/Sao_Paulo",
     ...(period === "month"
@@ -913,36 +921,23 @@ export default function OwnerDashboard({
                                             key={item.id}
                                           >
                                             <button
-                                              aria-label={`Editar agendamento de ${item.clientName} às ${row.time}`}
-                                              className={`owner-agenda-booking w-full rounded-lg border p-2 pr-9 text-left ${isSelected ? "border-primary bg-blue-50" : "border-border bg-white"}`}
-                                              disabled={busy || chosen.length > 1}
-                                              onClick={() => {
-                                                setSelected([item.id]);
-                                                edit({
-                                                  kind: "appointment",
-                                                  item,
-                                                });
-                                              }}
+                                              aria-label={`${isSelected ? "Desselecionar" : "Selecionar"} agendamento de ${item.clientName} às ${row.time}`}
+                                              aria-pressed={isSelected}
+                                              className={`owner-agenda-booking w-full rounded-lg border p-2 text-left ${isSelected ? "border-primary bg-blue-50" : "border-border bg-white"}`}
+                                              disabled={busy}
+                                              onClick={() =>
+                                                setSelected((old) =>
+                                                  isSelected
+                                                    ? old.filter(
+                                                        (id) => id !== item.id,
+                                                      )
+                                                    : [...old, item.id],
+                                                )
+                                              }
                                               type="button"
                                             >
                                               {details}
                                             </button>
-                                            <input
-                                              aria-label={`Selecionar agendamento de ${item.clientName} às ${row.time}`}
-                                              checked={isSelected}
-                                              className="absolute right-2 top-2 size-4 accent-primary"
-                                              disabled={busy}
-                                              onChange={(event) =>
-                                                setSelected((old) =>
-                                                  event.target.checked
-                                                    ? [...old, item.id]
-                                                    : old.filter(
-                                                        (id) => id !== item.id,
-                                                      ),
-                                                )
-                                              }
-                                              type="checkbox"
-                                            />
                                           </div>
                                         ) : (
                                           <div
@@ -954,6 +949,32 @@ export default function OwnerDashboard({
                                         );
                                       })}
                                     </div>
+                                  ) : cell.inSchedule ? (
+                                    <button
+                                      aria-label={`Agendar às ${row.time} com ${agendaBarbers.find((item) => item.id === cell.barberId)?.name ?? "profissional"}`}
+                                      className="owner-agenda-booking group w-full rounded-lg border border-dashed border-transparent p-1 text-sm text-muted-foreground transition-colors hover:border-primary hover:bg-blue-50 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-40"
+                                      disabled={
+                                        busy ||
+                                        agendaDate < shopDate() ||
+                                        (agendaDate === shopDate() &&
+                                          row.minute <= currentMinute)
+                                      }
+                                      onClick={() =>
+                                        edit({
+                                          kind: "new-appointment",
+                                          date: agendaDate,
+                                          time: row.time,
+                                          barberId: cell.barberId,
+                                        })
+                                      }
+                                      type="button"
+                                    >
+                                      <span aria-hidden="true" className="group-hover:hidden">—</span>
+                                      <span className="hidden items-center justify-center gap-1 group-hover:inline-flex">
+                                        <Plus aria-hidden="true" className="size-3" />
+                                        Agendar
+                                      </span>
+                                    </button>
                                   ) : (
                                     <span className="text-sm text-muted-foreground">
                                       —
