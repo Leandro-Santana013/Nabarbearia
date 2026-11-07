@@ -7,7 +7,7 @@ use crate::{
     models::{AppointmentResponse, AppointmentStatus, AuthUser, Role},
 };
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use rusqlite::{TransactionBehavior, params};
+use rusqlite::{OptionalExtension, TransactionBehavior, params};
 
 pub async fn cancel(
     db: &Db,
@@ -212,6 +212,102 @@ pub struct Details {
     pub payment: Option<String>,
     pub note: String,
 }
+
+pub struct AppointmentEdit {
+    pub service_id: String,
+    pub barber_id: String,
+    pub starts_at: DateTime<Utc>,
+}
+
+pub async fn edit_appointment(
+    db: &Db,
+    actor: AuthUser,
+    appointment_id: String,
+    edit: AppointmentEdit,
+) -> Result<AppointmentResponse, Error> {
+    super::require_future(edit.starts_at)?;
+    if !actor.roles.contains(&Role::Owner) {
+        return Err(Error::forbidden());
+    }
+    let business_id = actor.business_id;
+    let actor_id = actor.id;
+    db.with_conn(move |connection| -> Result<_, Error> {
+        let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let current = get_appointment(&tx, &business_id, &appointment_id)?;
+        if current.status != AppointmentStatus::Confirmed || current.execution_started {
+            return Err(Error::conflict(
+                "INVALID_TRANSITION",
+                "Only a confirmed appointment that has not started can be edited",
+            ));
+        }
+
+        let (price_cents, duration_minutes) = if edit.service_id == current.service_id {
+            (current.price_cents, current.duration_minutes)
+        } else {
+            tx.query_row(
+                "SELECT price_cents, duration_minutes FROM services
+                 WHERE business_id = ?1 AND id = ?2 AND active = 1",
+                params![business_id, edit.service_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?
+            .ok_or_else(|| Error::not_found("SERVICE_NOT_FOUND", "Service was not found"))?
+        };
+        let ends_at = edit.starts_at + ChronoDuration::minutes(duration_minutes);
+        ensure_slot_available(
+            &tx,
+            &business_id,
+            &edit.barber_id,
+            edit.starts_at,
+            ends_at,
+            Some(&appointment_id),
+        )?;
+
+        let now = utc_text(Utc::now());
+        tx.execute(
+            "UPDATE appointments SET service_id = ?1, barber_user_id = ?2, starts_at_utc = ?3,
+             ends_at_utc = ?4, price_cents = ?5, duration_minutes = ?6, updated_at_utc = ?7,
+             version = version + 1 WHERE business_id = ?8 AND id = ?9 AND status = 'confirmed'",
+            params![
+                edit.service_id,
+                edit.barber_id,
+                utc_text(edit.starts_at),
+                utc_text(ends_at),
+                price_cents,
+                duration_minutes,
+                now,
+                business_id,
+                appointment_id
+            ],
+        )?;
+        insert_history(
+            &tx,
+            &business_id,
+            &appointment_id,
+            Some(&actor_id),
+            "rescheduled",
+            Some("confirmed"),
+            Some("confirmed"),
+            Some(&utc_text(current.starts_at)),
+            Some(&utc_text(edit.starts_at)),
+            "Atendimento editado pela gestão",
+        )?;
+        insert_audit(
+            &tx,
+            &business_id,
+            Some(&actor_id),
+            "appointment.edited",
+            "appointment",
+            &appointment_id,
+            "{}",
+        )?;
+        let updated = get_appointment(&tx, &business_id, &appointment_id)?;
+        tx.commit()?;
+        Ok(updated)
+    })
+    .await
+}
+
 pub async fn update_details(
     db: &Db,
     actor: AuthUser,

@@ -12,7 +12,11 @@ import OwnerSelect from "./OwnerSelect";
 import { api } from "@/services/api";
 import type { Appointment, Service } from "@/types";
 import type { OwnerBarber } from "@/lib/owner-dashboard";
-import { moveToDate, today } from "@/lib/owner-dashboard";
+import {
+  appointmentLocalDateTime,
+  moveToDateTime,
+  today,
+} from "@/lib/owner-dashboard";
 import { money } from "@/lib/barber-schedule";
 export type Editor =
   | { kind: "service"; item?: Service }
@@ -20,7 +24,8 @@ export type Editor =
   | { kind: "commission"; item: OwnerBarber }
   | { kind: "schedule"; item: OwnerBarber }
   | { kind: "payout"; item: OwnerBarber }
-  | { kind: "bulk"; action: "move" | "cancel"; items: Appointment[] };
+  | { kind: "appointment"; item: Appointment }
+  | { kind: "bulk"; items: Appointment[] };
 export default function OwnerEditor({
   editor,
   onClose,
@@ -42,6 +47,10 @@ export default function OwnerEditor({
 }) {
   const service = editor.kind === "service" ? editor.item : undefined;
   const barber = editor.kind === "barber" ? editor.item : undefined;
+  const appointment = editor.kind === "appointment" ? editor.item : undefined;
+  const initialDateTime = appointment
+    ? appointmentLocalDateTime(appointment.startsAt ?? appointment.date)
+    : undefined;
   const [name, setName] = useState(service?.name ?? barber?.name ?? "");
   const [price, setPrice] = useState(
     service ? (service.priceCents / 100).toFixed(2) : "",
@@ -55,8 +64,10 @@ export default function OwnerEditor({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [photo, setPhoto] = useState(barber?.photo_url ?? "");
-  const [date, setDate] = useState(today());
-  const [barberId, setBarberId] = useState("keep");
+  const [date, setDate] = useState(initialDateTime?.date ?? today());
+  const [time, setTime] = useState(initialDateTime?.time ?? "10:00");
+  const [barberId, setBarberId] = useState(appointment?.barberId ?? "keep");
+  const [serviceId, setServiceId] = useState(appointment?.serviceId ?? "");
   const [weekday, setWeekday] = useState("1");
   const [start, setStart] = useState("10:00");
   const [end, setEnd] = useState("20:00");
@@ -68,10 +79,8 @@ export default function OwnerEditor({
     commission: "Editar regra de comissão",
     schedule: "Configurar escala",
     payout: "Registrar repasse",
-    bulk:
-      editor.kind === "bulk" && editor.action === "cancel"
-        ? "Cancelar agendamentos"
-        : "Remanejar agendamentos",
+    appointment: "Editar agendamento",
+    bulk: "Cancelar agendamentos",
   };
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -131,20 +140,14 @@ export default function OwnerEditor({
           editor.item.outstanding_cents,
           key.current,
         );
+      else if (editor.kind === "appointment")
+        await api.editOwnerAppointment(editor.item.id, {
+          service_id: serviceId,
+          barber_user_id: barberId,
+          starts_at: moveToDateTime(date, time),
+        });
       else if (editor.kind === "bulk")
-        await api.bulkAgenda(
-          editor.action,
-          editor.items.map((item) => ({
-            id: item.id,
-            ...(editor.action === "move"
-              ? {
-                  starts_at: moveToDate(item.startsAt ?? item.date, date),
-                  barber_user_id:
-                    barberId === "keep" ? item.barberId : barberId,
-                }
-              : {}),
-          })),
-        );
+        await api.bulkAgenda(editor.items.map((item) => ({ id: item.id })));
     };
     if (
       await run(
@@ -153,6 +156,35 @@ export default function OwnerEditor({
       )
     )
       onClose();
+  }
+  const appointmentServices = services.filter(
+    (item) => item.active !== false,
+  );
+  if (
+    appointment &&
+    !appointmentServices.some((item) => item.id === appointment.serviceId)
+  ) {
+    appointmentServices.push({
+      id: appointment.serviceId,
+      name: appointment.serviceName ?? "Serviço atual",
+      description: "",
+      category: "",
+      priceCents: appointment.amountCents,
+      durationMinutes: appointment.durationMinutes ?? 30,
+      active: false,
+    });
+  }
+  const appointmentBarbers = team
+    .filter((item) => item.active)
+    .map((item) => ({ value: item.id, label: item.name }));
+  if (
+    appointment &&
+    !appointmentBarbers.some((item) => item.value === appointment.barberId)
+  ) {
+    appointmentBarbers.push({
+      value: appointment.barberId,
+      label: appointment.barberName ?? "Profissional atual",
+    });
   }
   return (
     <Dialog
@@ -170,6 +202,8 @@ export default function OwnerEditor({
             ? `Confirme apenas um pagamento já realizado a ${editor.item.name}. O registro quita o saldo acumulado e não transfere dinheiro.`
             : editor.kind === "bulk"
               ? `${editor.items.length} agendamento(s) selecionado(s). O lote será salvo somente se todas as alterações forem válidas.`
+              : editor.kind === "appointment"
+                ? "Altere o serviço, a data, o horário e o profissional responsável. O novo horário precisa estar disponível na escala."
               : "As alterações são salvas na plataforma da NA Barbearia."}
         </DialogDescription>
         {error && (
@@ -356,8 +390,17 @@ export default function OwnerEditor({
                   {money(editor.item.outstanding_cents)}
                 </p>
               )}
-              {editor.kind === "bulk" && editor.action === "move" && (
+              {editor.kind === "appointment" && (
                 <>
+                  <OwnerSelect
+                    label="Atendimento"
+                    value={serviceId}
+                    onChange={setServiceId}
+                    options={appointmentServices.map((item) => ({
+                      value: item.id,
+                      label: `${item.name} · ${item.durationMinutes} min · ${money(item.priceCents)}`,
+                    }))}
+                  />
                   <label className="block space-y-1 text-xs font-semibold">
                     Nova data
                     <Input
@@ -369,24 +412,22 @@ export default function OwnerEditor({
                       className={field}
                     />
                   </label>
+                  <label className="block space-y-1 text-xs font-semibold">
+                    Horário
+                    <Input
+                      required
+                      type="time"
+                      value={time}
+                      onChange={(e) => setTime(e.target.value)}
+                      className={field}
+                    />
+                  </label>
                   <OwnerSelect
-                    label="Profissional de destino"
+                    label="Barbeiro responsável"
                     value={barberId}
                     onChange={setBarberId}
-                    options={[
-                      {
-                        value: "keep",
-                        label: "Manter profissional de cada reserva",
-                      },
-                      ...team
-                        .filter((item) => item.active)
-                        .map((item) => ({ value: item.id, label: item.name })),
-                    ]}
+                    options={appointmentBarbers}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Os horários e as durações originais são mantidos. Conflitos
-                    impedem a alteração de todo o lote.
-                  </p>
                 </>
               )}
               <div className="owner-dialog-actions flex justify-end gap-2">
@@ -401,7 +442,7 @@ export default function OwnerEditor({
                 <Button
                   type="submit"
                   variant={
-                    editor.kind === "bulk" && editor.action === "cancel"
+                    editor.kind === "bulk"
                       ? "destructive"
                       : "default"
                   }
@@ -413,7 +454,9 @@ export default function OwnerEditor({
                       ? "Confirmar repasse realizado"
                       : editor.kind === "bulk"
                         ? "Confirmar alterações"
-                        : "Salvar"}
+                        : editor.kind === "appointment"
+                          ? "Salvar alterações"
+                          : "Salvar"}
                 </Button>
               </div>
             </fieldset>

@@ -821,21 +821,19 @@ export default function OwnerDashboard({
                     {chosen.length} selecionado(s)
                   </span>
                   <Button
-                    disabled={!chosen.length || busy}
+                    disabled={chosen.length !== 1 || busy}
                     variant="outline"
                     className={button}
-                    onClick={() =>
-                      edit({ kind: "bulk", action: "move", items: chosen })
-                    }
+                    onClick={() => edit({ kind: "appointment", item: chosen[0] })}
                   >
-                    Remanejar selecionados
+                    Editar agendamento
                   </Button>
                   <Button
                     disabled={!chosen.length || busy}
                     variant="destructive"
                     className={button}
                     onClick={() =>
-                      edit({ kind: "bulk", action: "cancel", items: chosen })
+                      edit({ kind: "bulk", items: chosen })
                     }
                   >
                     Cancelar selecionados
@@ -910,25 +908,42 @@ export default function OwnerDashboard({
                                           </>
                                         );
                                         return canSelect ? (
-                                          <button
-                                            aria-label={`${isSelected ? "Desselecionar" : "Selecionar"} agendamento de ${item.clientName} às ${row.time}`}
-                                            aria-pressed={isSelected}
-                                            className={`owner-agenda-booking w-full rounded-lg border p-2 text-left ${isSelected ? "border-primary bg-blue-50" : "border-border bg-white"}`}
-                                            disabled={busy}
+                                          <div
+                                            className="relative"
                                             key={item.id}
-                                            onClick={() =>
-                                              setSelected((old) =>
-                                                isSelected
-                                                  ? old.filter(
-                                                      (id) => id !== item.id,
-                                                    )
-                                                  : [...old, item.id],
-                                              )
-                                            }
-                                            type="button"
                                           >
-                                            {details}
-                                          </button>
+                                            <button
+                                              aria-label={`Editar agendamento de ${item.clientName} às ${row.time}`}
+                                              className={`owner-agenda-booking w-full rounded-lg border p-2 pr-9 text-left ${isSelected ? "border-primary bg-blue-50" : "border-border bg-white"}`}
+                                              disabled={busy || chosen.length > 1}
+                                              onClick={() => {
+                                                setSelected([item.id]);
+                                                edit({
+                                                  kind: "appointment",
+                                                  item,
+                                                });
+                                              }}
+                                              type="button"
+                                            >
+                                              {details}
+                                            </button>
+                                            <input
+                                              aria-label={`Selecionar agendamento de ${item.clientName} às ${row.time}`}
+                                              checked={isSelected}
+                                              className="absolute right-2 top-2 size-4 accent-primary"
+                                              disabled={busy}
+                                              onChange={(event) =>
+                                                setSelected((old) =>
+                                                  event.target.checked
+                                                    ? [...old, item.id]
+                                                    : old.filter(
+                                                        (id) => id !== item.id,
+                                                      ),
+                                                )
+                                              }
+                                              type="checkbox"
+                                            />
+                                          </div>
                                         ) : (
                                           <div
                                             className="owner-agenda-booking rounded-lg border border-border p-2"

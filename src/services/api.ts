@@ -372,7 +372,19 @@ class ApiService {
   async editBarber(id:string,input:{display_name:string;photo_url?:string;active:boolean}):Promise<void>{await this.request(`/admin/barbers/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(input)})}
   async recordPayout(barberId:string,amount:number,key:string):Promise<void>{await this.request('/admin/payouts',{method:'POST',headers:{'Idempotency-Key':key},body:JSON.stringify({barber_user_id:barberId,expected_amount_cents:amount})})}
   async enableHybrid():Promise<void>{await this.request('/admin/my-barber-profile',{method:'POST',body:'{}'})}
-  async bulkAgenda(action:'cancel'|'move',changes:{id:string;starts_at?:string;barber_user_id?:string}[]):Promise<void>{await this.request('/admin/agenda/bulk',{method:'POST',body:JSON.stringify({action,changes})})}
+  async bulkAgenda(changes: { id: string }[]): Promise<void> {
+    await this.request('/admin/agenda/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'cancel', changes }),
+    })
+  }
+  async editOwnerAppointment(id: string, input: { service_id: string; barber_user_id: string; starts_at: string }): Promise<Appointment> {
+    const result = await this.request<AppointmentDto>(`/admin/appointments/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    })
+    return mapAppointment(result)
+  }
 
   async getRevenueReport(range?: { from: string; to: string }): Promise<RevenueReport> {
     return this.request('/reports/revenue' + (range ? `?${new URLSearchParams(range)}` : ''))

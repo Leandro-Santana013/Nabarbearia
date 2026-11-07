@@ -18,7 +18,7 @@ const messages: Record<string, string> = {
   INVALID_PHONE: 'Informe um telefone válido com DDD.',
   INVALID_DATE: 'Informe uma data válida.',
   INVALID_TIMESTAMP: 'Informe uma data e um horário válidos.',
-  INVALID_APPOINTMENT: 'Confira os dados e a duração do atendimento.',
+  INVALID_APPOINTMENT: 'Confira a data, o horário e os dados do atendimento.',
   INVALID_PAYMENT: 'Escolha uma forma de pagamento válida.',
   INVALID_NOTE: 'A observação deve ter no máximo 500 caracteres.',
   SERVICE_NOT_FOUND: 'Este serviço não está mais disponível. Atualize o catálogo.',

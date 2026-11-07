@@ -17,6 +17,52 @@ it('carrega as escalas do dia e converte a resposta para o modelo da agenda', as
   expect(fetch.mock.calls[0][0]).toBe('/api/v1/admin/schedules?date=2026-10-19')
 })
 
+it('edita um atendimento pela rota de gestão e converte o agendamento salvo', async () => {
+  const updated = {
+    id: 'appointment-1',
+    business_id: 'shop',
+    client_user_id: 'client-1',
+    barber_user_id: 'barber-2',
+    service_id: 'service-2',
+    starts_at: '2026-11-09T16:30:00Z',
+    ends_at: '2026-11-09T17:15:00Z',
+    status: 'confirmed',
+    price_cents: 7500,
+    duration_minutes: 45,
+    client_display_name: 'Cliente',
+    barber_display_name: 'Barbeiro',
+    service_name: 'Barba',
+  }
+  const fetch = vi.fn()
+    .mockResolvedValueOnce(Response.json({
+      user: { id: 'owner', business_id: 'shop', email: 'owner@test.invalid', display_name: 'Proprietário', roles: ['owner'] },
+      csrf_token: 'owner-csrf',
+      expires_at: '2026-11-10T00:00:00Z',
+    }))
+    .mockResolvedValueOnce(Response.json(updated))
+  vi.stubGlobal('fetch', fetch)
+
+  await api.login('owner@test.invalid', 'password')
+  await expect(api.editOwnerAppointment('appointment-1', {
+    service_id: 'service-2',
+    barber_user_id: 'barber-2',
+    starts_at: updated.starts_at,
+  })).resolves.toMatchObject({
+    id: 'appointment-1',
+    serviceId: 'service-2',
+    barberId: 'barber-2',
+    startsAt: updated.starts_at,
+    durationMinutes: 45,
+    amountCents: 7500,
+  })
+  expect(fetch.mock.calls[1][0]).toBe('/api/v1/admin/appointments/appointment-1')
+  expect(JSON.parse(fetch.mock.calls[1][1].body)).toEqual({
+    service_id: 'service-2',
+    barber_user_id: 'barber-2',
+    starts_at: updated.starts_at,
+  })
+})
+
 it('diferencia credenciais incorretas de sessão expirada sem perder código/status', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => Response.json({ code: 'UNAUTHORIZED', message: 'Authentication required' }, { status: 401 })))
   await expect(api.login('client@test.invalid', 'wrong-password')).rejects.toMatchObject({

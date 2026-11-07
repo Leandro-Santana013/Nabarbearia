@@ -120,13 +120,19 @@ export function ownerRange(date: string, period: "day" | "month") {
   else to.setUTCDate(to.getUTCDate() + 1);
   return { from: from.toISOString(), to: to.toISOString() };
 }
-export function moveToDate(startsAt: string, date: string) {
-  const time = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "America/Sao_Paulo",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).format(new Date(startsAt));
+export function appointmentLocalDateTime(startsAt: string) {
+  const date = new Date(startsAt);
+  return {
+    date: shopDate(date),
+    time: new Intl.DateTimeFormat("en-GB", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).format(date),
+  };
+}
+export function moveToDateTime(date: string, time: string) {
   return new Date(`${date}T${time}:00-03:00`).toISOString();
 }
 export function noShowRate(

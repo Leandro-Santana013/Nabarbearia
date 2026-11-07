@@ -40,7 +40,10 @@ mod creation;
 mod transitions;
 pub use bulk::{AgendaChange, BatchAction, change_agenda};
 pub use creation::{create, create_reception};
-pub use transitions::{Details, cancel, complete, no_show, reschedule, start, update_details};
+pub use transitions::{
+    AppointmentEdit, Details, cancel, complete, edit_appointment, no_show, reschedule, start,
+    update_details,
+};
 
 #[cfg(test)]
 mod tests;

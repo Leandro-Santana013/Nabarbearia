@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  moveToDate,
+  appointmentLocalDateTime,
+  moveToDateTime,
   noShowRate,
   ownerAgendaRows,
   ownerRange,
@@ -38,9 +39,13 @@ describe("gestão do proprietário", () => {
       to: "2026-10-16T03:00:00.000Z",
     });
   });
-  it("remaneja preservando horário de Brasília em vez do horário UTC", () => {
-    expect(moveToDate("2026-10-16T01:15:00Z", "2026-10-20")).toBe(
-      "2026-10-21T01:15:00.000Z",
+  it("edita data e horário usando o fuso de Brasília", () => {
+    expect(appointmentLocalDateTime("2026-11-09T16:00:00.000Z")).toEqual({
+      date: "2026-11-09",
+      time: "13:00",
+    });
+    expect(moveToDateTime("2026-11-09", "14:30")).toBe(
+      "2026-11-09T17:30:00.000Z",
     );
   });
   it("calcula taxa de faltas sem dividir por zero", () => {

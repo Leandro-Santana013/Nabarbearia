@@ -150,6 +150,16 @@ try {
   await click("Salvar");
   await waitText("Alterações salvas.");
   assert.equal((await request("/public/services")).body[0].price_cents, 10000);
+  await click("Novo serviço");
+  await waitText("Novo serviço");
+  await formField("Nome", "Barba Express");
+  await formField("Categoria", "Barba");
+  await formField("Descrição", "Barba com acabamento.");
+  await formField("Preço (R$)", "75");
+  await formField("Duração (min)", "45");
+  await click("Salvar");
+  await waitText("Alterações salvas.");
+  await waitText("Catálogo de Serviços & Preços (2)");
   const created = [];
   for (const time of ["10:00", "11:00", "12:00"])
     created.push(
@@ -217,18 +227,19 @@ try {
   await click("Salvar");
   await waitText("Equipe (2 profissionais)");
   const selectOption = async (label, option) => {
+    const normalizedOption = option.replace(/\s+/g, " ").trim();
     await evaluate(
       `(()=>{const trigger=[...document.querySelectorAll('button[aria-labelledby]')].find(el=>document.getElementById(el.getAttribute('aria-labelledby'))?.textContent===${JSON.stringify(label)});trigger.click();})()`,
     );
     await until(
       () =>
         evaluate(
-          `[...document.querySelectorAll('[role=option]')].some(el=>el.textContent.trim()===${JSON.stringify(option)})`,
+          `[...document.querySelectorAll('[role=option]')].some(el=>el.textContent.replace(/\\s+/g,' ').trim()===${JSON.stringify(normalizedOption)})`,
         ),
       `opção ${option}`,
     );
     await evaluate(
-      `[...document.querySelectorAll('[role=option]')].find(el=>el.textContent.trim()===${JSON.stringify(option)}).click()`,
+      `[...document.querySelectorAll('[role=option]')].find(el=>el.textContent.replace(/\\s+/g,' ').trim()===${JSON.stringify(normalizedOption)}).click()`,
     );
   };
   const rowAction = (name, label) =>
@@ -245,6 +256,33 @@ try {
   await selectOption("Dia da semana", "Quarta");
   await click("Salvar");
   await waitText("Alterações salvas.");
+  const teamSummary = (
+    await request(`/admin/summary?${new URLSearchParams(range)}`, null, owner)
+  ).body;
+  const targetBarber = teamSummary.team.find(
+    (item) => item.name === "Barbeiro Atualizado",
+  );
+  const agendaWeekday = new Date(`${date}T12:00:00-03:00`).getDay();
+  for (let weekday = 1; weekday <= 6; weekday++) {
+    const offset = (weekday - agendaWeekday + 7) % 7;
+    const scheduleDate = new Date(`${date}T12:00:00-03:00`);
+    scheduleDate.setDate(scheduleDate.getDate() + offset);
+    const scheduleDateText = scheduleDate.toISOString().slice(0, 10);
+    const daySchedules = (
+      await request(`/admin/schedules?date=${scheduleDateText}`, null, owner)
+    ).body;
+    if (!daySchedules.some((item) => item.barber_user_id === targetBarber.id))
+      await request(
+        "/admin/schedules",
+        {
+          barber_user_id: targetBarber.id,
+          weekday,
+          start_minute: 600,
+          end_minute: 1200,
+        },
+        owner,
+      );
+  }
 
   console.log(
     "OK: login abre gestão; catálogo ativa/inativa com preço e duração reais; comissão e repasse persistem; barbeiro cadastrado.",
@@ -266,29 +304,49 @@ try {
     await evaluate("document.documentElement.scrollWidth <= innerWidth"),
     true,
   );
-  await clickSelector(
-    'button[aria-label="Selecionar agendamento de Cliente Integração às 11:00"]',
-  );
-  await waitText("1 selecionado(s)");
   const selectAll =
     'input[aria-label="Selecionar todos os agendamentos elegíveis"]';
   await clickSelector(selectAll);
   await waitText("2 selecionado(s)");
-  await click("Remanejar selecionados");
-  await waitText("Nova data");
-  await formField("Nova data", nextDate);
-  await click("Confirmar alterações");
+  assert.equal(
+    await evaluate(
+      '(()=>{const edit=[...document.querySelectorAll("button")].find(b=>b.textContent.trim()==="Editar agendamento");const cards=[...document.querySelectorAll("button[aria-label^=\\"Editar agendamento de\\"]")];const cancel=[...document.querySelectorAll("button")].find(b=>b.textContent.trim()==="Cancelar selecionados");return edit.disabled&&cards.every(b=>b.disabled)&&!cancel.disabled})()',
+    ),
+    true,
+  );
+  await clickSelector(selectAll);
+  await waitText("0 selecionado(s)");
+  await clickSelector(
+    'button[aria-label="Editar agendamento de Cliente Integração às 11:00"]',
+  );
+  await waitText("Barbeiro responsável");
+  await selectOption("Atendimento", "Barba Express · 45 min · R$ 75,00");
+  await formField("Nova data", date);
+  await formField("Horário", "13:30");
+  await selectOption("Barbeiro responsável", "Barbeiro Atualizado");
+  await click("Salvar alterações");
   await waitText("Alterações salvas.");
   let list = (await request("/appointments", null, owner)).body;
+  const replacementService = (await request("/admin/services", null, owner))
+    .body.find((item) => item.name === "Barba Express");
+  const edited = list.find((item) => item.id === created[1].id);
+  assert.equal(edited.service_id, replacementService.id);
+  assert.equal(edited.barber_user_id, targetBarber.id);
+  assert.equal(
+    new Date(edited.starts_at).toISOString(),
+    new Date(`${date}T13:30:00-03:00`).toISOString(),
+  );
+  assert.equal(
+    new Date(edited.ends_at).toISOString(),
+    new Date(`${date}T14:15:00-03:00`).toISOString(),
+  );
+  assert.equal(edited.price_cents, 7500);
+  assert.equal(edited.duration_minutes, 45);
   assert.equal(
     list.filter(
-      (item) =>
-        item.status === "confirmed" && item.starts_at.startsWith(nextDate),
+      (item) => item.status === "confirmed" && item.id !== created[0].id,
     ).length,
     2,
-  );
-  await evaluate(
-    `(()=>{const input=[...document.querySelectorAll('label')].find(el=>el.firstChild?.textContent.trim()==='Data da agenda').querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(nextDate)});input.dispatchEvent(new Event('input',{bubbles:true}));})()`,
   );
   await waitText("11:00");
   await waitText("Cliente Integração");
@@ -306,14 +364,14 @@ try {
   );
   assert.equal(
     await evaluate(
-      "document.querySelector('.owner-agenda-grid').innerText.includes('Cliente Integração')",
+      "document.querySelector('.owner-agenda-grid').innerText.includes('Agendado')",
     ),
     false,
   );
   list = (await request("/appointments", null, owner)).body;
   assert.equal(list.filter((item) => item.status === "cancelled").length, 2);
   console.log(
-    "OK: remanejamento e cancelamento em lote persistem sem duplicar reservas.",
+    "OK: edição individual altera serviço, data, horário e barbeiro; seleção múltipla permite cancelar sem habilitar edição.",
   );
   // Permission checks, payout retry protection and transactional rollback.
   const clientLogin = await request("/auth/login", {

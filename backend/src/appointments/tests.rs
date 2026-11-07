@@ -512,6 +512,101 @@ async fn batch_conflict_after_first_move_rolls_back_all_durable_effects() {
 }
 
 #[tokio::test]
+async fn owner_can_edit_confirmed_appointment_service_date_time_and_barber() {
+    let f = fixture(Db::in_memory().unwrap()).await;
+    let item = f.reserve(0).await;
+    let replacement_service = new_id();
+    let service_id = replacement_service.clone();
+    let business = f.owner.business_id.clone();
+    f.db
+        .with_conn(move |c| -> Result<(), Error> {
+            c.execute(
+                "INSERT INTO services(id,business_id,name,price_cents,duration_minutes,active,created_at_utc,updated_at_utc)
+                 VALUES (?1,?2,'Corte e barba',8500,60,1,?3,?3)",
+                params![service_id, business, utc_text(Utc::now())],
+            )?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+    let edited_start = f.starts + Duration::hours(3);
+
+    let updated = edit_appointment(
+        &f.db,
+        f.owner.clone(),
+        item.id.clone(),
+        AppointmentEdit {
+            service_id: replacement_service.clone(),
+            barber_id: f.other_barber.id.clone(),
+            starts_at: edited_start,
+        },
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(updated.service_id, replacement_service);
+    assert_eq!(updated.barber_user_id, f.other_barber.id);
+    assert_eq!(updated.starts_at, edited_start);
+    assert_eq!(updated.ends_at, edited_start + Duration::minutes(60));
+    assert_eq!((updated.price_cents, updated.duration_minutes), (8500, 60));
+    assert_eq!(updated.client_user_id, item.client_user_id);
+    assert_eq!(updated.status, AppointmentStatus::Confirmed);
+}
+
+#[tokio::test]
+async fn appointment_edit_conflict_or_started_service_leaves_database_unchanged() {
+    let f = fixture(Db::in_memory().unwrap()).await;
+    let item = f.reserve(0).await;
+    let occupied = f.reserve(1).await;
+    edit_appointment(
+        &f.db,
+        f.owner.clone(),
+        occupied.id.clone(),
+        AppointmentEdit {
+            service_id: f.service.clone(),
+            barber_id: f.other_barber.id.clone(),
+            starts_at: item.starts_at,
+        },
+    )
+    .await
+    .unwrap();
+    let before = snapshot(&f.db).await;
+    rejected(
+        edit_appointment(
+            &f.db,
+            f.owner.clone(),
+            item.id.clone(),
+            AppointmentEdit {
+                service_id: f.service.clone(),
+                barber_id: f.other_barber.id.clone(),
+                starts_at: item.starts_at,
+            },
+        )
+        .await,
+        "SLOT_UNAVAILABLE",
+    );
+    assert_eq!(before, snapshot(&f.db).await);
+
+    start(&f.db, f.other_barber.clone(), occupied.id.clone())
+        .await
+        .unwrap();
+    rejected(
+        edit_appointment(
+            &f.db,
+            f.owner.clone(),
+            occupied.id.clone(),
+            AppointmentEdit {
+                service_id: f.service.clone(),
+                barber_id: f.other_barber.id.clone(),
+                starts_at: f.starts + Duration::hours(4),
+            },
+        )
+        .await,
+        "INVALID_TRANSITION",
+    );
+}
+
+#[tokio::test]
 async fn batch_cancellation_audit_failure_on_second_item_restores_first_item_too() {
     let f = fixture(Db::in_memory().unwrap()).await;
     let a = f.reserve(0).await;

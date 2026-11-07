@@ -120,6 +120,10 @@ pub fn router(state: AppState) -> Router {
             post(owner::enable_hybrid),
         )
         .route("/api/v1/admin/barbers/{id}", put(owner::edit_barber))
+        .route(
+            "/api/v1/admin/appointments/{id}",
+            patch(owner::edit_appointment),
+        )
         .route("/api/v1/admin/agenda/bulk", post(owner::bulk_agenda))
         .route("/api/v1/admin/appointments", post(create_admin_appointment))
         .route("/api/v1/barber/walk-ins", post(create_admin_appointment))

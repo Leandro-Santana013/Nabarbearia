@@ -225,3 +225,38 @@ pub(super) async fn bulk_agenda(
         message: "Agenda atualizada",
     }))
 }
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct AppointmentEdit {
+    service_id: String,
+    barber_user_id: String,
+    starts_at: String,
+}
+
+pub(super) async fn edit_appointment(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<AppointmentEdit>,
+) -> ApiResult<Json<crate::models::AppointmentResponse>> {
+    let context = authenticate(&state, &headers).await?;
+    require_mutation(&state, &headers, &context)?;
+    require_role(&context, Role::Owner)?;
+    let appointment_id = valid_id(&id)?;
+    let service_id = valid_id(&request.service_id)?;
+    let barber_id = valid_id(&request.barber_user_id)?;
+    let starts_at = parse_input_utc(&request.starts_at)?;
+    let updated = appointments::edit_appointment(
+        &state.db,
+        context.user,
+        appointment_id,
+        appointments::AppointmentEdit {
+            service_id,
+            barber_id,
+            starts_at,
+        },
+    )
+    .await?;
+    Ok(Json(updated))
+}
