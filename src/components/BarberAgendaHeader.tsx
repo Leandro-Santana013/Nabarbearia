@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight, Home, RefreshCw } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { shopDate } from '@/lib/barber-schedule'
 import './barber-agenda.css'
@@ -8,9 +8,9 @@ const weekday = new Intl.DateTimeFormat('pt-BR', { timeZone, weekday: 'short' })
 const fullDate = new Intl.DateTimeFormat('pt-BR', { timeZone, dateStyle: 'full' })
 const month = new Intl.DateTimeFormat('pt-BR', { timeZone, month: 'long', year: 'numeric' })
 
-export default function BarberAgendaHeader({ name, date, inProgress, paused, busy, loading, onDateChange, onRefresh, onGoHome }: {
+export default function BarberAgendaHeader({ name, date, inProgress, paused, busy, loading, onDateChange, onRefresh }: {
   name: string; date: string; inProgress: boolean; paused: boolean; busy: boolean; loading: boolean
-  onDateChange: (date: string) => void; onRefresh: () => void; onGoHome?: () => void
+  onDateChange: (date: string) => void; onRefresh: () => void
 }) {
   const today = shopDate()
   const days = Array.from({ length: 14 }, (_, index) => {
