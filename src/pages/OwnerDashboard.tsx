@@ -4,6 +4,7 @@ import {
   ArrowRightLeft,
   Calendar,
   DollarSign,
+  Home,
   LogOut,
   Plus,
   RefreshCw,
@@ -323,6 +324,14 @@ export default function OwnerDashboard({
               </Dialog>
             )}
             <Button
+              variant="outline"
+              className={button}
+              onClick={() => onNavigate("/")}
+            >
+              <Home className="size-4" />
+              Página Principal
+            </Button>
+            <Button
               variant="ghost"
               size="icon"
               aria-label="Sair da gestão"
@@ -339,7 +348,7 @@ export default function OwnerDashboard({
           </div>
         </header>
         {hybrid ? (
-          <BarberDashboard session={session} />
+          <BarberDashboard session={session} onGoHome={() => onNavigate("/")} />
         ) : (
           <>
             <Tabs

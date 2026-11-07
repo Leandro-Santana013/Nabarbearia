@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, Home, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { shopDate } from '@/lib/barber-schedule'
 import './barber-agenda.css'
@@ -8,9 +8,9 @@ const weekday = new Intl.DateTimeFormat('pt-BR', { timeZone, weekday: 'short' })
 const fullDate = new Intl.DateTimeFormat('pt-BR', { timeZone, dateStyle: 'full' })
 const month = new Intl.DateTimeFormat('pt-BR', { timeZone, month: 'long', year: 'numeric' })
 
-export default function BarberAgendaHeader({ name, date, inProgress, paused, busy, loading, onDateChange, onRefresh }: {
+export default function BarberAgendaHeader({ name, date, inProgress, paused, busy, loading, onDateChange, onRefresh, onGoHome }: {
   name: string; date: string; inProgress: boolean; paused: boolean; busy: boolean; loading: boolean
-  onDateChange: (date: string) => void; onRefresh: () => void
+  onDateChange: (date: string) => void; onRefresh: () => void; onGoHome?: () => void
 }) {
   const today = shopDate()
   const days = Array.from({ length: 14 }, (_, index) => {
@@ -29,9 +29,22 @@ export default function BarberAgendaHeader({ name, date, inProgress, paused, bus
         <p className="barber-agenda-eyebrow">Minha agenda</p>
         <h1>Olá, {name}!</h1>
       </div>
-      <span className="barber-agenda-status" data-status={inProgress ? 'busy' : paused ? 'paused' : 'available'}>
-        <span aria-hidden="true" />{status}
-      </span>
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onGoHome ?? (() => window.location.assign('/'))}
+          aria-label="Ir para a página principal"
+          className="h-8 gap-1.5 rounded-lg border-gray-200 bg-white px-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+        >
+          <Home aria-hidden="true" className="size-3.5 text-primary" />
+          <span>Início</span>
+        </Button>
+        <span className="barber-agenda-status" data-status={inProgress ? 'busy' : paused ? 'paused' : 'available'}>
+          <span aria-hidden="true" />{status}
+        </span>
+      </div>
     </div>
     <div className="barber-agenda-calendar">
       <div className="barber-agenda-calendar-heading">

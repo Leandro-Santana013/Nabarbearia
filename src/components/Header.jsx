@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { ChevronDown, Calendar, User, LogOut, Bell, Scissors, MessageSquare, CheckCheck, BellOff } from "lucide-react"
+import { ChevronDown, Calendar, User, LogOut, Bell, Scissors, MessageSquare, CheckCheck, BellOff, Home } from "lucide-react"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -16,7 +16,7 @@ export default function Header({
   userName = "Cliente", userAvatar, greeting = "Bom dia!",
   isAuthenticated = true, onSignIn,
   notifications = DEFAULT_NOTIFICATIONS, activeAppointmentCount = 0, onNotificationDetails,
-  onNotificationClick, onAvatarClick, onViewAppointments, onEditProfile, onLogout,
+  onNotificationClick, onAvatarClick, onViewAppointments, onEditProfile, onGoHome, onLogout,
 } = {}) {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [logoutError, setLogoutError] = useState("")
@@ -86,6 +86,9 @@ export default function Header({
           <DropdownMenuItem onClick={onEditProfile} disabled={!onEditProfile}>
             <User aria-hidden="true" className="text-primary" /> Meu Perfil
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={onGoHome ?? (() => window.location.assign("/"))}>
+            <Home aria-hidden="true" className="text-primary" /> Página principal
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           {!isAuthenticated && <DropdownMenuItem onClick={onSignIn ?? (() => window.location.assign("/login"))}><User aria-hidden="true" className="text-primary" />Entrar na conta</DropdownMenuItem>}
           {isAuthenticated && <>
@@ -97,7 +100,20 @@ export default function Header({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Sheet open={notificationsOpen} onOpenChange={(open) => {
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onGoHome ?? (() => window.location.assign("/"))}
+          aria-label="Ir para a página principal"
+          className="hidden h-11 items-center gap-1.5 rounded-full border-border bg-card px-3 text-xs! font-semibold! text-foreground shadow-xs transition-colors hover:bg-accent sm:inline-flex"
+        >
+          <Home aria-hidden="true" className="size-4 text-primary" />
+          <span>Início</span>
+        </Button>
+
+        <Sheet open={notificationsOpen} onOpenChange={(open) => {
         setNotificationsOpen(open)
         if (open) onNotificationClick?.()
       }}>
@@ -165,6 +181,7 @@ export default function Header({
           )}
         </SheetContent>
       </Sheet>
+      </div>
     </header>
   )
 }

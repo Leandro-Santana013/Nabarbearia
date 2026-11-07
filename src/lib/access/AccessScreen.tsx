@@ -24,7 +24,7 @@ export function DashboardAccess({ role, children }: { role: 'owner' | 'barber'; 
   const { session, checking, connectionError, notice, accept } = useAccess()
   if (connectionError) return <ConnectionFailure />
   if (checking) return <CheckingAccess />
-  if (!session) return <LoginScreen key={notice} initialError={notice} onAuthenticated={accept} onGuest={() => navigate('/home')} />
+  if (!session) return <LoginScreen key={notice} initialError={notice} onAuthenticated={accept} onGuest={() => navigate('/home')} onGoHome={() => navigate('/')} />
   if (!session.user.roles.includes(role)) return <AccessDenied role={role} />
   return children(session)
 }

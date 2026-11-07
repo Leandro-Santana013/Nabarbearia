@@ -7,4 +7,5 @@ export interface LoginScreenProps {
   onAuthenticated?: (session: AuthResponse) => void
   onGuest?: () => void
   onGoogleSignIn?: () => Promise<AuthResponse>
+  onGoHome?: () => void
 }

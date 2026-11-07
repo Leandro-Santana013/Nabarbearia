@@ -13,7 +13,7 @@ export default function Home({
   onSelectService, userName = "Cliente", userAvatar,
   services: catalogServices = SERVICES, isAuthenticated = true, onSignIn,
   activeAppointmentCount = 0, notifications, onNotificationDetails,
-  onViewAppointments, onEditProfile, onLogout, onNotificationClick,
+  onViewAppointments, onEditProfile, onGoHome, onLogout, onNotificationClick,
 } = {}) {
   async function logout() {
     if (onLogout) return onLogout()
@@ -66,6 +66,7 @@ export default function Home({
           activeAppointmentCount={activeAppointmentCount}
           onViewAppointments={onViewAppointments ?? (() => window.location.assign("/meus-agendamentos"))}
           onEditProfile={onEditProfile ?? (() => window.location.assign("/perfil"))}
+          onGoHome={onGoHome}
           onLogout={logout}
           onNotificationClick={onNotificationClick}
         />

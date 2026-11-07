@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Calendar, DollarSign, LogOut, RefreshCw, User, MessageSquare } from "lucide-react"
+import { Calendar, DollarSign, Home, LogOut, RefreshCw, User, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import AccountDetailsForm from "@/components/AccountDetailsForm"
@@ -15,7 +15,7 @@ import { dailySchedule, isAppointmentInProgress, money, shopDate, scheduleTime }
 import { useAndroidReady } from "@/lib/android-startup"
 
 /** @param {import("./BarberDashboard.types").BarberDashboardProps} props */
-export default function BarberDashboard({ session }) {
+export default function BarberDashboard({ session, onGoHome }) {
   const { logout: logoutSession, accept } = useAccess()
   const [editingAccount, setEditingAccount] = useState(false)
   const editAccountRef = useRef(null)
@@ -151,7 +151,7 @@ export default function BarberDashboard({ session }) {
     <div ref={dashboardRef} className="barber-dashboard min-h-dvh bg-[#F4F4F6] font-sans text-[#111111] antialiased">
       <main className="barber-dashboard-main mx-auto flex max-w-xl flex-col gap-3 p-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
         {activeTab === "agenda" && <>
-          <BarberAgendaHeader name={name} date={date} inProgress={inProgress} paused={paused} busy={busy} loading={loading} onDateChange={setDate} onRefresh={load} />
+          <BarberAgendaHeader name={name} date={date} inProgress={inProgress} paused={paused} busy={busy} loading={loading} onDateChange={setDate} onRefresh={load} onGoHome={onGoHome} />
           <BarberDayTools date={date} barberId={session.user.id} busy={busy || loading} onRun={runAction} />
           {blocks.length > 0 && <section aria-label="Pausas bloqueadas" className="flex flex-wrap gap-2">{blocks.map((block) => <span key={block.id} className="rounded-lg bg-white px-2 py-1 text-[11px] text-gray-500">{block.reason || "Pausa"} · {scheduleTime(block.starts_at)}–{scheduleTime(block.ends_at)}</span>)}</section>}
         </>}
@@ -185,6 +185,7 @@ export default function BarberDashboard({ session }) {
             <Button ref={editAccountRef} type="button" variant="outline" disabled={busy || editingAccount} aria-expanded={editingAccount} aria-controls="barber-account-editor" onClick={() => { setEditingAccount(true); setNotice("") }} className="min-h-11 rounded-xl text-xs!">Editar informações da conta</Button>
             <p className="text-xs text-muted-foreground">As regras de comissão são definidas exclusivamente pelo proprietário.</p>
             <Button nativeButton={false} variant="outline" render={<a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" />} className="min-h-11 rounded-xl text-xs!"><MessageSquare className="size-4" />Falar com a recepção</Button>
+            <Button type="button" variant="outline" disabled={busy} onClick={onGoHome ?? (() => window.location.assign("/"))} className="min-h-11 rounded-xl text-xs!"><Home className="size-4 text-primary" />Ir para a página principal</Button>
           </Card>
           {editingAccount && <Card id="barber-account-editor" className="rounded-2xl bg-white p-4 shadow-sm ring-0">
             <AccountDetailsForm account={session.user} onBusyChange={setBusy} onCancel={() => {

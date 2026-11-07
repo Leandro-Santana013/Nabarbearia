@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react"
-import { ArrowRight, Eye, EyeOff, LoaderCircle } from "lucide-react"
+import { ArrowLeft, ArrowRight, Eye, EyeOff, Home, LoaderCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -12,7 +12,7 @@ const inputClass = "h-11 rounded-xl! border-gray-200! bg-white! px-3.5! py-2.5! 
 
 /** @param {import("./LoginScreen.types").LoginScreenProps} props */
 export default function LoginScreen({
-  initialMode = "login", initialError = "", onAuthenticated, onGuest, onGoogleSignIn, staffOnly = false,
+  initialMode = "login", initialError = "", onAuthenticated, onGuest, onGoogleSignIn, onGoHome, staffOnly = false,
 } = {}) {
   const [mode, setMode] = useState(initialMode)
   const [name, setName] = useState("")
@@ -64,10 +64,31 @@ export default function LoginScreen({
     requestAnimationFrame(() => (isRegister ? emailRef : nameRef).current?.focus())
   }
 
+  function handleGoHome() {
+    clearLandingIntent()
+    if (onGoHome) onGoHome()
+    else window.location.assign("/")
+  }
+
   return (
     <div className="min-h-dvh bg-[#F4F4F6] font-sans text-[#111111] antialiased [--primary:#00749C]">
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-between gap-6 p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:p-6">
-        <header className="mt-6 flex flex-col items-center gap-2 text-center">
+        <div className="flex items-center justify-between">
+          <Button
+            type="button"
+            variant="ghost"
+            disabled={busy}
+            onClick={handleGoHome}
+            aria-label="Voltar para a página principal"
+            className="h-10 gap-2 rounded-xl px-3 text-xs! font-semibold! text-gray-700 transition-colors hover:bg-white hover:text-gray-900"
+          >
+            <ArrowLeft aria-hidden="true" className="size-4" />
+            <Home aria-hidden="true" className="size-4" />
+            <span>Página principal</span>
+          </Button>
+        </div>
+
+        <header className="mt-2 flex flex-col items-center gap-2 text-center">
           <div aria-hidden="true" className="mb-2 flex size-16 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground shadow-md shadow-blue-500/15">NA</div>
           <h1 className="text-xl leading-tight font-bold">{staffOnly ? "Acesso da equipe" : isRegister ? "Crie sua conta" : "Bem-vindo de volta!"}</h1>
           <p className="max-w-64 text-xs leading-relaxed text-gray-600">

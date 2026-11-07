@@ -209,7 +209,7 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
   if (loading) return <main role="status" className="flex min-h-dvh items-center justify-center bg-background p-5 text-sm text-muted-foreground">Carregando sua barbearia…</main>
   if (session && !publicHome(session.user)) return <AccessDenied />
   const needsLogin = ['/perfil', '/meus-agendamentos', '/horarios', '/confirmacao'].includes(path)
-  if (needsLogin && !session) return <LoginScreen key={notice} initialError={error || notice} onAuthenticated={(value) => { accept(value); void refresh() }} onGuest={() => onNavigate('/home')} />
+  if (needsLogin && !session) return <LoginScreen key={notice} initialError={error || notice} onAuthenticated={(value) => { accept(value); void refresh() }} onGuest={() => onNavigate('/home')} onGoHome={() => onNavigate('/')} />
 
   let page
   if (path === '/home' || path === '/mobile') {
@@ -217,7 +217,7 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
       description: `${item.service.title} com ${item.barber.name}, em ${item.date.split('-').reverse().join('/')} às ${item.time}.`, time: 'Próximo atendimento', read: false }))
     page = <Home services={services} userName={session?.user.display_name ?? 'Visitante'} isAuthenticated={Boolean(session)}
       activeAppointmentCount={upcoming.length} notifications={notifications} onNotificationDetails={() => onNavigate('/meus-agendamentos')}
-      onSignIn={() => onNavigate('/login')} onEditProfile={() => onNavigate('/perfil')} onLogout={logout}
+      onSignIn={() => onNavigate('/login')} onEditProfile={() => onNavigate('/perfil')} onGoHome={() => onNavigate('/')} onLogout={logout}
       onViewAppointments={() => onNavigate('/meus-agendamentos')} onSelectService={chooseService} />
   } else if (path === '/meus-agendamentos') {
     page = <MyAppointments appointments={appointments} isDemo={false} onCancel={cancelAppointment} onRate={rateAppointment}

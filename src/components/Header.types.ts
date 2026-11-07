@@ -13,5 +13,6 @@ export interface HeaderProps {
   onAvatarClick?: () => void
   onViewAppointments?: () => void
   onEditProfile?: () => void
+  onGoHome?: () => void
   onLogout?: () => void | Promise<void>
 }
