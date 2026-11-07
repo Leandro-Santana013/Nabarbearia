@@ -34,9 +34,10 @@ use crate::{
         AdminAppointmentRequest, AppointmentRequest, AppointmentResponse, AppointmentStatus,
         AuthContext, AuthResponse, AuthUser, AvailabilityQuery, AvailableSlot, BarberRequest,
         BarberResponse, BlockRequest, CancelRequest, CommissionRuleRequest, CompleteRequest,
-        ConsentRequest, DateRangeQuery, LoginRequest, MessageResponse, PublicBarberResponse,
-        RatingRequest, RegisterRequest, RescheduleRequest, RevenueReport, Role, ScheduleRequest,
-        ServiceRequest, ServiceResponse, SetupOwnerRequest, SetupStatusResponse,
+        ConsentRequest, DateRangeQuery, LoginRequest, MessageResponse,
+        OwnerScheduleIntervalResponse, PublicBarberResponse, RatingRequest, RegisterRequest,
+        RescheduleRequest, RevenueReport, Role, ScheduleDateQuery, ScheduleRequest, ServiceRequest,
+        ServiceResponse, SetupOwnerRequest, SetupStatusResponse,
     },
     security::{
         check_origin, constant_time_eq, csrf_token, hash_token, random_token, removal_cookie,
@@ -128,7 +129,10 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/admin/services/{id}", put(update_service))
         .route("/api/v1/admin/barbers", post(create_barber))
-        .route("/api/v1/admin/schedules", post(create_schedule))
+        .route(
+            "/api/v1/admin/schedules",
+            get(list_owner_schedules).post(create_schedule),
+        )
         .route("/api/v1/admin/blocks", post(create_block))
         .route(
             "/api/v1/admin/commission-rules",
@@ -1174,6 +1178,46 @@ async fn create_schedule(
             message: "Schedule created",
         }),
     ))
+}
+
+async fn list_owner_schedules(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<ScheduleDateQuery>,
+) -> ApiResult<Json<Vec<OwnerScheduleIntervalResponse>>> {
+    let context = authenticate(&state, &headers).await?;
+    require_role(&context, Role::Owner)?;
+    let date = NaiveDate::parse_from_str(&query.date, "%Y-%m-%d")
+        .map_err(|_| AppError::bad_request("INVALID_DATE", "Date must use YYYY-MM-DD"))?;
+    let weekday = i64::from(date.weekday().num_days_from_sunday());
+    let business_id = context.user.business_id;
+    let schedules = state
+        .db
+        .with_conn(move |connection| -> Result<_, AppError> {
+            let mut statement = connection.prepare(
+                "SELECT s.barber_user_id, s.start_minute, s.end_minute
+                 FROM weekly_schedules s
+                 JOIN barber_profiles p
+                   ON p.business_id = s.business_id AND p.user_id = s.barber_user_id
+                 JOIN users u
+                   ON u.business_id = s.business_id AND u.id = s.barber_user_id
+                 WHERE s.business_id = ?1 AND s.weekday = ?2 AND s.active = 1
+                   AND p.active = 1 AND u.active = 1
+                 ORDER BY s.barber_user_id, s.start_minute",
+            )?;
+            let rows = statement
+                .query_map(params![business_id, weekday], |row| {
+                    Ok(OwnerScheduleIntervalResponse {
+                        barber_user_id: row.get(0)?,
+                        start_minute: row.get(1)?,
+                        end_minute: row.get(2)?,
+                    })
+                })?
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(rows)
+        })
+        .await?;
+    Ok(Json(schedules))
 }
 
 async fn list_own_blocks(

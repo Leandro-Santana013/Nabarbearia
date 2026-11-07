@@ -187,6 +187,19 @@ pub struct ScheduleRequest {
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct ScheduleDateQuery {
+    pub date: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OwnerScheduleIntervalResponse {
+    pub barber_user_id: String,
+    pub start_minute: i64,
+    pub end_minute: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BlockRequest {
     pub barber_user_id: String,
     pub starts_at_utc: String,

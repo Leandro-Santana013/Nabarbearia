@@ -1,4 +1,5 @@
-import { shopDate } from "./barber-schedule";
+import { scheduleTime, shopDate } from "./barber-schedule";
+import type { Appointment } from "@/types";
 export interface OwnerBarber {
   id: string;
   name: string;
@@ -18,6 +19,21 @@ export interface CommissionRule {
   valid_from?: string;
   valid_until?: string;
 }
+export interface OwnerScheduleInterval {
+  barberId: string;
+  startMinute: number;
+  endMinute: number;
+}
+export interface OwnerAgendaCell {
+  barberId: string;
+  inSchedule: boolean;
+  appointments: Appointment[];
+}
+export interface OwnerAgendaRow {
+  minute: number;
+  time: string;
+  cells: OwnerAgendaCell[];
+}
 export interface OwnerSummary {
   revenue_cents: number;
   total_count: number;
@@ -36,6 +52,64 @@ export interface OwnerSummary {
     amount_cents: number;
     created_at: string;
   }[];
+}
+export function ownerAgendaRows(
+  appointments: Appointment[],
+  schedules: OwnerScheduleInterval[],
+  barbers: readonly { id: string }[],
+  date: string,
+): OwnerAgendaRow[] {
+  const barberIds = new Set(barbers.map((barber) => barber.id));
+  const intervals = schedules.filter(
+    (item) =>
+      barberIds.has(item.barberId) &&
+      item.startMinute >= 0 &&
+      item.endMinute > item.startMinute,
+  );
+  const minutes = new Set<number>();
+  const bookings = new Map<string, Appointment[]>();
+  for (const interval of intervals) {
+    for (
+      let minute = interval.startMinute;
+      minute < interval.endMinute;
+      minute += 30
+    ) {
+      minutes.add(minute);
+    }
+  }
+  for (const item of appointments) {
+    if (
+      item.status === "cancelled" ||
+      !barberIds.has(item.barberId) ||
+      shopDate(new Date(item.startsAt ?? item.date)) !== date
+    ) {
+      continue;
+    }
+    const time = scheduleTime(item.startsAt ?? item.date);
+    const [hour, minute] = time.split(":").map(Number);
+    const startsAtMinute = hour * 60 + minute;
+    minutes.add(startsAtMinute);
+    const key = `${item.barberId}:${startsAtMinute}`;
+    bookings.set(key, [...(bookings.get(key) ?? []), item]);
+  }
+  return [...minutes]
+    .sort((a, b) => a - b)
+    .map((minute) => ({
+      minute,
+      time: `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(
+        minute % 60,
+      ).padStart(2, "0")}`,
+      cells: barbers.map(({ id }) => ({
+        barberId: id,
+        inSchedule: intervals.some(
+          (item) =>
+            item.barberId === id &&
+            item.startMinute <= minute &&
+            item.endMinute > minute,
+        ),
+        appointments: bookings.get(`${id}:${minute}`) ?? [],
+      })),
+    }));
 }
 export function ownerRange(date: string, period: "day" | "month") {
   const from = new Date(

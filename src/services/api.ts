@@ -1,4 +1,4 @@
-import type { OwnerSummary } from '@/lib/owner-dashboard'
+import type { OwnerScheduleInterval, OwnerSummary } from '@/lib/owner-dashboard'
 import type { Appointment, Barber, Service, UserRole } from '../types'
 import { apiErrorMessage } from './api-errors'
 
@@ -261,6 +261,19 @@ class ApiService {
     const query = range ? `?${new URLSearchParams(range).toString()}` : ''
     const appointments = await this.request<AppointmentDto[]>(`/appointments${query}`)
     return appointments.map(mapAppointment)
+  }
+
+  async listOwnerSchedules(date: string): Promise<OwnerScheduleInterval[]> {
+    const schedules = await this.request<
+      { barber_user_id: string; start_minute: number; end_minute: number }[]
+    >(
+      `/admin/schedules?${new URLSearchParams({ date }).toString()}`,
+    )
+    return schedules.map((item) => ({
+      barberId: item.barber_user_id,
+      startMinute: item.start_minute,
+      endMinute: item.end_minute,
+    }))
   }
 
   async createAppointment(input: { barber_user_id: string; service_id: string; starts_at: string }): Promise<void> {

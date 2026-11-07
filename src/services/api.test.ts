@@ -3,6 +3,20 @@ import { api, ApiError } from './api'
 
 afterEach(() => vi.unstubAllGlobals())
 
+it('carrega as escalas do dia e converte a resposta para o modelo da agenda', async () => {
+  const fetch = vi.fn(
+    async (_input: RequestInfo | URL) => Response.json([
+      { barber_user_id: 'barber-1', start_minute: 600, end_minute: 1200 },
+    ]),
+  )
+  vi.stubGlobal('fetch', fetch)
+
+  await expect(api.listOwnerSchedules('2026-10-19')).resolves.toEqual([
+    { barberId: 'barber-1', startMinute: 600, endMinute: 1200 },
+  ])
+  expect(fetch.mock.calls[0][0]).toBe('/api/v1/admin/schedules?date=2026-10-19')
+})
+
 it('diferencia credenciais incorretas de sessão expirada sem perder código/status', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => Response.json({ code: 'UNAUTHORIZED', message: 'Authentication required' }, { status: 401 })))
   await expect(api.login('client@test.invalid', 'wrong-password')).rejects.toMatchObject({

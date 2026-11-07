@@ -64,7 +64,7 @@ Todos os caminhos abaixo têm o prefixo `/api/v1`.
 | Detalhes operacionais | `PATCH /appointments/{id}/details` |
 | Agenda do barbeiro | `POST /barber/walk-ins`, `GET/POST /barber/blocks` |
 | Serviços | `GET/POST /admin/services`, `PUT /admin/services/{id}` |
-| Equipe e escalas | `POST /admin/barbers`, `PUT /admin/barbers/{id}`, `POST /admin/schedules`, `POST /admin/blocks` |
+| Equipe e escalas | `POST /admin/barbers`, `PUT /admin/barbers/{id}`, `GET /admin/schedules?date=YYYY-MM-DD` (proprietário), `POST /admin/schedules`, `POST /admin/blocks` |
 | Comissões e repasses | `POST /admin/commission-rules`, `POST /admin/payouts` |
 | Gestão | `GET /admin/summary`, `POST /admin/agenda/bulk`, `POST /admin/my-barber-profile` |
 | Relatórios | `GET /reports/revenue`, `GET /admin/reports/revenue` |

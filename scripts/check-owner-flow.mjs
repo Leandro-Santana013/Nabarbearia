@@ -41,6 +41,14 @@ try {
       owner,
     )
   ).body;
+  const day = new Date();
+  day.setUTCDate(day.getUTCDate() + 1);
+  while (day.getUTCDay() === 0) day.setUTCDate(day.getUTCDate() + 1);
+  const date = day.toISOString().slice(0, 10);
+  const next = new Date(day);
+  next.setUTCDate(next.getUTCDate() + 1);
+  while (next.getUTCDay() === 0) next.setUTCDate(next.getUTCDate() + 1);
+  const nextDate = next.toISOString().slice(0, 10);
   for (let weekday = 1; weekday <= 6; weekday++)
     await request(
       "/admin/schedules",
@@ -52,6 +60,10 @@ try {
       },
       owner,
     );
+  assert.deepEqual(
+    (await request(`/admin/schedules?date=${date}`, null, owner)).body,
+    [{ barber_user_id: barber.id, start_minute: 600, end_minute: 1200 }],
+  );
   const client = (
     await request("/auth/register", {
       email: "client@client-flow.test",
@@ -138,14 +150,6 @@ try {
   await click("Salvar");
   await waitText("Alterações salvas.");
   assert.equal((await request("/public/services")).body[0].price_cents, 10000);
-  const day = new Date();
-  day.setUTCDate(day.getUTCDate() + 1);
-  while (day.getUTCDay() === 0) day.setUTCDate(day.getUTCDate() + 1);
-  const date = day.toISOString().slice(0, 10);
-  const next = new Date(day);
-  next.setUTCDate(next.getUTCDate() + 1);
-  while (next.getUTCDay() === 0) next.setUTCDate(next.getUTCDate() + 1);
-  const nextDate = next.toISOString().slice(0, 10);
   const created = [];
   for (const time of ["10:00", "11:00", "12:00"])
     created.push(
@@ -251,9 +255,25 @@ try {
     `(()=>{const input=[...document.querySelectorAll('label')].find(el=>el.firstChild?.textContent.trim()==='Data da agenda').querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(date)});input.dispatchEvent(new Event('input',{bubbles:true}));})()`,
   );
   await waitText("11:00");
+  await waitText("Cliente Integração");
+  assert.equal(
+    await evaluate(
+      "document.querySelector('.owner-agenda-grid').innerText.includes('Barbeiro Atualizado')",
+    ),
+    true,
+  );
+  assert.equal(
+    await evaluate("document.documentElement.scrollWidth <= innerWidth"),
+    true,
+  );
+  await clickSelector(
+    'button[aria-label="Selecionar agendamento de Cliente Integração às 11:00"]',
+  );
+  await waitText("1 selecionado(s)");
   const selectAll =
     'input[aria-label="Selecionar todos os agendamentos elegíveis"]';
   await clickSelector(selectAll);
+  await waitText("2 selecionado(s)");
   await click("Remanejar selecionados");
   await waitText("Nova data");
   await formField("Nova data", nextDate);
@@ -271,11 +291,25 @@ try {
     `(()=>{const input=[...document.querySelectorAll('label')].find(el=>el.firstChild?.textContent.trim()==='Data da agenda').querySelector('input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,${JSON.stringify(nextDate)});input.dispatchEvent(new Event('input',{bubbles:true}));})()`,
   );
   await waitText("11:00");
+  await waitText("Cliente Integração");
   await clickSelector(selectAll);
   await click("Cancelar selecionados");
   await waitText("Confirmar alterações");
   await click("Confirmar alterações");
   await waitText("Alterações salvas.");
+  await until(
+    () =>
+      evaluate(
+        "[...document.querySelectorAll('.owner-agenda-grid tbody tr')].some(row=>row.cells[0]?.textContent.trim()==='11:00'&&row.cells[1]?.textContent.trim()==='—')",
+      ),
+    "horário cancelado vazio na grade",
+  );
+  assert.equal(
+    await evaluate(
+      "document.querySelector('.owner-agenda-grid').innerText.includes('Cliente Integração')",
+    ),
+    false,
+  );
   list = (await request("/appointments", null, owner)).body;
   assert.equal(list.filter((item) => item.status === "cancelled").length, 2);
   console.log(
@@ -308,6 +342,17 @@ try {
     (
       await raw(
         "/admin/summary?" + new URLSearchParams(range),
+        null,
+        clientAuth,
+        "GET",
+      )
+    ).status,
+    403,
+  );
+  assert.equal(
+    (
+      await raw(
+        `/admin/schedules?date=${date}`,
         null,
         clientAuth,
         "GET",

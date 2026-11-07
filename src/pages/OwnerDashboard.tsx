@@ -38,10 +38,12 @@ import { useAccess } from "@/lib/access/AccessProvider";
 import { useAndroidReady } from "@/lib/android-startup";
 import BarberDashboard from "./BarberDashboard";
 import { api, type AuthResponse } from "@/services/api";
-import { money, scheduleTime, shopDate } from "@/lib/barber-schedule";
+import { money, shopDate } from "@/lib/barber-schedule";
 import {
+  ownerAgendaRows,
   noShowRate,
   ownerRange,
+  type OwnerScheduleInterval,
   type OwnerSummary,
 } from "@/lib/owner-dashboard";
 import type { Appointment, Service } from "@/types";
@@ -72,6 +74,7 @@ export default function OwnerDashboard({
   const [summary, setSummary] = useState<OwnerSummary | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [schedules, setSchedules] = useState<OwnerScheduleInterval[]>([]);
   const [period, setPeriod] = useState<"day" | "month">("month");
   const [reportDate, setReportDate] = useState(shopDate);
   const [agendaDate, setAgendaDate] = useState(shopDate);
@@ -167,12 +170,21 @@ export default function OwnerDashboard({
     const request = ++agendaSequence.current;
     setAgendaLoading(true);
     setAgendaError("");
+    setAppointments([]);
+    setSchedules([]);
     try {
-      const data = await api.listAppointments(ownerRange(agendaDate, "day"));
-      if (request === agendaSequence.current) setAppointments(data);
+      const [data, daySchedules] = await Promise.all([
+        api.listAppointments(ownerRange(agendaDate, "day")),
+        api.listOwnerSchedules(agendaDate),
+      ]);
+      if (request === agendaSequence.current) {
+        setAppointments(data);
+        setSchedules(daySchedules);
+      }
     } catch (failure) {
       if (request === agendaSequence.current) {
         setAppointments([]);
+        setSchedules([]);
         setAgendaError(
           failure instanceof Error
             ? failure.message
@@ -243,9 +255,16 @@ export default function OwnerDashboard({
     }
   }
   const team = summary?.team ?? [];
+  const agendaBarbers = team.filter(
+    (item) => barberFilter === "all" || item.id === barberFilter,
+  );
   const visible = appointments
     .filter((item) => barberFilter === "all" || item.barberId === barberFilter)
     .sort((a, b) => (a.startsAt ?? a.date).localeCompare(b.startsAt ?? b.date));
+  const agendaRows = useMemo(
+    () => ownerAgendaRows(appointments, schedules, agendaBarbers, agendaDate),
+    [appointments, schedules, agendaBarbers, agendaDate],
+  );
   const eligible = visible.filter(
     (item) => item.status === "confirmed" && !item.executionStarted,
   );
@@ -780,6 +799,24 @@ export default function OwnerDashboard({
                   </p>
                 )}
                 <div className="owner-bulk-actions flex flex-wrap items-center gap-2">
+                  <label className="owner-agenda-select-all flex items-center gap-2 text-xs">
+                    <input
+                      type="checkbox"
+                      aria-label="Selecionar todos os agendamentos elegíveis"
+                      disabled={busy || !eligible.length}
+                      checked={
+                        eligible.length > 0 && chosen.length === eligible.length
+                      }
+                      onChange={(e) =>
+                        setSelected(
+                          e.target.checked
+                            ? eligible.map((item) => item.id)
+                            : [],
+                        )
+                      }
+                    />
+                    Selecionar todos os agendamentos elegíveis
+                  </label>
                   <span className="mr-auto text-xs text-muted-foreground">
                     {chosen.length} selecionado(s)
                   </span>
@@ -805,90 +842,116 @@ export default function OwnerDashboard({
                   </Button>
                 </div>
                 <Card className="rounded-2xl bg-white py-0 shadow-sm">
-                  <Table className="owner-mobile-table owner-agenda-table" role="table">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>
-                          <input
-                            type="checkbox"
-                            aria-label="Selecionar todos os agendamentos elegíveis"
-                            disabled={busy || !eligible.length}
-                            checked={
-                              eligible.length > 0 &&
-                              chosen.length === eligible.length
-                            }
-                            onChange={(e) =>
-                              setSelected(
-                                e.target.checked
-                                  ? eligible.map((item) => item.id)
-                                  : [],
-                              )
-                            }
-                          />
-                        </TableHead>
-                        {[
-                          "Horário",
-                          "Cliente / Serviço",
-                          "Barbeiro",
-                          "Status",
-                        ].map((text) => (
-                          <TableHead key={text}>{text}</TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {visible.map((item) => (
-                        <TableRow key={item.id} role="row">
-                          <TableCell role="cell" className="owner-appointment-select">
-                            <input
-                              type="checkbox"
-                              aria-label={`Selecionar agendamento de ${item.clientName} às ${scheduleTime(item.startsAt ?? item.date)}`}
-                              disabled={
-                                busy ||
-                                item.status !== "confirmed" ||
-                                item.executionStarted
-                              }
-                              checked={selected.includes(item.id)}
-                              onChange={(e) =>
-                                setSelected((old) =>
-                                  e.target.checked
-                                    ? [...old, item.id]
-                                    : old.filter((id) => id !== item.id),
-                                )
-                              }
-                            />
-                          </TableCell>
-                          <TableCell role="cell" data-label="Horário" className="owner-appointment-time whitespace-nowrap">
-                            {scheduleTime(item.startsAt ?? item.date)}
-                          </TableCell>
-                          <TableCell role="cell" data-label="Cliente / Serviço" className="owner-appointment-client min-w-52">
-                            <p className="text-sm font-semibold">
-                              {item.clientName}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {item.serviceName}
-                            </p>
-                            {item.clientNote && (
-                              <p className="mt-1 text-[11px] text-amber-700">
-                                Obs: {item.clientNote}
-                              </p>
-                            )}
-                          </TableCell>
-                          <TableCell role="cell" data-label="Barbeiro" className="owner-appointment-barber whitespace-nowrap">
-                            {item.barberName}
-                          </TableCell>
-                          <TableCell role="cell" className="owner-appointment-status">
-                            <Badge className="border-0 bg-blue-50 text-xs text-primary">
-                              {item.status === "confirmed" &&
-                              item.executionStarted
-                                ? "Em atendimento"
-                                : statusLabel[item.status]}
-                            </Badge>
-                          </TableCell>
+                  <div className="owner-agenda-grid-scroll overflow-x-auto">
+                    <Table className="owner-agenda-grid" role="table">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="owner-agenda-time">
+                            Horário
+                          </TableHead>
+                          {agendaBarbers.map((barber) => (
+                            <TableHead
+                              className="owner-agenda-barber"
+                              key={barber.id}
+                            >
+                              {barber.name}
+                            </TableHead>
+                          ))}
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {agendaRows.map((row) => (
+                          <TableRow key={row.minute}>
+                            <TableCell className="owner-agenda-time font-semibold whitespace-nowrap">
+                              {row.time}
+                            </TableCell>
+                            {row.cells.map((cell) => {
+                              const selectedAppointmentIds =
+                                cell.appointments.filter((item) =>
+                                  selected.includes(item.id),
+                                );
+                              return (
+                                <TableCell
+                                  className="owner-agenda-cell"
+                                  key={`${row.minute}-${cell.barberId}`}
+                                >
+                                  {cell.appointments.length ? (
+                                    <div className="space-y-1">
+                                      {cell.appointments.map((item) => {
+                                        const canSelect =
+                                          item.status === "confirmed" &&
+                                          !item.executionStarted;
+                                        const isSelected =
+                                          selectedAppointmentIds.some(
+                                            (selectedItem) =>
+                                              selectedItem.id === item.id,
+                                          );
+                                        const details = (
+                                          <>
+                                            <span className="block text-sm font-semibold">
+                                              {item.clientName}
+                                            </span>
+                                            {item.serviceName && (
+                                              <span className="block text-xs text-muted-foreground">
+                                                {item.serviceName}
+                                              </span>
+                                            )}
+                                            <Badge className="mt-1 border-0 bg-blue-50 text-[10px] text-primary">
+                                              {item.status === "confirmed" &&
+                                              item.executionStarted
+                                                ? "Em atendimento"
+                                                : statusLabel[item.status]}
+                                            </Badge>
+                                            {item.clientNote && (
+                                              <span className="mt-1 block text-[11px] text-amber-700">
+                                                Obs: {item.clientNote}
+                                              </span>
+                                            )}
+                                          </>
+                                        );
+                                        return canSelect ? (
+                                          <button
+                                            aria-label={`${isSelected ? "Desselecionar" : "Selecionar"} agendamento de ${item.clientName} às ${row.time}`}
+                                            aria-pressed={isSelected}
+                                            className={`owner-agenda-booking w-full rounded-lg border p-2 text-left ${isSelected ? "border-primary bg-blue-50" : "border-border bg-white"}`}
+                                            disabled={busy}
+                                            key={item.id}
+                                            onClick={() =>
+                                              setSelected((old) =>
+                                                isSelected
+                                                  ? old.filter(
+                                                      (id) => id !== item.id,
+                                                    )
+                                                  : [...old, item.id],
+                                              )
+                                            }
+                                            type="button"
+                                          >
+                                            {details}
+                                          </button>
+                                        ) : (
+                                          <div
+                                            className="owner-agenda-booking rounded-lg border border-border p-2"
+                                            key={item.id}
+                                          >
+                                            {details}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm text-muted-foreground">
+                                      —
+                                    </span>
+                                  )}
+                                </TableCell>
+                              );
+                            })}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                   {agendaLoading ? (
                     <p
                       role="status"
@@ -896,13 +959,13 @@ export default function OwnerDashboard({
                     >
                       Carregando agenda…
                     </p>
-                  ) : (
-                    !visible.length && (
+                  ) : !agendaRows.length ? (
                       <p className="p-5 text-center text-sm text-muted-foreground">
-                        Nenhum atendimento para esta seleção.
+                        {agendaBarbers.length
+                          ? "Não há horários configurados para esta data."
+                          : "Nenhum profissional ativo cadastrado."}
                       </p>
-                    )
-                  )}
+                  ) : null}
                 </Card>
                 {appointments.length >= 500 && (
                   <p className="text-xs text-muted-foreground">
