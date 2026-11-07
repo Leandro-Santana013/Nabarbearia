@@ -75,6 +75,13 @@
   }
 }
 
+@media (max-width: 767.98px) and (max-height: 900px) {
+  .barber-dashboard[data-in-progress="true"] .barber-dashboard-main { gap: 8px; padding-top: 8px; }
+  .barber-dashboard[data-in-progress="true"] .barber-agenda-greeting { padding-block: 12px; }
+  .barber-dashboard[data-in-progress="true"] .barber-agenda-header .barber-agenda-day { min-height: 58px; padding-block: 7px; }
+  .barber-dashboard[data-in-progress="true"] .barber-day-actions .barber-day-action { min-height: 44px; padding-block: 8px; }
+}
+
 @media (min-width: 640px) {
   .barber-agenda-greeting { padding: 22px 20px; }
   .barber-agenda-calendar { padding-inline: 16px; }

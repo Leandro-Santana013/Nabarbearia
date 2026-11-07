@@ -140,7 +140,8 @@ export default function BarberDashboard({ session, onGoHome }) {
   }
 
   const schedule = dailySchedule(appointments, session.user.id, date)
-  const inProgress = date === shopDate() && schedule.items.some((item) => isAppointmentInProgress(item, startedIds))
+  const activeAppointment = schedule.items.some((item) => isAppointmentInProgress(item, startedIds))
+  const inProgress = date === shopDate() && activeAppointment
   const paused = blocks.some((block) => new Date(block.starts_at) <= new Date() && new Date(block.ends_at) > new Date())
   const name = session.user.display_name
 
@@ -148,7 +149,7 @@ export default function BarberDashboard({ session, onGoHome }) {
   const tabs = [{ id: "agenda", label: "Agenda", icon: Calendar }, { id: "ganhos", label: "Meus Ganhos", icon: DollarSign }, { id: "perfil", label: "Perfil", icon: User }]
 
   return (
-    <div ref={dashboardRef} className="barber-dashboard min-h-dvh bg-[#F4F4F6] font-sans text-[#111111] antialiased">
+    <div ref={dashboardRef} data-in-progress={activeAppointment ? "true" : undefined} className="barber-dashboard min-h-dvh bg-[#F4F4F6] font-sans text-[#111111] antialiased">
       <main className="barber-dashboard-main mx-auto flex max-w-xl flex-col gap-3 p-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
         <div className="flex justify-end">
           <Button type="button" variant="outline" onClick={onGoHome ?? (() => window.location.assign("/"))} className="min-h-11 rounded-xl text-xs!">
