@@ -23,7 +23,10 @@ export function createFlowTest(name, { timeout = 45000 } = {}) {
   const temp = mkdtempSync(join(tmpdir(), `na-${name}-flow-`))
   const origin = 'http://127.0.0.1:3011'
   const token = randomBytes(32).toString('base64url')
-  const password = randomBytes(24).toString('base64url')
+  // Os fluxos reais criam contas pelo mesmo endpoint usado pela interface.
+  // Garanta aqui a política de senha do backend para que o valor aleatório
+  // nunca falhe por não conter maiúscula ou caractere especial.
+  const password = `A!${randomBytes(24).toString('base64url')}`
   const secrets = new Set([token, password])
   const processes = []
   const logs = []

@@ -667,7 +667,9 @@ try {
     ).user.roles.includes("barber"),
     true,
   );
-  await click("Voltar ao Painel Geral");
+  // O retorno ao painel de gestão fica no perfil da agenda híbrida.
+  await click("Perfil");
+  await click("Painel de gestão");
   await waitText("Resumo por forma de pagamento prevista");
   assert.deepEqual(runtimeErrors, []);
   console.log(
