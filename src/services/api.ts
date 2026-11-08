@@ -105,6 +105,7 @@ function mapAppointment(appointment: AppointmentDto): Appointment {
 class ApiService {
   private csrfToken: string | null = null
   private sessionRevision = 0
+  private authSessionInFlight: Promise<AuthResponse | null> | null = null
   private expiryListeners = new Set<() => void>()
 
   onSessionExpired(listener: () => void): () => void {
@@ -173,16 +174,25 @@ class ApiService {
   }
 
   async authSession(): Promise<AuthResponse | null> {
+    if (this.authSessionInFlight) return this.authSessionInFlight
     const revision = this.sessionRevision
-    try {
-      const data = await this.request<AuthResponse>('/auth/session')
-      return revision === this.sessionRevision ? this.setSession(data, true) : data
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        if (revision === this.sessionRevision) this.clearSession(true)
-        return null
+    const request = (async () => {
+      try {
+        const data = await this.request<AuthResponse>('/auth/session')
+        return revision === this.sessionRevision ? this.setSession(data, true) : data
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          if (revision === this.sessionRevision) this.clearSession(true)
+          return null
+        }
+        throw error
       }
-      throw error
+    })()
+    this.authSessionInFlight = request
+    try {
+      return await request
+    } finally {
+      if (this.authSessionInFlight === request) this.authSessionInFlight = null
     }
   }
 
@@ -208,8 +218,16 @@ class ApiService {
   }
 
   async logout(): Promise<void> {
-    const revision = this.sessionRevision
-    await this.request('/auth/logout', { method: 'POST', body: '{}' })
+    let revision = this.sessionRevision
+    try {
+      await this.request('/auth/logout', { method: 'POST', body: '{}' })
+    } catch (failure) {
+      if (!(failure instanceof ApiError) || failure.status !== 403) throw failure
+      const restored = await this.authSession()
+      if (!restored) throw failure
+      revision = this.sessionRevision
+      await this.request('/auth/logout', { method: 'POST', body: '{}' })
+    }
     if (revision === this.sessionRevision) this.clearSession()
   }
 

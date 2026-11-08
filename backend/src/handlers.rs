@@ -47,6 +47,43 @@ use crate::{
 
 const MAX_BODY_BYTES: usize = 16 * 1024;
 const MAX_APPOINTMENTS_PER_RESPONSE: usize = 500;
+const PASSWORD_MIN_LENGTH: usize = 8;
+const PASSWORD_MAX_LENGTH: usize = 128;
+const COMMON_PASSWORDS: &[&str] = &[
+    "12345678",
+    "123456789",
+    "1234567890",
+    "password",
+    "password1",
+    "password123",
+    "password!",
+    "password123!",
+    "password1234!",
+    "passw0rd!",
+    "qwerty123",
+    "qwerty123!",
+    "abc12345",
+    "abc12345!",
+    "letmein123",
+    "welcome123",
+    "welcome123!",
+    "admin123",
+    "admin123!",
+    "senha123",
+    "senha1234",
+    "senha123!",
+    "senha@123",
+    "teste123!",
+    "test1234!",
+    "12345678!",
+    "iloveyou",
+    "barbearia123",
+    "barbearia!",
+    "barbearia123!",
+    "nabarbearia!",
+    "nabarbearia123",
+    "nabarbearia123!",
+];
 
 #[derive(Clone)]
 struct SessionBundle {
@@ -837,10 +874,25 @@ fn email_address(value: &str) -> Result<String, AppError> {
 
 fn password_value(value: &str) -> Result<String, AppError> {
     let length = value.chars().count();
-    if !(12..=128).contains(&length) || value.chars().any(char::is_control) {
+    let has_uppercase = value.chars().any(|character| character.is_uppercase());
+    let has_symbol = value
+        .chars()
+        .any(|character| !character.is_alphanumeric() && !character.is_whitespace());
+    if !(PASSWORD_MIN_LENGTH..=PASSWORD_MAX_LENGTH).contains(&length)
+        || value.chars().any(char::is_control)
+        || !has_uppercase
+        || !has_symbol
+    {
         return Err(AppError::bad_request(
             "INVALID_PASSWORD",
-            "Password must contain 12 to 128 printable characters",
+            "Password must contain 8 to 128 characters, including an uppercase letter and a symbol",
+        ));
+    }
+    let normalized = value.to_lowercase();
+    if COMMON_PASSWORDS.contains(&normalized.as_str()) {
+        return Err(AppError::bad_request(
+            "COMMON_PASSWORD",
+            "Password is too common",
         ));
     }
     Ok(value.to_string())
@@ -2041,6 +2093,57 @@ mod tests {
             db: Db::in_memory().unwrap(),
             limiter: RateLimiter::default(),
         }
+    }
+
+    #[test]
+    fn password_policy_requires_uppercase_and_symbol_and_blocks_common_values() {
+        assert!(password_value("Abcdef1!").is_ok());
+
+        for (value, code) in [
+            ("abcdef1!", "INVALID_PASSWORD"),
+            ("Abcdefgh", "INVALID_PASSWORD"),
+            ("Password!", "COMMON_PASSWORD"),
+            ("Password123!", "COMMON_PASSWORD"),
+        ] {
+            let error = password_value(value).expect_err("password should be rejected");
+            match error {
+                AppError::Api { code: actual, .. } => assert_eq!(actual, code),
+                other => panic!("unexpected error: {other:?}"),
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn login_attempts_return_rate_limit_error_after_ten_requests() {
+        let app = test_app();
+        let payload = json!({"email":"limit@example.test","password":"short"});
+        for _ in 0..10 {
+            let (status, _, body) = request_json(
+                &app,
+                "POST",
+                "/api/v1/auth/login",
+                payload.clone(),
+                None,
+                None,
+                None,
+            )
+            .await;
+            assert_eq!(status, StatusCode::BAD_REQUEST);
+            assert_eq!(body["code"], "INVALID_PASSWORD");
+        }
+        let (status, headers, body) = request_json(
+            &app,
+            "POST",
+            "/api/v1/auth/login",
+            payload,
+            None,
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(body["code"], "RATE_LIMITED");
+        assert_eq!(headers[header::RETRY_AFTER], "60");
     }
 
     fn test_app() -> Router {

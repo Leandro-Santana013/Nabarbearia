@@ -223,3 +223,17 @@ it('restaurar a mesma sessão não mascara um 401 concorrente dessa sessão', as
     expect(expired).toHaveBeenCalledOnce()
   } finally { unsubscribe() }
 })
+
+it('compartilha restaurações de sessão concorrentes para preservar o CSRF atual', async () => {
+  let release!: (response: Response) => void
+  const pending = new Promise<Response>((resolve) => { release = resolve })
+  const fetch = vi.fn().mockReturnValueOnce(pending)
+  vi.stubGlobal('fetch', fetch)
+
+  const first = api.authSession()
+  const second = api.authSession()
+  release(Response.json({ user: { id: 'owner', roles: ['owner'] }, csrf_token: 'shared-csrf' }))
+  await Promise.all([first, second])
+
+  expect(fetch).toHaveBeenCalledOnce()
+})

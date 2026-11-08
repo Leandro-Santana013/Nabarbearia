@@ -1,6 +1,6 @@
 use axum::{
     Json,
-    http::{HeaderMap, HeaderValue, StatusCode},
+    http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use serde::Serialize;
@@ -106,6 +106,9 @@ impl IntoResponse for AppError {
             HeaderValue::from_str(&request_id).unwrap_or(HeaderValue::from_static("invalid")),
         );
         headers.insert("cache-control", HeaderValue::from_static("no-store"));
+        if status == StatusCode::TOO_MANY_REQUESTS {
+            headers.insert(header::RETRY_AFTER, HeaderValue::from_static("60"));
+        }
         (
             status,
             headers,

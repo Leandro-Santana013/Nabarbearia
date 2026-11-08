@@ -64,7 +64,7 @@ impl Config {
         }
 
         let allowed_origins = env::var("NABARBEARIA_ALLOWED_ORIGINS")
-            .unwrap_or_else(|_| "http://127.0.0.1:5173,http://localhost:5173".to_string())
+            .unwrap_or_else(|_| "http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:3001,http://localhost:3001".to_string())
             .split(',')
             .map(str::trim)
             .filter(|origin| !origin.is_empty())

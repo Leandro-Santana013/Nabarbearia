@@ -32,7 +32,7 @@ Use [`.env.example`](.env.example) como referência e mantenha valores reais em 
 | `NABARBEARIA_DB_PATH` | `backend/data/nabarbearia.db` |
 | `NABARBEARIA_FRONTEND_DIR` | `dist` |
 | `NABARBEARIA_BOOTSTRAP_TOKEN` | Obrigatória; token aleatório gerado pelo script local quando ausente |
-| `NABARBEARIA_ALLOWED_ORIGINS` | `http://127.0.0.1:5173,http://localhost:5173` |
+| `NABARBEARIA_ALLOWED_ORIGINS` | `http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:3001,http://localhost:3001` |
 | `NABARBEARIA_SECURE_COOKIES` | `false` no desenvolvimento local |
 | `NABARBEARIA_SESSION_DAYS` | `7` |
 | `NABARBEARIA_TIMEZONE` | `America/Sao_Paulo` |
@@ -80,7 +80,7 @@ Mutações autenticadas exigem cookie de sessão, `Origin` permitido e `X-CSRF-T
 
 Clientes acessam seus próprios agendamentos. Barbeiros acessam a própria operação. Gestão operacional exige papel `admin` ou `super_admin`; operações financeiras exigem `super_admin`. As consultas e alterações são isoladas por negócio.
 
-`PATCH /account` altera somente a conta da sessão. Recebe `display_name`, `email` e `phone` (vazio ou de 10 a 13 dígitos com DDD), além de `current_password` e `new_password` opcionais. A senha atual é obrigatória ao alterar e-mail ou senha; a nova senha segue o limite de 12 a 128 caracteres. Essas mudanças encerram as outras sessões e mantêm a sessão atual. Campos de comissão, papel, negócio ou identidade de outro usuário são rejeitados. Dados e auditoria são gravados na mesma transação; o retorno contém o usuário atualizado, sem senhas.
+`PATCH /account` altera somente a conta da sessão. Recebe `display_name`, `email` e `phone` (vazio ou de 10 a 13 dígitos com DDD), além de `current_password` e `new_password` opcionais. A senha atual é obrigatória ao alterar e-mail ou senha; a nova senha segue o limite de 8 a 128 caracteres, com uma letra maiúscula e um símbolo, sem aceitar senhas comuns. Essas mudanças encerram as outras sessões e mantêm a sessão atual. Campos de comissão, papel, negócio ou identidade de outro usuário são rejeitados. Dados e auditoria são gravados na mesma transação; o retorno contém o usuário atualizado, sem senhas.
 
 ## Agenda e execução
 

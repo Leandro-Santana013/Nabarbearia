@@ -90,11 +90,11 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
 
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
-        if (entry.target instanceof HTMLElement) {
-          entry.target.dataset.scrollReveal = entry.isIntersecting ? 'visible' : 'hidden'
-        }
+        if (!(entry.target instanceof HTMLElement) || !entry.isIntersecting) return
+        entry.target.dataset.scrollReveal = 'visible'
+        observer.unobserve(entry.target)
       })
-    }, { threshold: 0.14, rootMargin: '0px 0px -8% 0px' })
+    }, { threshold: 0.08, rootMargin: '0px 0px -12% 0px' })
 
     targets.forEach((target) => observer.observe(target))
     return () => {
@@ -158,6 +158,11 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
   }, [menuOpen])
 
   useEffect(() => {
+    document.body.classList.toggle('public-menu-open', menuOpen)
+    return () => document.body.classList.remove('public-menu-open')
+  }, [menuOpen])
+
+  useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
     let previousScrollY = window.scrollY
@@ -199,20 +204,23 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
   return (
     <div className={`public-site${headerHidden && !menuOpen ? ' public-header-hidden' : ''}`}>
       <a className="public-skip-link" href="#conteudo-principal" onClick={closeMenu}>Pular para o conteúdo</a>
-      <header ref={headerRef} className={`public-header${headerHidden && !menuOpen ? ' is-hidden' : ''}`} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) closeMenu() }}>
+      <header ref={headerRef} className={`public-header${headerHidden && !menuOpen ? ' is-hidden' : ''}${menuOpen ? ' is-menu-open' : ''}`} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) closeMenu() }}>
         <div className="public-header-inner">
         <a className="public-brand" href="#inicio" onClick={closeMenu} aria-label="NA Barbearia, início"><BrandSymbol /></a>
-        <button ref={menuButtonRef} className="public-menu-button" type="button" aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'} aria-controls="public-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? <X size={21} /> : <Menu size={21} />}</button>
+        <button ref={menuButtonRef} className="public-menu-button" type="button" aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'} aria-controls="public-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? <X size={23} strokeWidth={1.8} /> : <Menu size={23} strokeWidth={1.8} />}</button>
         <nav id="public-navigation" className={`public-nav ${menuOpen ? 'is-open' : ''}`} aria-label="Navegação principal">
-          <a href="#experiencia" onClick={closeMenu}>Serviços</a>
-          <a href="#equipe" onClick={closeMenu}>Nossa equipe</a>
-          <a href="#como-funciona" onClick={closeMenu}>Como agendar</a>
-          <a href="#localizacao" onClick={closeMenu}>Localização</a>
-          <a className="public-social-link" href={siteConfig.instagramUrl} {...externalLinkProps} onClick={closeMenu} aria-label="Instagram da NA Barbearia (abre em nova aba)" title="@nabarbeariaa"><Instagram size={21} aria-hidden="true" /></a>
-          <PlatformLink onNavigate={onNavigate} className="public-nav-cta">Agendar horário <ArrowUpRight size={16} /></PlatformLink>
+          <div className="public-nav-links">
+            <a href="#experiencia" onClick={closeMenu}><span>Serviços</span><ArrowUpRight size={17} aria-hidden="true" /></a>
+            <a href="#equipe" onClick={closeMenu}><span>Nossa equipe</span><ArrowUpRight size={17} aria-hidden="true" /></a>
+            <a href="#como-funciona" onClick={closeMenu}><span>Como agendar</span><ArrowUpRight size={17} aria-hidden="true" /></a>
+            <a href="#localizacao" onClick={closeMenu}><span>Localização</span><ArrowUpRight size={17} aria-hidden="true" /></a>
+            <a className="public-social-link" href={siteConfig.instagramUrl} {...externalLinkProps} onClick={closeMenu} aria-label="Instagram da NA Barbearia (abre em nova aba)" title="@nabarbeariaa"><Instagram size={20} aria-hidden="true" /><span>Instagram</span><ArrowUpRight size={17} aria-hidden="true" /></a>
+          </div>
+          <PlatformLink onNavigate={onNavigate} className="public-nav-cta"><span>Agendar horário</span><ArrowUpRight size={18} /></PlatformLink>
         </nav>
         </div>
       </header>
+      <div className={`public-menu-backdrop${menuOpen ? ' is-visible' : ''}`} aria-hidden="true" onClick={closeMenu} />
 
       <main id="conteudo-principal" tabIndex={-1}>
         <p className="sr-only" role="status">{starting ? 'Abrindo a agenda com sua escolha…' : ''}</p>

@@ -13,7 +13,6 @@ export interface HomeProps {
   onNotificationDetails?: (notification: HeaderNotification) => void
   onViewAppointments?: () => void
   onEditProfile?: () => void
-  onGoHome?: () => void
   onLogout?: () => void | Promise<void>
   onNotificationClick?: () => void
 }

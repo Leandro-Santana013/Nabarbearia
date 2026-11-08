@@ -21,7 +21,7 @@ function PublicRoutes({ path }: { path: string }) {
   const { accept } = useAccess()
   if (path === '/gestao' || path.startsWith('/gestao/')) return <DashboardAccess role="owner">{(session) => <OwnerDashboard session={session} path={path} onNavigate={navigate} />}</DashboardAccess>
   if (CLIENT_ROUTES.has(path)) return <ClientApp path={path} onNavigate={navigate} />
-  if (path === '/barbeiro' || path.startsWith('/barbeiro/')) return <DashboardAccess role="barber">{(session) => <BarberDashboard session={session} onGoHome={() => navigate('/')} />}</DashboardAccess>
+  if (path === '/barbeiro' || path.startsWith('/barbeiro/')) return <DashboardAccess role="barber">{(session) => <BarberDashboard session={session} onManage={() => navigate('/gestao/financeiro')} />}</DashboardAccess>
   if (path === '/login' || path === '/entrar' || path === '/cadastro') return <LoginScreen key={path} initialMode={path === '/cadastro' ? 'register' : 'login'}
     onAuthenticated={(session) => { accept(session); navigate(publicHome(session.user) ?? '/painel') }} onGuest={() => navigate('/home')} onGoHome={() => navigate('/')} />
   return <PlatformApp />

@@ -3,7 +3,7 @@ import type { AuthResponse } from '@/services/api'
 
 export interface BarberDashboardProps {
   session: AuthResponse
-  onGoHome?: () => void
+  onManage?: () => void
 }
 export interface BarberScheduleProps {
   loading?: boolean

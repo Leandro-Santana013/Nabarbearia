@@ -165,3 +165,19 @@ impl RateLimiter {
         true
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::RateLimiter;
+    use std::time::Duration;
+
+    #[test]
+    fn rate_limiter_rejects_after_limit_and_keeps_keys_isolated() {
+        let limiter = RateLimiter::default();
+        for _ in 0..3 {
+            assert!(limiter.check("login:user@example.test", 3, Duration::from_secs(60)));
+        }
+        assert!(!limiter.check("login:user@example.test", 3, Duration::from_secs(60)));
+        assert!(limiter.check("login:other@example.test", 3, Duration::from_secs(60)));
+    }
+}

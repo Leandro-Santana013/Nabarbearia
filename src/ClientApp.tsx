@@ -217,7 +217,7 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
       description: `${item.service.title} com ${item.barber.name}, em ${item.date.split('-').reverse().join('/')} às ${item.time}.`, time: 'Próximo atendimento', read: false }))
     page = <Home services={services} userName={session?.user.display_name ?? 'Visitante'} isAuthenticated={Boolean(session)}
       activeAppointmentCount={upcoming.length} notifications={notifications} onNotificationDetails={() => onNavigate('/meus-agendamentos')}
-      onSignIn={() => onNavigate('/login')} onEditProfile={() => onNavigate('/perfil')} onGoHome={() => onNavigate('/')} onLogout={logout}
+      onSignIn={() => onNavigate('/login')} onEditProfile={() => onNavigate('/perfil')} onLogout={logout}
       onViewAppointments={() => onNavigate('/meus-agendamentos')} onSelectService={chooseService} />
   } else if (path === '/meus-agendamentos') {
     page = <MyAppointments appointments={appointments} isDemo={false} onCancel={cancelAppointment} onRate={rateAppointment}

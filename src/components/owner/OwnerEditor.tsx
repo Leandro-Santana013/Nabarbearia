@@ -357,6 +357,7 @@ export default function OwnerEditor({
                           required
                           type="password"
                           minLength={8}
+                          maxLength={128}
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           className={field}

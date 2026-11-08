@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Calendar, DollarSign, Home, LogOut, RefreshCw, User, MessageSquare } from "lucide-react"
+import { Calendar, DollarSign, LayoutDashboard, LogOut, RefreshCw, User, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import AccountDetailsForm from "@/components/AccountDetailsForm"
@@ -9,13 +9,14 @@ import BarberDayTools from "@/components/BarberDayTools"
 import BarberAgendaHeader from "@/components/BarberAgendaHeader"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAccess } from "@/lib/access/AccessProvider"
+import { isManagement } from "@/lib/access/routing"
 import BarberSchedule from "./BarberSchedule"
 import { ApiError, api } from "@/services/api"
 import { dailySchedule, isAppointmentInProgress, money, shopDate, scheduleTime } from "@/lib/barber-schedule"
 import { useAndroidReady } from "@/lib/android-startup"
 
 /** @param {import("./BarberDashboard.types").BarberDashboardProps} props */
-export default function BarberDashboard({ session, onGoHome }) {
+export default function BarberDashboard({ session, onManage }) {
   const { logout: logoutSession, accept } = useAccess()
   const [editingAccount, setEditingAccount] = useState(false)
   const editAccountRef = useRef(null)
@@ -34,6 +35,12 @@ export default function BarberDashboard({ session, onGoHome }) {
   const dashboardRef = useRef(null)
   const navigationRef = useRef(null)
   const allowed = session?.user.roles.includes("barber")
+  const canManage = isManagement(session.user)
+
+  function openManagement() {
+    if (onManage) onManage()
+    else window.location.assign(window.location.pathname.startsWith("/equipe/") ? "/equipe/gestao/financeiro" : "/gestao/financeiro")
+  }
 
   useEffect(() => {
     const dashboard = dashboardRef.current
@@ -132,8 +139,8 @@ export default function BarberDashboard({ session, onGoHome }) {
     setError("")
     try {
       await logoutSession()
-    } catch {
-      setError("Não foi possível sair da conta. Tente novamente.")
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Não foi possível sair da conta. Tente novamente.")
       actionPending.current = false
       setBusy(false)
     }
@@ -151,12 +158,6 @@ export default function BarberDashboard({ session, onGoHome }) {
   return (
     <div ref={dashboardRef} data-in-progress={activeAppointment ? "true" : undefined} className="barber-dashboard min-h-dvh bg-[#F4F4F6] font-sans text-[#111111] antialiased">
       <main className="barber-dashboard-main mx-auto flex max-w-xl flex-col gap-3 p-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
-        <div className="flex justify-end">
-          <Button type="button" variant="outline" onClick={onGoHome ?? (() => window.location.assign("/"))} className="min-h-11 rounded-xl text-xs!">
-            <Home aria-hidden="true" className="size-4 text-primary" />
-            Página principal
-          </Button>
-        </div>
         {activeTab === "agenda" && <>
           <BarberAgendaHeader name={name} date={date} inProgress={inProgress} paused={paused} busy={busy} loading={loading} onDateChange={setDate} onRefresh={load} />
           <BarberDayTools date={date} barberId={session.user.id} busy={busy || loading} onRun={runAction} />
@@ -190,6 +191,7 @@ export default function BarberDashboard({ session, onGoHome }) {
             <div><p className="text-[11px] text-muted-foreground">E-mail</p><p className="break-all text-sm">{session.user.email}</p></div>
             <div><p className="text-[11px] text-muted-foreground">Telefone / WhatsApp</p><p className="break-words text-sm">{session.user.phone || "Não informado"}</p></div>
             <Button ref={editAccountRef} type="button" variant="outline" disabled={busy || editingAccount} aria-expanded={editingAccount} aria-controls="barber-account-editor" onClick={() => { setEditingAccount(true); setNotice("") }} className="min-h-11 rounded-xl text-xs!">Editar informações da conta</Button>
+            {canManage && <Button type="button" variant="outline" disabled={busy} onClick={openManagement} className="min-h-11 rounded-xl border-primary/25 bg-blue-50 text-xs! text-primary hover:bg-blue-100"><LayoutDashboard className="size-4" />Painel de gestão</Button>}
             <p className="text-xs text-muted-foreground">As regras de comissão são definidas exclusivamente pelo proprietário.</p>
             <Button nativeButton={false} variant="outline" render={<a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" />} className="min-h-11 rounded-xl text-xs!"><MessageSquare className="size-4" />Falar com a recepção</Button>
           </Card>

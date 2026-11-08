@@ -30,7 +30,7 @@ function validPhoto(photo: LandingPhoto): boolean {
     && Number.isSafeInteger(photo.height) && photo.height > 0)
 }
 
-function ContentImage({ photo, sizes = publicImageSizes.gallery }: { photo: LandingPhoto; sizes?: string }) {
+function ContentImage({ photo, sizes = publicImageSizes.gallery, displayRatio }: { photo: LandingPhoto; sizes?: string; displayRatio?: string }) {
   const [failed, setFailed] = useState(false)
   const [nearViewport, setNearViewport] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -45,7 +45,7 @@ function ContentImage({ photo, sizes = publicImageSizes.gallery }: { photo: Land
     if (containerRef.current) observer.observe(containerRef.current)
     return () => observer.disconnect()
   }, [])
-  return <div className="public-content-image" ref={containerRef} style={{ aspectRatio: `${photo.width} / ${photo.height}` }}>
+  return <div className="public-content-image" ref={containerRef} style={{ aspectRatio: displayRatio ?? `${photo.width} / ${photo.height}` }}>
     {failed ? <div className="public-content-image-fallback" role="img" aria-label={photo.alt}>Imagem indisponível</div>
       : nearViewport ? <img {...publicImageProps(photoSource(photo.src), sizes)} alt={photo.alt} width={photo.width} height={photo.height} loading="lazy" decoding="async" onError={() => setFailed(true)} />
         : <div className="public-content-image-placeholder" role="img" aria-label={photo.alt} />}
@@ -212,7 +212,7 @@ export function PublicTestimonials({ testimonials }: { testimonials: readonly La
 
 export function PublicShopPhoto({ photo }: { photo?: LandingPhoto }) {
   if (!photo || !validPhoto(photo)) return null
-  return <figure className="public-shop-photo"><ContentImage key={photo.src} photo={photo} sizes={publicImageSizes.shop} /><figcaption>{photo.caption}{photo.illustrative && <span className="public-content-label">Imagem ilustrativa · não representa a unidade</span>}</figcaption></figure>
+  return <figure className="public-shop-photo"><ContentImage key={photo.src} photo={photo} sizes={publicImageSizes.shop} displayRatio="3 / 2" /><figcaption>{photo.caption}{photo.illustrative && <span className="public-content-label">Imagem ilustrativa · não representa a unidade</span>}</figcaption></figure>
 }
 
 export function PublicPracticalInfo({ content }: { content: Pick<LandingContent, 'paymentMethods' | 'amenities' | 'whatsappNumber'> }) {
@@ -236,7 +236,7 @@ export function PublicFaq({ items }: { items: readonly LandingFaq[] }) {
       <div className="public-section-heading"><span className="public-eyebrow">Dúvidas frequentes</span><h2 id="faq-title">Antes da sua visita.</h2><p>O que você precisa saber para encontrar seu próximo horário.</p></div>
       <div className="public-faq-list">{questions.map((item) => <details key={item.id}>
         <summary>{item.question}<ChevronDown size={18} aria-hidden="true" /></summary>
-        <p>{item.answer}</p>
+        <p><span>{item.answer}</span></p>
       </details>)}</div>
     </div>
   </section>

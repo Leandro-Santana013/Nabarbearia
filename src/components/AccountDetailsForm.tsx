@@ -61,8 +61,8 @@ export default function AccountDetailsForm({ account, onSave, onCancel, onBusyCh
     {credentialsEditable && <>
       <div className="space-y-2">
         <label htmlFor={`${id}-new-password`} className="block text-sm font-medium">Nova senha (opcional)</label>
-        <Input id={`${id}-new-password`} name="newPassword" type="password" autoComplete="new-password" minLength={12} maxLength={128} aria-describedby={`${id}-password-help`} disabled={blocked} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="rounded-2xl" />
-        <p id={`${id}-password-help`} className="text-xs text-muted-foreground">Use de 12 a 128 caracteres. Deixe em branco para manter a senha atual.</p>
+        <Input id={`${id}-new-password`} name="newPassword" type="password" autoComplete="new-password" minLength={8} maxLength={128} aria-describedby={`${id}-password-help`} disabled={blocked} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="rounded-2xl" />
+        <p id={`${id}-password-help`} className="text-xs text-muted-foreground">Use 8 a 128 caracteres, com uma letra maiúscula e um símbolo. Deixe em branco para manter a senha atual.</p>
       </div>
       {newPassword && <div className="space-y-2">
         <label htmlFor={`${id}-confirm-password`} className="block text-sm font-medium">Confirmar nova senha</label>

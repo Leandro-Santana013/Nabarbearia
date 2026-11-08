@@ -244,6 +244,24 @@ export default function OwnerDashboard({
       setBusy(false);
     }
   }
+  async function logout() {
+    if (pending.current) return;
+    pending.current = true;
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await logoutSession();
+    } catch (failure) {
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : "Não foi possível sair da conta. Tente novamente.",
+      );
+      pending.current = false;
+      setBusy(false);
+    }
+  }
   function edit(value: Editor) {
     setError("");
     setNotice("");
@@ -294,6 +312,8 @@ export default function OwnerDashboard({
       ? { month: "long", year: "numeric" }
       : { dateStyle: "long" }),
   }).format(new Date(`${reportDate}T12:00:00-03:00`));
+  if (hybrid) return <BarberDashboard session={session} onManage={() => onNavigate("/gestao/financeiro")} />
+
   return (
     <div className="owner-dashboard min-h-dvh bg-background text-foreground">
       <div className="owner-container mx-auto max-w-6xl space-y-4 px-4 py-5 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
@@ -310,16 +330,7 @@ export default function OwnerDashboard({
             </p>
           </div>
           <div className="owner-header-actions flex flex-wrap gap-2">
-            {hybrid ? (
-              <Button
-                variant="outline"
-                className={button}
-                onClick={() => onNavigate("/gestao/financeiro")}
-              >
-                <ArrowRightLeft className="size-4" />
-                Voltar ao Painel Geral
-              </Button>
-            ) : superAdmin && session.user.roles.includes("barber") ? (
+            {superAdmin && session.user.roles.includes("barber") ? (
               <Button
                 variant="outline"
                 className={button}
@@ -376,21 +387,14 @@ export default function OwnerDashboard({
               size="icon"
               aria-label="Sair da gestão"
               disabled={busy}
-              onClick={() =>
-                void run(async () => {
-                  await logoutSession();
-                }, "")
-              }
+              onClick={() => void logout()}
               className="size-10 rounded-xl"
             >
               <LogOut className="size-4" />
             </Button>
           </div>
         </header>
-        {hybrid ? (
-          <BarberDashboard session={session} onGoHome={() => onNavigate("/")} />
-        ) : (
-          <>
+        <>
             <Tabs
               value={tab}
               onValueChange={(value) => {
@@ -1100,8 +1104,7 @@ export default function OwnerDashboard({
                 </Card>
               </TabsContent>
             </Tabs>
-          </>
-        )}
+        </>
         {editor && (
           <OwnerEditor
             key={`${editor.kind}-${"item" in editor ? (editor.item?.id ?? "new") : "bulk"}`}
