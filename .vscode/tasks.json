@@ -176,6 +176,269 @@
 			],
 			"isBackground": false,
 			"problemMatcher": []
+		},
+		{
+			"label": "Review git changes",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"status",
+				"--short"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect commit scope",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"diff",
+				"--",
+				"src/pages/OwnerDashboard.tsx",
+				"src/pages/owner-mobile.css"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check branch and commit",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"log",
+				"-1",
+				"--oneline",
+				"--decorate"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check files in index",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"diff",
+				"--cached",
+				"--name-only",
+				"--",
+				"src/pages/OwnerDashboard.tsx",
+				"src/pages/owner-mobile.css"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check relevant status",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"status",
+				"--short",
+				"--",
+				"src/pages/OwnerDashboard.tsx",
+				"src/pages/owner-mobile.css",
+				".vscode/tasks.json",
+				"backend/.env"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect repository merge state",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"status",
+				"--branch"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Read current commit",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"log",
+				"-3",
+				"--oneline",
+				"--decorate"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Check committed centering code",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"show",
+				"HEAD:src/pages/OwnerDashboard.tsx"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect merge conflict status",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"status",
+				"--short"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Inspect merge conflict summaries",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"diff",
+				"--cc",
+				"--",
+				"dist/index.html",
+				"dist/.vite/manifest.json"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Compare unmerged outputs",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"diff",
+				"--name-only",
+				"--diff-filter=U"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Rebuild merged frontend artifacts",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"build"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Stage resolved build artifacts",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"add",
+				"-A",
+				"--",
+				"dist"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify merge conflicts resolved",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"diff",
+				"--name-only",
+				"--diff-filter=U"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Review post-resolution status",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"status",
+				"--short",
+				"--branch"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Review staged merge summary",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"diff",
+				"--cached",
+				"--stat"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Confirm merge operation state",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"status"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify merge head",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"rev-parse",
+				"--verify",
+				"MERGE_HEAD"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Commit resolved merge",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"-c",
+				"core.editor=true",
+				"commit",
+				"-m",
+				"Merge origin/master after resolving build artifacts",
+				"-m",
+				"Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify merge commit parents",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"show",
+				"-s",
+				"--format=%h %s%nParents: %P",
+				"HEAD"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Verify merge commit and status",
+			"type": "shell",
+			"command": "git",
+			"args": [
+				"status",
+				"--short",
+				"--branch"
+			],
+			"isBackground": false,
+			"problemMatcher": []
 		}
 	]
 }
