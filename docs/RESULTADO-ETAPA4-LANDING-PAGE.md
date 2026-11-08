@@ -14,7 +14,7 @@ Referência: [plano da landing page](PLANO-IMPLEMENTACAO-LANDING-PAGE.md). Estad
 - Componentes públicos agora usam `srcset` e `sizes` adequados ao símbolo, abertura, equipe, retratos, galeria e ambiente. Fontes sem variante mantêm o caminho original como fallback.
 - Dimensões, proporções, legendas, identificação do conteúdo ilustrativo e fallback de erro foram preservados. A galeria mantém o carregamento próximo da área visível, por `IntersectionObserver`.
 - Três medições anteriores identificaram o símbolo da abertura como elemento de LCP no celular de teste. Essa imagem permanece sem lazy loading e recebeu prioridade alta; o símbolo do rodapé e as fotos abaixo da dobra permanecem adiados.
-- Os nove originais locais foram preservados e conferidos por hash. Os retratos remotos foram obtidos somente das URLs existentes em `siteConfig.ts`, com cache em `artifacts/stage4-portrait-originals/`.
+- Os nove originais locais foram preservados em `media-sources/brand/`, fora da pasta pública, e conferidos por hash. Os retratos remotos foram obtidos somente das URLs existentes em `siteConfig.ts`, com cache em `artifacts/stage4-portrait-originals/`.
 - `scripts/optimize-public-media.py` permite reconstrução com Pillow/WebP, inclusive `--offline` depois de preencher o cache. Os 45 derivados foram reproduzidos com hashes idênticos nesta máquina.
 
 | Medida de arquivos | Antes | Depois |
@@ -23,7 +23,14 @@ Referência: [plano da landing page](PLANO-IMPLEMENTACAO-LANDING-PAGE.md). Estad
 | Somente as sete imagens ilustrativas, na mesma comparação | 16.286.582 B | 411.306 B |
 | Todos os 45 derivados, somados | — | 2.231.772 B |
 
-A redução na soma dos fallbacks é de **97,24%**; nas imagens ilustrativas, **97,47%**. Isso compara arquivos, não o total transferido por uma visita. O navegador pode escolher variantes maiores conforme largura e densidade de pixels. Como os originais foram preservados em `public/` e copiados pelo build, a pasta de publicação não diminuiu nessa mesma proporção.
+A redução na soma dos fallbacks é de **97,24%**; nas imagens ilustrativas, **97,47%**. Isso compara arquivos, não o total transferido por uma visita. O navegador pode escolher variantes maiores conforme largura e densidade de pixels. Em uma otimização posterior, os originais foram movidos para `media-sources/brand/`, e o HTML de metadados passou a referenciar derivados WebP; assim, os arquivos-fonte não precisam ser publicados junto com o build.
+
+### Ajuste posterior de distribuição e telas internas
+
+- Os nove originais foram movidos para `media-sources/brand/`. O script de otimização e o gerador de ícones Android continuam usando esses arquivos-fonte.
+- Metadados sociais e JSON-LD agora apontam para WebP otimizados. O aviso de atualização Android também usa a variante pequena do logo.
+- Avatares internos usam variantes responsivas locais quando a URL corresponde a uma foto de barbeiro conhecida; os demais URLs são preservados. Avatares carregam sob demanda e com decodificação assíncrona.
+- Após novo build, os arquivos de imagem de `dist/brand/` passaram de aproximadamente **19,2 MB para 2,28 MB** (redução de aproximadamente **88%**). Nenhum dos nove originais aparece no pacote publicado.
 
 ### Fontes e CSS
 

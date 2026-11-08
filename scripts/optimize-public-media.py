@@ -124,7 +124,7 @@ def font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
 
 
 def brand_artifacts() -> dict:
-    logo = checked_image(ROOT / "public/brand/na-logo-cutout.png")
+    logo = checked_image(ROOT / "media-sources/brand/na-logo-cutout.png")
     # Only the favicon/social-card packaging trims transparent margins. Logo
     # derivatives above retain the original extent used by the site layout.
     symbol = logo.crop(logo.getchannel("A").getbbox())
@@ -134,7 +134,7 @@ def brand_artifacts() -> dict:
     favicon.save(ROOT / "public/favicon.png", "PNG", optimize=True)
 
     card = Image.new("RGB", (1200, 630), "#062D40")
-    team = checked_image(ROOT / "public/brand/na-team.webp")
+    team = checked_image(ROOT / "media-sources/brand/na-team.webp")
     # The full square photograph is preserved: no faces are removed by a crop.
     team = team.resize((630, 630), Image.Resampling.LANCZOS).convert("RGB")
     card.paste(team, (570, 0))
@@ -162,10 +162,10 @@ def main() -> None:
     manifest = {}
     report = {"quality": QUALITY, "sources": [], "portraitFailures": []}
     originals = [
-        ("logo", "/brand/na-logo-cutout.png", ROOT / "public/brand/na-logo-cutout.png", (256, 512, 960), 512),
-        ("team", "/brand/na-team.webp", ROOT / "public/brand/na-team.webp", (384, 640, 1024), 640),
+        ("logo", "/brand/na-logo-cutout.png", ROOT / "media-sources/brand/na-logo-cutout.png", (256, 512, 960), 512),
+        ("team", "/brand/na-team.webp", ROOT / "media-sources/brand/na-team.webp", (384, 640, 1024), 640),
     ]
-    for source in sorted((ROOT / "public/brand/illustrative").glob("*.png")):
+    for source in sorted((ROOT / "media-sources/brand/illustrative").glob("*.png")):
         originals.append((f"illustrative-{source.stem}", f"/brand/illustrative/{source.name}", source, (384, 640, 1024), 640))
     for name, url, source, widths, fallback in originals:
         manifest[url], entry = derivatives(name, url, source, widths, fallback)

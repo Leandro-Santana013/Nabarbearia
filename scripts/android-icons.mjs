@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 const root = fileURLToPath(new URL('../', import.meta.url))
 const temp = mkdtempSync(join(tmpdir(), 'na-icons-'))
 try {
-  const logo = readFileSync(join(root, 'public/brand/na-logo-cutout.png')).toString('base64')
+  const logo = readFileSync(join(root, 'media-sources/brand/na-logo-cutout.png')).toString('base64')
   // Keep the site's original logo; a solid brand background fills launcher masks.
   writeFileSync(join(temp, 'icon.svg'), `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1280" height="1280" viewBox="0 0 1280 1280"><rect width="1280" height="1280" fill="#079dc5"/><image width="1280" height="1280" xlink:href="data:image/png;base64,${logo}"/></svg>`)
   writeFileSync(join(temp, 'foreground.png'), Buffer.from(logo, 'base64'))

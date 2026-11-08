@@ -68,8 +68,8 @@ export function createPublicMetadata(business: BusinessMetadataInput = BARBERSHO
       postalCode: business.address.zipCode,
       addressCountry: 'BR',
     },
-    logo: `${PUBLIC_SITE_ORIGIN}/brand/na-logo-cutout.png`,
-    image: [`${PUBLIC_SITE_ORIGIN}/brand/na-team.webp`],
+    logo: `${PUBLIC_SITE_ORIGIN}/brand/optimized/logo-960.webp`,
+    image: [`${PUBLIC_SITE_ORIGIN}/brand/optimized/team-1024.webp`],
     sameAs: ['https://www.instagram.com/nabarbeariaa/'],
     openingHoursSpecification,
   }
