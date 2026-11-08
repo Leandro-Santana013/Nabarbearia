@@ -20,7 +20,7 @@ import { groupLandingServices } from './lib/landing-services'
 import type { Barber, Service } from './types'
 import { clearLandingIntent, saveLandingIntent, type LandingSelection } from './lib/booking/landing-intent'
 import { landingContent } from './config/landingContent'
-import { PublicFaq, PublicGallery, PublicPracticalInfo, PublicShopPhoto, PublicTestimonials } from './components/PublicContent'
+import { PublicFaq, PublicGallery, PublicPracticalInfo, PublicShopPhoto, PublicShopReel, PublicTestimonials } from './components/PublicContent'
 import { publicImageProps, publicImageSizes } from './lib/public-media'
 
 const serviceHighlights = [
@@ -55,6 +55,7 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
   const [choiceError, setChoiceError] = useState<{ message: string; source: 'service' | 'professional' } | null>(null)
   const headerRef = useRef<HTMLElement>(null)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const [headerHidden, setHeaderHidden] = useState(false)
   const closeMenu = () => setMenuOpen(false)
   const serviceGroups = groupLandingServices(catalog.services)
   const catalogState = catalog.status === 'loading' ? 'loading' : catalog.status === 'ready' && Object.values(serviceGroups).some((services) => services.length > 0) ? 'success' : 'degraded'
@@ -75,6 +76,36 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
   }, [])
 
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+
+  useEffect(() => {
+    const main = document.querySelector('.public-site main')
+    if (!main || !('IntersectionObserver' in window) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+    const targets = Array.from(main.querySelectorAll<HTMLElement>(
+      '.public-hero-copy, .public-hero-art, .public-section-heading, .public-service-card, .public-team-story, .public-team-list-heading, .public-team-card, .public-how-grid > *, .public-testimonial-grid > figure, .public-visit-info, .public-visit-media, .public-faq-grid > *',
+    ))
+    targets.forEach((target, index) => {
+      target.dataset.scrollReveal = 'hidden'
+      target.style.setProperty('--scroll-reveal-delay', `${(index % 4) * 65}ms`)
+    })
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.target instanceof HTMLElement) {
+          entry.target.dataset.scrollReveal = entry.isIntersecting ? 'visible' : 'hidden'
+        }
+      })
+    }, { threshold: 0.14, rootMargin: '0px 0px -8% 0px' })
+
+    targets.forEach((target) => observer.observe(target))
+    return () => {
+      observer.disconnect()
+      targets.forEach((target) => {
+        delete target.dataset.scrollReveal
+        target.style.removeProperty('--scroll-reveal-delay')
+      })
+    }
+  }, [])
 
   async function beginChoice(selection: LandingSelection) {
     if (startingRef.current) return
@@ -127,10 +158,49 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
     }
   }, [menuOpen])
 
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+
+    let previousScrollY = window.scrollY
+    let accumulatedScroll = 0
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY
+      const scrollDelta = currentScrollY - previousScrollY
+      previousScrollY = currentScrollY
+
+      if (currentScrollY <= 80) {
+        accumulatedScroll = 0
+        setHeaderHidden(false)
+        return
+      }
+
+      if (menuOpen || headerRef.current?.contains(document.activeElement)) {
+        accumulatedScroll = 0
+        setHeaderHidden(false)
+        return
+      }
+
+      accumulatedScroll = scrollDelta > 0
+        ? Math.max(0, accumulatedScroll) + scrollDelta
+        : Math.min(0, accumulatedScroll) + scrollDelta
+
+      if (accumulatedScroll > 8) {
+        setHeaderHidden(true)
+        accumulatedScroll = 0
+      } else if (accumulatedScroll < -8) {
+        setHeaderHidden(false)
+        accumulatedScroll = 0
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [menuOpen])
+
   return (
-    <div className="public-site">
+    <div className={`public-site${headerHidden && !menuOpen ? ' public-header-hidden' : ''}`}>
       <a className="public-skip-link" href="#conteudo-principal" onClick={closeMenu}>Pular para o conteúdo</a>
-      <header ref={headerRef} className="public-header" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) closeMenu() }}>
+      <header ref={headerRef} className={`public-header${headerHidden && !menuOpen ? ' is-hidden' : ''}`} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) closeMenu() }}>
         <div className="public-header-inner">
         <a className="public-brand" href="#inicio" onClick={closeMenu} aria-label="NA Barbearia, início"><BrandSymbol /></a>
         <button ref={menuButtonRef} className="public-menu-button" type="button" aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'} aria-controls="public-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? <X size={21} /> : <Menu size={21} />}</button>
@@ -189,6 +259,7 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
           </div>
         </section>
         <PublicGallery photos={landingContent.gallery} />
+        <PublicShopReel />
 
         <section className="public-section public-team" id="equipe" aria-labelledby="team-title">
           <div className="public-container">

@@ -117,7 +117,7 @@ try {
       const rect = element.getBoundingClientRect();
       const x = rect.left + rect.width / 2;
       const y = rect.top + rect.height / 2;
-      if (!element.contains(document.elementFromPoint(x, y))) throw new Error('Alvo encoberto: ' + ${JSON.stringify(selector)});
+      if (!element.contains(document.elementFromPoint(x, y))) throw new Error('Alvo encoberto: ' + ${JSON.stringify(selector)} + ' ' + JSON.stringify({ rect: rect.toJSON(), scrollY, header: document.querySelector('.public-header')?.className, top: document.elementFromPoint(x, y)?.outerHTML?.slice(0, 120) }));
       return { x, y };
     })()`)
     await send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 })
@@ -132,6 +132,7 @@ try {
     }
   }
   await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] })
   await send('Page.navigate', { url: `http://127.0.0.1:${server.address().port}/` })
   await until('Boolean(document.querySelector(".public-service-card"))', 'landing page carregada')
   await until(`document.querySelector('.public-catalog-note')?.dataset.state === 'success'`, 'catálogo inicial carregado')
@@ -152,6 +153,7 @@ try {
       const text = walker.currentNode
       if (!text.textContent.trim()) continue
       const element = text.parentElement
+      if (element.closest('.public-gallery-grid > figure[aria-hidden="true"]')) continue
       const range = document.createRange()
       range.selectNodeContents(text)
       const card = element.closest('.public-service-card, .public-service-item, .public-visit-info, .public-hours-list, .public-team-card, .public-faq-list details, .public-gallery-grid figure, .public-testimonial-grid figure')
@@ -165,6 +167,7 @@ try {
       }
     }
     for (const element of document.querySelectorAll('.public-service-card, .public-service-item, .public-visit-info, .public-visit-media, .public-hours-list, .public-team-card, .public-map-frame, .public-steps li, .public-faq-grid, .public-faq-list details, .public-gallery-grid figure, .public-testimonial-grid figure, .public-practical-info, .public-shop-photo')) {
+      if (element.matches('.public-gallery-grid > figure[aria-hidden="true"]')) continue
       const rect = element.getBoundingClientRect()
       if (rect.left < -1 || rect.right > viewport + 1 || element.scrollWidth > element.clientWidth + 1) issues.push({ selector: element.className || element.tagName, scrollWidth: element.scrollWidth, clientWidth: element.clientWidth })
     }
@@ -201,7 +204,9 @@ try {
   await until(`document.activeElement.id === 'conteudo-principal'`, 'atalho move foco para o conteúdo')
   assert.equal(await evaluate('location.hash'), '#conteudo-principal')
 
-  await evaluate(`window.scrollTo({ top: 0, behavior: 'instant' }); document.querySelector('.public-menu-button').focus()`)
+  await evaluate(`window.scrollTo({ top: 0, behavior: 'instant' })`)
+  await until(`!document.querySelector('.public-header').classList.contains('is-hidden') && document.querySelector('.public-header').getBoundingClientRect().top >= -1 && getComputedStyle(document.querySelector('.public-header')).visibility === 'visible'`, 'navbar volta ao topo')
+  await evaluate(`document.querySelector('.public-menu-button').focus()`)
   await key('Tab')
   assert.equal(await evaluate(`Boolean(document.activeElement.closest('.public-nav'))`), false, 'Menu fechado não deve receber Tab nos links invisíveis')
   await evaluate(`document.querySelector('.public-menu-button').focus()`)
@@ -239,6 +244,7 @@ try {
   }
 
   await evaluate(`window.scrollTo({ top: 0, behavior: 'instant' })`)
+  await until(`!document.querySelector('.public-header').classList.contains('is-hidden') && document.querySelector('.public-header').getBoundingClientRect().top >= -1 && getComputedStyle(document.querySelector('.public-header')).visibility === 'visible'`, 'navbar volta ao topo')
   await click('.public-menu-button')
   await until(menuExpanded, 'menu aberto antes de escolher seção')
   await click('.public-nav a[href="#equipe"]')
@@ -246,6 +252,7 @@ try {
   assert.equal(await evaluate('location.hash'), '#equipe')
 
   await evaluate(`window.scrollTo({ top: 0, behavior: 'instant' })`)
+  await until(`!document.querySelector('.public-header').classList.contains('is-hidden') && document.querySelector('.public-header').getBoundingClientRect().top >= -1 && getComputedStyle(document.querySelector('.public-header')).visibility === 'visible'`, 'navbar volta ao topo')
   await click('.public-menu-button')
   await until(menuExpanded, 'menu aberto antes de redimensionar')
   await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false })
@@ -264,6 +271,7 @@ try {
   for (const width of [280, 390, 1099, 1100]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: true })
     await evaluate(`window.scrollTo({ top: 0, behavior: 'instant' })`)
+    await until(`!document.querySelector('.public-header').classList.contains('is-hidden') && document.querySelector('.public-header').getBoundingClientRect().top >= -1 && getComputedStyle(document.querySelector('.public-header')).visibility === 'visible'`, 'navbar volta ao topo')
     await click('.public-menu-button')
     await until(menuExpanded, `menu aberto em ${width}px`)
     const issues = await evaluate(`(${inspect.toString()})()`)
@@ -278,7 +286,7 @@ try {
   await until(menuExpanded, 'menu utilizável com redução de movimento')
   await key('Escape')
   await until(menuClosed, 'menu fecha com redução de movimento')
-  await send('Emulation.setEmulatedMedia', { features: [] })
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] })
   console.log('OK: atalho de conteúdo, teclado, Escape, toque fora, seções, resize, CTAs e redução de movimento.')
 
   // Native disclosure controls must remain operable by keyboard without
@@ -313,7 +321,7 @@ try {
   await until(`${firstQuestion}.open`, 'FAQ abre com redução de movimento')
   await key('Enter')
   await until(`!${firstQuestion}.open`, 'FAQ fecha com redução de movimento')
-  await send('Emulation.setEmulatedMedia', { features: [] })
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] })
   await evaluate(`document.activeElement.blur(); window.scrollTo({ top: 0, behavior: 'instant' })`)
   console.log('OK: FAQ nativa por Enter/Espaço, foco, respostas abertas e redução de movimento.')
 
@@ -353,8 +361,85 @@ try {
   assert.equal(await evaluate(`document.querySelectorAll('.public-trust-row, .public-map-section').length`), 0, 'Blocos redundantes antigos não devem permanecer')
   assert.equal(await evaluate(`document.querySelectorAll('#localizacao .public-map-frame').length`), 1, 'Mapa deve integrar a localização')
   assert.ok(sectionOrder.indexOf('duvidas') > sectionOrder.indexOf('localizacao'), 'FAQ deve aparecer após a localização')
-  await waitContentImages('.public-gallery')
+  await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
+  await evaluate(`window.scrollTo({ top: 0, behavior: 'instant' })`)
+  await sleep(100)
+  if (await evaluate(`Boolean(document.querySelector('.public-gallery')?.getClientRects().length)`)) await waitContentImages('.public-gallery')
   await waitContentImages('.public-shop-photo')
+  await evaluate(`document.querySelector('.public-gallery-controls button').focus({ preventScroll: true })`)
+  await evaluate(`window.scrollTo({ top: 0, behavior: 'instant' })`)
+  await sleep(100)
+  assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('.public-gallery')).display`), 'none', 'Carrossel deve permanecer disponível em telas de celular')
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.public-reel-stage')).borderWidth`), '0px', 'Vídeo mobile não deve ter bordas')
+  assert.ok(await evaluate(`document.querySelector('.public-reel').getBoundingClientRect().height >= innerHeight * 2`), 'Seção do vídeo deve prolongar o scroll por mais de uma tela')
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.public-reel-stage')).position`), 'sticky', 'Vídeo deve permanecer preso à tela durante o scroll prolongado')
+  const mobileVideoWidth = await evaluate(`({ stage: document.querySelector('.public-reel-stage').getBoundingClientRect().width, viewport: document.documentElement.clientWidth, inner: innerWidth })`)
+  assert.ok(Math.abs(mobileVideoWidth.stage - mobileVideoWidth.viewport) <= 1, `Vídeo mobile deve ocupar toda a largura disponível: ${JSON.stringify(mobileVideoWidth)}`)
+  assert.ok(await evaluate(`Math.abs(document.querySelector('.public-reel-stage').getBoundingClientRect().height - (innerHeight - (document.querySelector('.public-site').classList.contains('public-header-hidden') ? 0 : document.querySelector('.public-header').getBoundingClientRect().height))) <= 1`), 'Vídeo mobile deve ocupar a altura disponível conforme a navbar esteja visível ou recolhida')
+  assert.equal(await evaluate(`getComputedStyle(document.querySelector('.public-reel-video')).objectFit`), 'cover', 'Vídeo mobile deve preencher o formato vertical')
+  assert.equal(await evaluate(`document.querySelector('.public-reel-video').controls`), false, 'Vídeo não deve exibir controles nativos')
+  assert.equal(await evaluate(`document.querySelector('.public-reel-video').muted`), true, 'Vídeo permanece silencioso para autoplay inline')
+  console.log('OK: em celulares, o carrossel fica disponível e o vídeo vertical ocupa a tela sem moldura.')
+  if (!(await evaluate(`matchMedia('(prefers-reduced-motion: reduce)').matches`))) {
+    const scrollPositions = await evaluate(`(() => {
+      const section = document.querySelector('.public-reel');
+      const sectionTop = section.getBoundingClientRect().top + scrollY;
+      const distance = innerHeight + section.getBoundingClientRect().height;
+      return [0.08, 0.5, 0.75].map((progress) => Math.max(0, sectionTop - innerHeight + distance * progress));
+    })()`)
+    const opacityAt = []
+    for (const position of scrollPositions) {
+      await evaluate(`window.scrollTo({ top: ${position}, behavior: 'instant' })`)
+      await sleep(250)
+      opacityAt.push(Number(await evaluate(`getComputedStyle(document.querySelector('.public-reel-stage')).opacity`)))
+    }
+    assert.ok(opacityAt[0] > 0 && opacityAt[0] < 1, 'Motion deve revelar o vídeo gradualmente ao entrar na tela')
+    assert.ok(opacityAt[1] > 0.95, 'Vídeo deve ficar totalmente visível durante o trecho central')
+    assert.ok(opacityAt[2] < 0.1, 'Motion deve fazer o vídeo desaparecer ao sair da tela')
+    await evaluate(`window.scrollTo({ top: ${scrollPositions[1]}, behavior: 'instant' })`)
+    await sleep(250)
+    assert.ok(await evaluate(`Math.abs(document.querySelector('.public-reel-stage').getBoundingClientRect().top - (document.querySelector('.public-site').classList.contains('public-header-hidden') ? 0 : document.querySelector('.public-header').getBoundingClientRect().height)) <= 2`), 'Vídeo deve permanecer preso abaixo da navbar visível ou no topo com ela recolhida')
+    await evaluate(`window.scrollTo({ top: ${scrollPositions[2]}, behavior: 'instant' })`)
+    await sleep(250)
+    assert.equal(await evaluate(`document.querySelector('.public-reel-video').paused`), true, 'Vídeo deve pausar depois de sair da área visível')
+    console.log('OK: o vídeo permanece preso durante o scroll prolongado e anima a entrada e saída.')
+  }
+  await send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] })
+  await send('Emulation.setDeviceMetricsOverride', { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false })
+  await evaluate(`window.scrollTo({ top: 0, behavior: 'instant' })`)
+  await sleep(100)
+  await evaluate(`document.querySelector('.public-gallery-controls button').focus()`)
+  await waitContentImages('.public-gallery')
+  const carouselState = await evaluate(`(() => {
+    const carousel = document.querySelector('.public-gallery-carousel');
+    const slides = Array.from(carousel.querySelectorAll('.public-gallery-grid > figure'));
+    return {
+      role: carousel.getAttribute('aria-roledescription'),
+      slides: slides.length,
+      firstPhoto: new URL(slides[0].querySelector('img').src).pathname,
+      firstCaption: slides[0].querySelector('figcaption').textContent.trim(),
+      visibleSlides: slides.filter((slide) => slide.getAttribute('aria-hidden') === 'false').length,
+      centerOffset: (() => { const rect = carousel.getBoundingClientRect(); const slideRect = carousel.querySelector('[aria-current="true"]').getBoundingClientRect(); return Math.abs(slideRect.left + slideRect.width / 2 - (rect.left + rect.width / 2)); })(),
+      sideOpacity: [carousel.querySelector('.is-previous'), carousel.querySelector('.is-next')].map((slide) => Number(getComputedStyle(slide).opacity)),
+    };
+  })()`)
+  assert.equal(carouselState.role, 'carrossel', 'Galeria identifica seu comportamento de carrossel')
+  assert.ok(carouselState.slides >= 6, 'Carrossel inclui as fotos existentes')
+  assert.equal(carouselState.firstPhoto, '/brand/na-carousel-intro.jpg', 'Foto promocional anterior deve ser a primeira do carrossel')
+  assert.match(carouselState.firstCaption, /Corte seu cabelo com a gente/i)
+  assert.equal(await evaluate(`document.querySelector('.public-gallery-grid .public-gallery-brand-emblem')`), null, 'Slide de logo deve ser removido')
+  assert.equal(carouselState.visibleSlides, 1, 'Slide principal é o único exposto a leitores de tela')
+  assert.ok(carouselState.centerOffset <= 2, 'Slide principal permanece centralizado')
+  assert.ok(carouselState.sideOpacity.every((opacity) => opacity > 0 && opacity < 1), 'Slides vizinhos ficam discretos ao fundo')
+  await click('.public-gallery-controls button[aria-label="Próxima foto"]')
+  await until(`document.querySelector('.public-gallery-count')?.textContent.includes('02')`, 'próxima foto do carrossel')
+  assert.equal(await evaluate(`document.querySelector('.public-gallery-grid > figure[data-current="true"]')?.getAttribute('aria-label')`), '2 de 7', 'Próximo move o carrossel com animação')
+  await evaluate(`document.activeElement.blur()`)
+  await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 5 })
+  await until(`document.querySelector('.public-gallery-count')?.textContent.includes('03')`, 'avanço automático do carrossel')
+  console.log('OK: vitrine centralizada mostra vizinhos discretos, anima e avança automaticamente.')
+  await send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true })
+  await evaluate(`window.scrollTo({ top: 0, behavior: 'instant' })`)
   const optionalContent = await evaluate(`(() => {
     const errors = [];
     const gallery = document.querySelector('.public-gallery');
@@ -366,7 +451,7 @@ try {
         const image = photo.querySelector('img, [role="img"]');
         if (!image || !(image.getAttribute('alt') || image.getAttribute('aria-label'))?.trim() || !photo.querySelector('figcaption')?.textContent.trim()) errors.push('Foto sem identificação ou legenda');
         if (image?.tagName === 'IMG' && (image.getAttribute('loading') !== 'lazy' || !(Number(image.getAttribute('width')) > 0) || !(Number(image.getAttribute('height')) > 0))) errors.push('Foto sem dimensões ou carregamento sob demanda');
-        if (illustrativeGallery && !/imagem ilustrativa/i.test(photo.querySelector('.public-content-label')?.textContent || '')) errors.push('Imagem temporária sem rótulo individual');
+        if (illustrativeGallery && gallery.getClientRects().length && !/imagem ilustrativa/i.test(photo.querySelector('.public-content-label')?.textContent || '')) errors.push('Imagem temporária sem rótulo individual');
       }
     }
     const reviews = document.querySelector('.public-testimonials');
@@ -405,14 +490,14 @@ try {
       const figure = document.querySelector('.public-gallery-grid figure');
       figure.scrollIntoView({ behavior: 'instant', block: 'center' });
       document.querySelector('#duvidas summary').focus({ preventScroll: true });
-      return { alt: figure.querySelector('img').alt, caption: figure.querySelector('figcaption').textContent, height: figure.querySelector('.public-content-image').getBoundingClientRect().height };
+      return { alt: figure.querySelector('img').alt, caption: figure.querySelector('figcaption').textContent, height: figure.querySelector('.public-content-image').offsetHeight };
     })()`)
     await evaluate(`(() => { const image = document.querySelector('.public-gallery-grid figure img'); image.removeAttribute('srcset'); image.removeAttribute('sizes'); image.src = '/__landing-test-missing.png' })()`)
     await until(`Boolean(document.querySelector('.public-gallery-grid figure .public-content-image-fallback'))`, 'erro real da imagem mostra fallback')
     assert.equal(await evaluate(`document.querySelector('.public-gallery-grid figure .public-content-image-fallback').getAttribute('aria-label')`), beforeImageFailure.alt, 'Fallback preserva a identificação da imagem')
     assert.equal(await evaluate(`document.querySelector('.public-gallery-grid figure figcaption').textContent`), beforeImageFailure.caption, 'Legenda permanece quando a imagem falha')
     assert.equal(await evaluate(`document.activeElement.matches('#duvidas summary')`), true, 'Falha da imagem não rouba o foco')
-    assert.ok(Math.abs((await evaluate(`document.querySelector('.public-gallery-grid figure .public-content-image').getBoundingClientRect().height`)) - beforeImageFailure.height) < 1, 'Fallback preserva o espaço reservado')
+    assert.ok(Math.abs((await evaluate(`document.querySelector('.public-gallery-grid figure .public-content-image').offsetHeight`)) - beforeImageFailure.height) < 1, 'Fallback preserva o espaço reservado')
     await navigateToLanding()
     await assertCatalog()
     console.log('OK: imagens entram perto da tela; erro real preserva fallback, legenda, foco e dimensões.')
@@ -491,9 +576,9 @@ try {
 
   for (const width of [280, 320, 390]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: true })
-    const screenshotSelectors = ['.public-hero', '#experiencia', '#equipe', '.public-team-grid', '#como-funciona', '#localizacao', '#duvidas']
+    const screenshotSelectors = ['.public-hero', '#experiencia', '.public-reel-stage', '#equipe', '.public-team-grid', '#como-funciona', '#localizacao', '#duvidas']
     for (const optionalSelector of ['.public-gallery', '.public-testimonials', '.public-shop-photo', '.public-practical-info']) {
-      if (await evaluate(`Boolean(document.querySelector(${JSON.stringify(optionalSelector)}))`)) screenshotSelectors.push(optionalSelector)
+      if (await evaluate(`Boolean(document.querySelector(${JSON.stringify(optionalSelector)})?.getClientRects().length)`)) screenshotSelectors.push(optionalSelector)
     }
     for (const selector of screenshotSelectors) {
       assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(selector)}))`), true, `Seção esperada ausente: ${selector}`)

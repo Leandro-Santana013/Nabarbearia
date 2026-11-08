@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
-import { ArrowUpRight, ChevronDown, MessageCircle } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, MessageCircle } from 'lucide-react'
+import { motion, useMotionValueEvent, useReducedMotion, useScroll, useSpring, useTransform } from 'motion/react'
+import type { FocusEvent } from 'react'
 import type { LandingContent, LandingFaq, LandingGalleryPhoto, LandingPhoto, LandingTestimonial } from '../config/landingContent'
 import { publicImageProps, publicImageSizes } from '../lib/public-media'
 
@@ -52,14 +54,126 @@ function ContentImage({ photo, sizes = publicImageSizes.gallery }: { photo: Land
 
 export function PublicGallery({ photos }: { photos: readonly LandingGalleryPhoto[] }) {
   const visiblePhotos = photos.filter(validPhoto).slice(0, 8)
+  const reducedMotion = useReducedMotion()
+  const [currentIndex, setCurrentIndex] = useState(0)
+  const [hovered, setHovered] = useState(false)
+  const [focusWithin, setFocusWithin] = useState(false)
+  const paused = hovered || focusWithin
+
+  useEffect(() => {
+    if (paused || reducedMotion || visiblePhotos.length <= 1) return
+    const timer = window.setInterval(() => {
+      setCurrentIndex((index) => (index + 1) % visiblePhotos.length)
+    }, 5500)
+    return () => window.clearInterval(timer)
+  }, [paused, reducedMotion, visiblePhotos.length])
+
+  const moveTo = (index: number) => setCurrentIndex(index % visiblePhotos.length)
+  const nextSlide = () => setCurrentIndex((index) => (index + 1) % visiblePhotos.length)
+  const previousSlide = () => setCurrentIndex((index) => (index - 1 + visiblePhotos.length) % visiblePhotos.length)
+  const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) setFocusWithin(false)
+  }
+
   if (!visiblePhotos.length) return null
   return <section className="public-section public-gallery" id="trabalhos" aria-labelledby="gallery-title">
     <div className="public-container">
-      <div className="public-section-heading"><span className="public-eyebrow">Referências de estilo</span><h2 id="gallery-title">Encontre seu próximo visual.</h2><p>{visiblePhotos.some((photo) => photo.illustrative) ? 'Imagens ilustrativas temporárias. Em breve, este espaço recebe os trabalhos reais da equipe.' : 'Cortes e acabamentos feitos pela equipe da NA.'}</p></div>
-      <div className="public-gallery-grid">{visiblePhotos.map((photo) => <figure key={photo.id}>
-        <ContentImage key={photo.src} photo={photo} />
-        <figcaption>{photo.caption}{photo.illustrative && <span className="public-content-label">Imagem ilustrativa</span>}</figcaption>
-      </figure>)}</div>
+      <div className="public-gallery-carousel-heading">
+        <div className="public-section-heading"><span className="public-eyebrow">Referências de estilo</span><h2 id="gallery-title">Encontre seu próximo visual.</h2><p>{visiblePhotos.some((photo) => photo.illustrative) ? 'Inspirações de estilo e registros da barbearia. As imagens ilustrativas estão identificadas.' : 'Cortes e acabamentos feitos pela equipe da NA.'}</p></div>
+        <div className="public-gallery-controls" aria-label="Controles da galeria">
+          <button type="button" className="public-gallery-arrow" onClick={previousSlide} aria-label="Foto anterior"><ArrowLeft size={20} /></button>
+          <span className="public-gallery-count" aria-hidden="true">{String(currentIndex + 1).padStart(2, '0')} <span>/</span> {String(visiblePhotos.length).padStart(2, '0')}</span>
+          <button type="button" className="public-gallery-arrow" onClick={nextSlide} aria-label="Próxima foto"><ArrowRight size={20} /></button>
+        </div>
+      </div>
+      <div
+        className="public-gallery-carousel"
+        role="region"
+        aria-label="Galeria de fotos"
+        aria-roledescription="carrossel"
+        onPointerEnter={() => setHovered(true)}
+        onPointerLeave={() => setHovered(false)}
+        onFocusCapture={() => setFocusWithin(true)}
+        onBlurCapture={handleBlur}
+      >
+        <div className="public-gallery-carousel-window">
+          <div className="public-gallery-grid">
+            {visiblePhotos.map((photo, index) => {
+              const isCurrent = index === currentIndex
+              const isPrevious = index === (currentIndex - 1 + visiblePhotos.length) % visiblePhotos.length
+              const isNext = index === (currentIndex + 1) % visiblePhotos.length
+              const position = isCurrent ? 'current' : isPrevious ? 'previous' : isNext ? 'next' : 'hidden'
+              return <figure key={photo.id} className={`public-gallery-slide is-${position}`} role="group" aria-roledescription="slide" aria-label={`${index + 1} de ${visiblePhotos.length}`} aria-hidden={!isCurrent} aria-current={isCurrent ? 'true' : undefined} data-current={isCurrent}>
+                <ContentImage key={photo.src} photo={photo} />
+                <figcaption>{photo.caption}{photo.illustrative && <span className="public-content-label">Imagem ilustrativa</span>}</figcaption>
+              </figure>
+            })}
+          </div>
+        </div>
+        <div className="public-gallery-pagination" role="group" aria-label="Selecionar foto">
+          {visiblePhotos.map((_, index) => <button
+            key={index}
+            type="button"
+            className="public-gallery-dot"
+            aria-label={`Mostrar foto ${index + 1}`}
+            aria-current={currentIndex === index ? 'true' : undefined}
+            onClick={() => moveTo(index)}
+          />)}
+        </div>
+      </div>
+    </div>
+  </section>
+}
+
+export function PublicShopReel() {
+  const sectionRef = useRef<HTMLElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const { scrollYProgress } = useScroll({ target: sectionRef, offset: ['start end', 'end start'] })
+  const reducedMotion = useReducedMotion()
+  const reelOpacity = useTransform(scrollYProgress, [0, 0.16, 0.5, 0.7], [0, 1, 1, 0])
+  const reelY = useSpring(useTransform(scrollYProgress, [0, 0.16, 0.7, 1], [56, 0, 0, -56]), { stiffness: 150, damping: 28, mass: 0.35 })
+
+  const syncVideoPlayback = useCallback((progress: number) => {
+    const video = videoRef.current
+    if (!video) return
+    if (reducedMotion || progress <= 0.01 || progress >= 0.7) {
+      video.pause()
+    } else if (video.paused) {
+      void video.play().catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        console.error('Não foi possível reproduzir o vídeo da NA Barbearia.', error)
+      })
+    }
+  }, [reducedMotion])
+
+  useEffect(() => {
+    syncVideoPlayback(scrollYProgress.get())
+    return () => videoRef.current?.pause()
+  }, [scrollYProgress, syncVideoPlayback])
+
+  useMotionValueEvent(scrollYProgress, 'change', syncVideoPlayback)
+
+  return <section ref={sectionRef} className="public-section public-reel" aria-labelledby="reel-title">
+    <div className="public-container">
+      <div className="public-section-heading">
+        <span className="public-eyebrow">Por dentro da NA</span>
+        <h2 id="reel-title">Trabalho sério. Resenha boa.</h2>
+        <p>Um pouco do ritmo e da personalidade da barbearia.</p>
+      </div>
+      <motion.div
+        className="public-reel-stage"
+        initial={false}
+        style={{
+          opacity: reducedMotion ? 1 : reelOpacity,
+          y: reducedMotion ? 0 : reelY,
+        }}
+      >
+        <video ref={videoRef} className="public-reel-video" muted loop playsInline preload="none" aria-label="Vídeo da NA Barbearia">
+          <source src="/brand/na-barbearia-showreel.mp4" type="video/mp4" />
+          Seu navegador não consegue reproduzir este vídeo.
+        </video>
+        <span className="public-reel-caption">NA BARBEARIA <span>·</span> SANTOS, SP</span>
+      </motion.div>
     </div>
   </section>
 }
