@@ -320,6 +320,14 @@ try {
     })()`);
   const assertAgendaStableOnHover = async (viewport) => {
     await send("Emulation.setDeviceMetricsOverride", viewport);
+    await send("Emulation.setEmulatedMedia", {
+      features: [{ name: "hover", value: "hover" }],
+    });
+    await send("Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x: 1,
+      y: 1,
+    });
     const hoverTarget = await evaluate(`(() => {
       const button = [...document.querySelectorAll('.owner-agenda-grid button')].find((item) => item.getAttribute('aria-label') === 'Agendar às 10:30 com Barbeiro Atualizado');
       button.scrollIntoView({ block: 'center', inline: 'center' });
@@ -345,6 +353,11 @@ try {
       layoutBeforeHover,
       "a grade, as colunas e o botão devem manter o tamanho ao exibir Agendar",
     );
+    if (viewport.mobile) {
+      await send("Emulation.setEmulatedMedia", {
+        features: [{ name: "hover", value: "none" }],
+      });
+    }
   };
   await assertAgendaStableOnHover({
     width: 1280,
