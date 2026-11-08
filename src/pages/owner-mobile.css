@@ -1,4 +1,9 @@
 /* Owner-only adaptations. Desktop keeps its existing layout and component styles. */
+.owner-agenda-grid { table-layout: fixed; }
+.owner-agenda-grid .owner-agenda-time { width: 72px; }
+.owner-agenda-grid .owner-agenda-barber, .owner-agenda-grid .owner-agenda-cell { width: 140px; min-width: 140px; max-width: 140px; overflow-wrap: anywhere; }
+.owner-agenda-grid .owner-agenda-open-slot { box-sizing: border-box; display: flex; width: 100%; min-width: 0; height: 36px; align-items: center; justify-content: center; padding: 0 6px; white-space: nowrap; }
+
 @media (max-width: 767.98px) {
   body:has(.owner-dashboard) { min-width: 0; }
 
@@ -65,11 +70,11 @@
   .owner-dashboard input[type="checkbox"], .owner-dialog input[type="checkbox"] { flex: 0 0 20px; width: 20px; height: 20px; min-height: 0; margin: 2px; padding: 0; accent-color: var(--primary); cursor: pointer; }
   .owner-agenda-select-all { grid-column: 1 / -1; }
   .owner-agenda-grid-scroll { max-width: 100%; overscroll-behavior-x: contain; }
-  .owner-agenda-grid { min-width: max(100%, 520px); table-layout: auto; }
+  .owner-agenda-grid { min-width: max(100%, 520px); }
   .owner-agenda-grid :is(th, td) { padding: 10px 8px; white-space: normal; vertical-align: top; }
   .owner-agenda-grid .owner-agenda-time { position: sticky; left: 0; z-index: 1; min-width: 72px; background: white; }
   .owner-agenda-grid thead .owner-agenda-time { z-index: 2; }
-  .owner-agenda-grid .owner-agenda-barber, .owner-agenda-grid .owner-agenda-cell { min-width: 140px; max-width: 220px; }
+  .owner-agenda-grid .owner-agenda-barber, .owner-agenda-grid .owner-agenda-cell { min-width: 140px; max-width: 140px; }
   .owner-agenda-booking { min-width: 120px; overflow-wrap: anywhere; }
   .owner-agenda-grid button.owner-agenda-booking:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 

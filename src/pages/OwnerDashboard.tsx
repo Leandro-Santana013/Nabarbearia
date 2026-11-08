@@ -952,7 +952,7 @@ export default function OwnerDashboard({
                                   ) : cell.inSchedule ? (
                                     <button
                                       aria-label={`Agendar às ${row.time} com ${agendaBarbers.find((item) => item.id === cell.barberId)?.name ?? "profissional"}`}
-                                      className="owner-agenda-booking group w-full rounded-lg border border-dashed border-transparent p-1 text-sm text-muted-foreground transition-colors hover:border-primary hover:bg-blue-50 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-40"
+                                      className="owner-agenda-booking owner-agenda-open-slot group w-full rounded-lg border border-dashed border-transparent p-1 text-sm text-muted-foreground transition-colors hover:border-primary hover:bg-blue-50 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-40"
                                       disabled={
                                         busy ||
                                         agendaDate < shopDate() ||
@@ -969,7 +969,12 @@ export default function OwnerDashboard({
                                       }
                                       type="button"
                                     >
-                                      <span aria-hidden="true" className="group-hover:hidden">—</span>
+                                      <span
+                                        aria-hidden="true"
+                                        className="group-hover:hidden"
+                                      >
+                                        —
+                                      </span>
                                       <span className="hidden items-center justify-center gap-1 group-hover:inline-flex">
                                         <Plus aria-hidden="true" className="size-3" />
                                         Agendar

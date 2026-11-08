@@ -308,6 +308,56 @@ try {
     await evaluate("document.documentElement.scrollWidth <= innerWidth"),
     true,
   );
+  const agendaLayout = () =>
+    evaluate(`(() => {
+      const table = document.querySelector('.owner-agenda-grid');
+      const button = [...table.querySelectorAll('button')].find((item) => item.getAttribute('aria-label') === 'Agendar às 10:30 com Barbeiro Atualizado');
+      const row = button.closest('tr');
+      return [table, ...table.querySelectorAll('thead th'), ...row.cells, button].map((element) => {
+        const rect = element.getBoundingClientRect();
+        return [rect.x, rect.width, rect.height].map((value) => Math.round(value * 100) / 100);
+      });
+    })()`);
+  const assertAgendaStableOnHover = async (viewport) => {
+    await send("Emulation.setDeviceMetricsOverride", viewport);
+    const hoverTarget = await evaluate(`(() => {
+      const button = [...document.querySelectorAll('.owner-agenda-grid button')].find((item) => item.getAttribute('aria-label') === 'Agendar às 10:30 com Barbeiro Atualizado');
+      button.scrollIntoView({ block: 'center', inline: 'center' });
+      const rect = button.getBoundingClientRect();
+      return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+    })()`);
+    const layoutBeforeHover = await agendaLayout();
+    await send("Input.dispatchMouseEvent", {
+      type: "mouseMoved",
+      x: hoverTarget.x,
+      y: hoverTarget.y,
+    });
+    await until(
+      () =>
+        evaluate(`(() => {
+        const button = [...document.querySelectorAll('.owner-agenda-grid button')].find((item) => item.getAttribute('aria-label') === 'Agendar às 10:30 com Barbeiro Atualizado');
+        return [...button.querySelectorAll('span')].some((span) => span.textContent.includes('Agendar') && getComputedStyle(span).display !== 'none');
+        })()`),
+      "ação Agendar visível no hover",
+    );
+    assert.deepEqual(
+      await agendaLayout(),
+      layoutBeforeHover,
+      "a grade, as colunas e o botão devem manter o tamanho ao exibir Agendar",
+    );
+  };
+  await assertAgendaStableOnHover({
+    width: 1280,
+    height: 900,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
+  await assertAgendaStableOnHover({
+    width: 390,
+    height: 844,
+    deviceScaleFactor: 1,
+    mobile: true,
+  });
   const selectAll =
     'input[aria-label="Selecionar todos os agendamentos elegíveis"]';
   await clickSelector(selectAll);
