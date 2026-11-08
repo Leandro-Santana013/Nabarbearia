@@ -1,4 +1,4 @@
-use super::{Error, Payout, new_id, require_owner, utc_text};
+use super::{Error, Payout, new_id, require_super_admin, utc_text};
 use crate::{
     db::{Db, insert_audit},
     models::AuthUser,
@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 
 /// Register an already performed payment of the entire current eligible balance.
 pub async fn record_payout(db: &Db, actor: AuthUser, command: Payout) -> Result<Value, Error> {
-    require_owner(&actor)?;
+    require_super_admin(&actor)?;
     let business = actor.business_id;
     let actor = actor.id;
     let barber = command.barber_id;

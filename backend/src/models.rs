@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 pub enum Role {
     Client,
     Barber,
+    Admin,
+    SuperAdmin,
     Owner,
 }
 
@@ -14,6 +16,8 @@ impl Role {
         match value {
             "client" => Some(Self::Client),
             "barber" => Some(Self::Barber),
+            "admin" => Some(Self::Admin),
+            "super_admin" => Some(Self::SuperAdmin),
             "owner" => Some(Self::Owner),
             _ => None,
         }
@@ -65,6 +69,20 @@ pub struct AuthUser {
     pub display_name: String,
     pub phone: String,
     pub roles: Vec<Role>,
+}
+
+impl AuthUser {
+    pub fn is_admin(&self) -> bool {
+        self.roles
+            .iter()
+            .any(|role| matches!(role, Role::Admin | Role::SuperAdmin | Role::Owner))
+    }
+
+    pub fn is_super_admin(&self) -> bool {
+        self.roles
+            .iter()
+            .any(|role| matches!(role, Role::SuperAdmin | Role::Owner))
+    }
 }
 
 #[derive(Debug, Deserialize)]

@@ -9,7 +9,7 @@ use super::{
 };
 use crate::{
     db::{Db, insert_audit},
-    models::{AppointmentStatus, AuthUser, Role},
+    models::{AppointmentStatus, AuthUser},
 };
 
 #[derive(Clone, Copy)]
@@ -32,7 +32,7 @@ pub async fn change_agenda(
     action: BatchAction,
     changes: Vec<AgendaChange>,
 ) -> Result<(), Error> {
-    if !actor.roles.contains(&Role::Owner) {
+    if !actor.is_admin() {
         return Err(Error::forbidden());
     }
     if changes.is_empty() || changes.len() > 100 {

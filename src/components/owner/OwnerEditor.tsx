@@ -152,13 +152,15 @@ export default function OwnerEditor({
           start_minute: minute(start),
           end_minute: minute(end),
         });
-      } else if (editor.kind === "payout")
+      } else if (editor.kind === "payout") {
+        if (editor.item.outstanding_cents === undefined)
+          throw new Error("Saldo financeiro indisponível.");
         await api.recordPayout(
           editor.item.id,
           editor.item.outstanding_cents,
           key.current,
         );
-      else if (editor.kind === "appointment")
+      } else if (editor.kind === "appointment")
         await api.editOwnerAppointment(editor.item.id, {
           service_id: serviceId,
           barber_user_id: barberId,
@@ -430,7 +432,9 @@ export default function OwnerEditor({
               )}
               {editor.kind === "payout" && (
                 <p className="rounded-xl bg-blue-50 p-4 text-xl font-bold text-primary">
-                  {money(editor.item.outstanding_cents)}
+                  {editor.item.outstanding_cents === undefined
+                    ? "—"
+                    : money(editor.item.outstanding_cents)}
                 </p>
               )}
               {editor.kind === "appointment" && (

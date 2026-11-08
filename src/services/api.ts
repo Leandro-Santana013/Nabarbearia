@@ -63,7 +63,7 @@ export interface AppointmentDto {
   starts_at: string
   ends_at: string
   status: 'confirmed' | 'completed' | 'no_show' | 'cancelled'
-  price_cents: number
+  price_cents?: number
   duration_minutes: number
   client_display_name?: string
   barber_display_name?: string
@@ -90,7 +90,7 @@ function mapAppointment(appointment: AppointmentDto): Appointment {
     startsAt: appointment.starts_at,
     endsAt: appointment.ends_at,
     status: appointment.status === 'no_show' ? 'no-show' : appointment.status,
-    amountCents: appointment.price_cents,
+    amountCents: appointment.price_cents ?? 0,
     durationMinutes: appointment.duration_minutes,
     source: 'api',
     rating: appointment.rating ?? undefined,

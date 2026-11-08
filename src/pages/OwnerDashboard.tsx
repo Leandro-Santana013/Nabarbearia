@@ -35,6 +35,7 @@ import {
 import OwnerEditor, { type Editor } from "@/components/owner/OwnerEditor";
 import OwnerSelect from "@/components/owner/OwnerSelect";
 import { useAccess } from "@/lib/access/AccessProvider";
+import { isManagement, isSuperAdmin } from "@/lib/access/routing";
 import { useAndroidReady } from "@/lib/android-startup";
 import BarberDashboard from "./BarberDashboard";
 import { api, type AuthResponse } from "@/services/api";
@@ -91,16 +92,26 @@ export default function OwnerDashboard({
   const sequence = useRef(0);
   const agendaSequence = useRef(0);
   const pending = useRef(false);
-  const allowed = session?.user.roles.includes("owner");
-  const tab = sections.some((item) => path === `/gestao/${item.value}`)
+  const superAdmin = isSuperAdmin(session.user);
+  const allowed = isManagement(session.user);
+  const visibleSections = superAdmin
+    ? sections
+    : sections.filter((item) => item.value !== "financeiro");
+  const tab = visibleSections.some((item) => path === `/gestao/${item.value}`)
     ? path.split("/").at(-1)!
-    : "financeiro";
-  const hybrid = path === "/gestao/minha-agenda";
+    : superAdmin ? "financeiro" : "agenda-geral";
+  const activeSectionIndex = visibleSections.findIndex((section) => section.value === tab);
+  const hybrid = superAdmin && path === "/gestao/minha-agenda";
   useAndroidReady(!hybrid && !loading && (tab !== "agenda-geral" || !agendaLoading));
   const range = useMemo(
     () => ownerRange(reportDate, period),
     [reportDate, period],
   );
+  useEffect(() => {
+    if (!superAdmin && (path === "/gestao/financeiro" || path === "/gestao/minha-agenda")) {
+      onNavigate("/gestao/agenda-geral");
+    }
+  }, [onNavigate, path, superAdmin]);
   useEffect(() => {
     // Pinch zoom and mobile browser chrome can leave the visual viewport
     // narrower than CSS media queries report. Reflow without disabling zoom.
@@ -239,7 +250,7 @@ export default function OwnerDashboard({
     setEditor(value);
   }
   async function enterHybrid() {
-    if (session?.user.roles.includes("barber")) {
+    if (session.user.roles.includes("barber")) {
       onNavigate("/gestao/minha-agenda");
       return;
     }
@@ -289,7 +300,7 @@ export default function OwnerDashboard({
         <header className="owner-header flex flex-col justify-between gap-3 rounded-2xl border border-border/60 bg-white p-4 shadow-sm md:flex-row md:items-center">
           <div className="min-w-0">
             <Badge className="mb-1 rounded-full border-0 bg-blue-50 px-2.5 text-[10px] text-primary">
-              Super Administrador
+              {superAdmin ? "Super Administrador" : "Administrador"}
             </Badge>
             <h1 className="text-lg font-semibold">
               Painel de Gestão — NA Barbearia
@@ -308,7 +319,7 @@ export default function OwnerDashboard({
                 <ArrowRightLeft className="size-4" />
                 Voltar ao Painel Geral
               </Button>
-            ) : session.user.roles.includes("barber") ? (
+            ) : superAdmin && session.user.roles.includes("barber") ? (
               <Button
                 variant="outline"
                 className={button}
@@ -318,7 +329,7 @@ export default function OwnerDashboard({
                 <ArrowRightLeft className="size-4" />
                 Modo Híbrido: Minha Agenda
               </Button>
-            ) : (
+            ) : superAdmin ? (
               <Dialog open={hybridPrompt} onOpenChange={setHybridPrompt}>
                 <DialogTrigger
                   render={<Button variant="outline" className={button} />}
@@ -349,7 +360,7 @@ export default function OwnerDashboard({
                   </Button>
                 </DialogContent>
               </Dialog>
-            )}
+            ) : null}
             <Button
               variant="outline"
               size="sm"
@@ -395,10 +406,10 @@ export default function OwnerDashboard({
                   aria-hidden="true"
                   className="owner-tab-indicator hidden"
                   style={{
-                    transform: `translateX(calc(${sections.findIndex((section) => section.value === tab)} * (100% + 4px)))`,
+                    transform: `translateX(calc(${activeSectionIndex} * (100% + 4px)))`,
                   }}
                 />
-                {sections.map(({ value, label, icon: Icon }) => (
+                {visibleSections.map(({ value, label, icon: Icon }) => (
                   <TabsTrigger
                     key={value}
                     value={value}
@@ -477,19 +488,19 @@ export default function OwnerDashboard({
                   {notice}
                 </p>
               )}
-              <TabsContent value="financeiro">
+              {superAdmin && <TabsContent value="financeiro">
                 <p className="text-xs capitalize text-muted-foreground">
                   {periodLabel}
                 </p>
                 <div className="owner-metrics grid grid-cols-2 gap-3 lg:grid-cols-4">
                   <Metric
                     label="Faturamento total"
-                    value={summary ? money(summary.revenue_cents) : "—"}
+                    value={summary?.revenue_cents !== undefined ? money(summary.revenue_cents) : "—"}
                     description="Serviços concluídos no período"
                   />
                   <Metric
                     label="Comissões a pagar"
-                    value={summary ? money(summary.outstanding_cents) : "—"}
+                    value={summary?.outstanding_cents !== undefined ? money(summary.outstanding_cents) : "—"}
                     description="Saldo acumulado ainda não repassado"
                   />
                   <Metric
@@ -497,7 +508,9 @@ export default function OwnerDashboard({
                     value="Não apurado"
                     description={
                       summary
-                        ? `Após comissões: ${money(summary.retained_cents)}. Despesas e impostos não cadastrados.`
+                        ? summary.retained_cents !== undefined
+                          ? `Após comissões: ${money(summary.retained_cents)}. Despesas e impostos não cadastrados.`
+                          : "Aguardando dados financeiros"
                         : "Aguardando dados financeiros"
                     }
                   />
@@ -551,7 +564,7 @@ export default function OwnerDashboard({
                           "Não informado",
                         ].map((method) => {
                           const rows =
-                            summary?.payments.filter(
+                            summary?.payments?.filter(
                               (item) => item.method === method,
                             ) ?? [];
                           return (
@@ -586,7 +599,7 @@ export default function OwnerDashboard({
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {summary?.payouts.length ? (
+                    {summary?.payouts?.length ? (
                       <ul className="divide-y">
                         {summary.payouts.map((item) => (
                           <li
@@ -611,7 +624,7 @@ export default function OwnerDashboard({
                     )}
                   </CardContent>
                 </Card>
-              </TabsContent>
+              </TabsContent>}
               <TabsContent value="barbeiros">
                 <Card className="rounded-2xl bg-white shadow-sm">
                   <CardHeader className="owner-section-heading flex flex-wrap items-center justify-between gap-3">
@@ -620,8 +633,9 @@ export default function OwnerDashboard({
                         Equipe ({team.length} profissionais)
                       </CardTitle>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Produção no período selecionado. Saldo a pagar considera
-                        todo o histórico.
+                        {superAdmin
+                          ? "Produção no período selecionado. Saldo a pagar considera todo o histórico."
+                          : "Gerencie os profissionais e as escalas da equipe."}
                       </p>
                     </div>
                     <Button
@@ -640,9 +654,7 @@ export default function OwnerDashboard({
                           {[
                             "Barbeiro",
                             "Atendimentos",
-                            "Faturamento",
-                            "Comissão configurada",
-                            "A repassar",
+                            ...(superAdmin ? ["Faturamento", "Comissão configurada", "A repassar"] : []),
                             "Ações",
                           ].map((text) => (
                             <TableHead key={text}>{text}</TableHead>
@@ -651,11 +663,11 @@ export default function OwnerDashboard({
                       </TableHeader>
                       <TableBody>
                         {team.map((item) => {
-                          const rules = summary!.rules.filter(
+                          const rules = summary?.rules?.filter(
                             (rule) =>
                               rule.barber_id === item.id ||
                               rule.barber_id === null,
-                          );
+                          ) ?? [];
                           return (
                             <TableRow key={item.id} role="row">
                               <TableCell role="cell" className="owner-row-title">
@@ -679,10 +691,10 @@ export default function OwnerDashboard({
                                 </div>
                               </TableCell>
                               <TableCell role="cell" data-label="Atendimentos">{item.completed_count}</TableCell>
-                              <TableCell role="cell" data-label="Faturamento" className="whitespace-nowrap">
-                                {money(item.revenue_cents)}
-                              </TableCell>
-                              <TableCell role="cell" data-label="Comissão configurada" className="owner-row-wide">
+                              {superAdmin && <TableCell role="cell" data-label="Faturamento" className="whitespace-nowrap">
+                                {item.revenue_cents === undefined ? "—" : money(item.revenue_cents)}
+                              </TableCell>}
+                              {superAdmin && <TableCell role="cell" data-label="Comissão configurada" className="owner-row-wide">
                                 <div className="min-w-40 space-y-1 text-xs">
                                   {rules.length
                                     ? rules.map((rule) => (
@@ -705,13 +717,13 @@ export default function OwnerDashboard({
                                       ))
                                     : "Não configurada"}
                                 </div>
-                              </TableCell>
-                              <TableCell role="cell" data-label="A repassar" className="owner-row-wide font-semibold whitespace-nowrap text-primary">
-                                {money(item.outstanding_cents)}
-                              </TableCell>
+                              </TableCell>}
+                              {superAdmin && <TableCell role="cell" data-label="A repassar" className="owner-row-wide font-semibold whitespace-nowrap text-primary">
+                                {item.outstanding_cents === undefined ? "—" : money(item.outstanding_cents)}
+                              </TableCell>}
                               <TableCell role="cell" className="owner-row-actions">
                                 <div className="flex min-w-52 flex-wrap gap-1.5">
-                                  <Button
+                                  {superAdmin && <Button
                                     variant="outline"
                                     className={button}
                                     onClick={() =>
@@ -719,7 +731,7 @@ export default function OwnerDashboard({
                                     }
                                   >
                                     Comissão
-                                  </Button>
+                                  </Button>}
                                   <Button
                                     variant="outline"
                                     className={button}
@@ -738,17 +750,17 @@ export default function OwnerDashboard({
                                   >
                                     Escala
                                   </Button>
-                                  <Button
+                                  {superAdmin && <Button
                                     className={button}
                                     disabled={
-                                      busy || item.outstanding_cents <= 0
+                                      busy || item.outstanding_cents === undefined || item.outstanding_cents <= 0
                                     }
                                     onClick={() =>
                                       edit({ kind: "payout", item })
                                     }
                                   >
                                     Registrar repasse
-                                  </Button>
+                                  </Button>}
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -849,7 +861,10 @@ export default function OwnerDashboard({
                 </div>
                 <Card className="rounded-2xl bg-white py-0 shadow-sm">
                   <div className="owner-agenda-grid-scroll overflow-x-auto">
-                    <Table className="owner-agenda-grid" role="table">
+                    <Table
+                      className={`owner-agenda-grid${agendaBarbers.length === 1 ? " owner-agenda-grid-single" : ""}`}
+                      role="table"
+                    >
                       <TableHeader>
                         <TableRow>
                           <TableHead className="owner-agenda-time">
@@ -857,7 +872,7 @@ export default function OwnerDashboard({
                           </TableHead>
                           {agendaBarbers.map((barber) => (
                             <TableHead
-                              className="owner-agenda-barber"
+                              className="owner-agenda-barber text-center"
                               key={barber.id}
                             >
                               {barber.name}
@@ -878,7 +893,7 @@ export default function OwnerDashboard({
                                 );
                               return (
                                 <TableCell
-                                  className="owner-agenda-cell"
+                                  className="owner-agenda-cell text-center"
                                   key={`${row.minute}-${cell.barberId}`}
                                 >
                                   {cell.appointments.length ? (

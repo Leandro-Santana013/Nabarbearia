@@ -1,4 +1,4 @@
-use super::{Error, require_owner, utc_text};
+use super::{Error, require_super_admin, utc_text};
 use crate::{
     db::Db,
     models::{AuthUser, RevenueReport, Role},
@@ -14,7 +14,7 @@ pub async fn owner_summary(
     from: DateTime<Utc>,
     to: DateTime<Utc>,
 ) -> Result<Value, Error> {
-    require_owner(&actor)?;
+    require_super_admin(&actor)?;
     let business = actor.business_id;
     let from = utc_text(from);
     let to = utc_text(to);
@@ -23,6 +23,76 @@ pub async fn owner_summary(
         let result = read_owner_summary(&snapshot, &business, &from, &to)?;
         snapshot.commit()?;
         Ok(result)
+    })
+    .await
+}
+
+pub async fn admin_summary(
+    db: &Db,
+    actor: AuthUser,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> Result<Value, Error> {
+    if !actor.is_admin() {
+        return Err(Error::forbidden());
+    }
+    let business = actor.business_id;
+    let from = utc_text(from);
+    let to = utc_text(to);
+    db.with_conn(move |connection| {
+        let total_count: i64 = connection.query_row(
+            "SELECT COUNT(*) FROM appointments
+             WHERE business_id=?1 AND starts_at_utc>=?2 AND starts_at_utc<?3 AND status<>'cancelled'",
+            params![business, from, to],
+            |row| row.get(0),
+        )?;
+        let completed_count: i64 = connection.query_row(
+            "SELECT COUNT(*) FROM appointments
+             WHERE business_id=?1 AND starts_at_utc>=?2 AND starts_at_utc<?3 AND status='completed'",
+            params![business, from, to],
+            |row| row.get(0),
+        )?;
+        let no_show_count: i64 = connection.query_row(
+            "SELECT COUNT(*) FROM appointments
+             WHERE business_id=?1 AND starts_at_utc>=?2 AND starts_at_utc<?3 AND status='no_show'",
+            params![business, from, to],
+            |row| row.get(0),
+        )?;
+        let mut team_query = connection.prepare(
+            "SELECT u.id,u.display_name,u.email,p.photo_url,p.active
+             FROM users u JOIN barber_profiles p ON p.business_id=u.business_id AND p.user_id=u.id
+             WHERE u.business_id=?1 ORDER BY u.display_name",
+        )?;
+        let team_base = team_query
+            .query_map(params![business], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                    row.get::<_, bool>(4)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut team = Vec::new();
+        for (id, name, email, photo, active) in team_base {
+            let completed: i64 = connection.query_row(
+                "SELECT COUNT(*) FROM appointments
+                 WHERE business_id=?1 AND barber_user_id=?2 AND starts_at_utc>=?3 AND starts_at_utc<?4 AND status='completed'",
+                params![business, id, from, to],
+                |row| row.get(0),
+            )?;
+            team.push(json!({
+                "id": id, "name": name, "email": email, "photo_url": photo,
+                "active": active, "completed_count": completed
+            }));
+        }
+        Ok(json!({
+            "total_count": total_count,
+            "completed_count": completed_count,
+            "no_show_count": no_show_count,
+            "team": team
+        }))
     })
     .await
 }
@@ -79,7 +149,7 @@ pub async fn earnings(
     from: Option<DateTime<Utc>>,
     to: Option<DateTime<Utc>>,
 ) -> Result<RevenueReport, Error> {
-    let barber_user_id = if actor.roles.contains(&Role::Owner) {
+    let barber_user_id = if actor.is_super_admin() {
         None
     } else if actor.roles.contains(&Role::Barber) {
         Some(actor.id)

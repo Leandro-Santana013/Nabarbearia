@@ -179,7 +179,7 @@ async fn setup_status(State(state): State<AppState>) -> ApiResult<Json<SetupStat
         .db
         .with_conn(|connection| -> Result<_, AppError> {
             let owner_count: i64 = connection.query_row(
-                "SELECT COUNT(*) FROM user_roles WHERE role = 'owner'",
+                "SELECT COUNT(*) FROM user_roles WHERE role IN ('owner', 'admin', 'super_admin')",
                 [],
                 |row| row.get(0),
             )?;
@@ -239,7 +239,7 @@ async fn setup_owner(
         .with_conn(move |connection| -> Result<_, AppError> {
             let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
             let owner_count: i64 = transaction.query_row(
-                "SELECT COUNT(*) FROM user_roles WHERE role = 'owner'", [], |row| row.get(0),
+                "SELECT COUNT(*) FROM user_roles WHERE role IN ('owner', 'admin', 'super_admin')", [], |row| row.get(0),
             )?;
             let business_count: i64 =
                 transaction.query_row("SELECT COUNT(*) FROM businesses", [], |row| row.get(0))?;
@@ -260,7 +260,7 @@ async fn setup_owner(
                 params![owner_for_tx, business_for_tx, email_for_tx, password_hash, display_name_for_tx, now],
             )?;
             transaction.execute(
-                "INSERT INTO user_roles(business_id, user_id, role, created_at_utc) VALUES (?1, ?2, 'owner', ?3)",
+                "INSERT INTO user_roles(business_id, user_id, role, created_at_utc) VALUES (?1, ?2, 'super_admin', ?3)",
                 params![business_for_tx, owner_for_tx, now],
             )?;
             transaction.execute(
@@ -278,7 +278,7 @@ async fn setup_owner(
         business_id,
         email,
         display_name,
-        roles: vec![Role::Owner],
+        roles: vec![Role::SuperAdmin],
         phone: String::new(),
     };
     let session = create_session(&state, &user).await?;
@@ -412,7 +412,14 @@ async fn login_for_channel(
         return Err(AppError::unauthorized());
     }
     let roles = load_roles(&state, &business_id, &user_id).await?;
-    if staff_only && !roles.contains(&Role::Owner) && !roles.contains(&Role::Barber) {
+    if staff_only
+        && !roles.iter().any(|role| {
+            matches!(
+                role,
+                Role::Admin | Role::SuperAdmin | Role::Owner | Role::Barber
+            )
+        })
+    {
         return Err(AppError::Api {
             status: StatusCode::FORBIDDEN,
             code: "STAFF_ONLY",
@@ -436,7 +443,7 @@ async fn staff_android_apk(
     headers: HeaderMap,
 ) -> ApiResult<Response> {
     let context = authenticate(&state, &headers).await?;
-    if !context.user.roles.contains(&Role::Owner) && !context.user.roles.contains(&Role::Barber) {
+    if !context.user.is_admin() && !context.user.roles.contains(&Role::Barber) {
         return Err(AppError::forbidden());
     }
     // Delivery lives alongside private data, never inside the publicly served frontend directory.
@@ -717,8 +724,39 @@ fn require_role(context: &AuthContext, role: Role) -> Result<(), AppError> {
     }
 }
 
+pub(super) fn require_admin(context: &AuthContext) -> Result<(), AppError> {
+    if context.user.is_admin() {
+        Ok(())
+    } else {
+        Err(AppError::forbidden())
+    }
+}
+
+pub(super) fn require_super_admin(context: &AuthContext) -> Result<(), AppError> {
+    if context.user.is_super_admin() {
+        Ok(())
+    } else {
+        Err(AppError::forbidden())
+    }
+}
+
 fn is_owner(context: &AuthContext) -> bool {
-    context.user.roles.contains(&Role::Owner)
+    context.user.is_admin()
+}
+
+pub(super) fn appointment_json(
+    appointment: AppointmentResponse,
+    hide_financials: bool,
+) -> Result<serde_json::Value, AppError> {
+    let mut value = serde_json::to_value(appointment).map_err(|_| AppError::Internal)?;
+    if hide_financials {
+        if let Some(fields) = value.as_object_mut() {
+            fields.remove("price_cents");
+            fields.remove("payment_method");
+            fields.remove("commission_cents");
+        }
+    }
+    Ok(value)
 }
 
 fn new_id() -> String {
@@ -932,7 +970,7 @@ async fn create_service(
 ) -> ApiResult<(StatusCode, Json<ServiceResponse>)> {
     let context = authenticate(&state, &headers).await?;
     require_mutation(&state, &headers, &context)?;
-    require_role(&context, Role::Owner)?;
+    require_admin(&context)?;
     let service = service_input_to_response(new_id(), request)?;
     let service_for_tx = service.clone();
     let business_id = context.user.business_id.clone();
@@ -971,7 +1009,7 @@ async fn update_service(
 ) -> ApiResult<Json<ServiceResponse>> {
     let context = authenticate(&state, &headers).await?;
     require_mutation(&state, &headers, &context)?;
-    require_role(&context, Role::Owner)?;
+    require_admin(&context)?;
     let id = valid_id(&id)?;
     let service = service_input_to_response(id.clone(), request)?;
     let business_id = context.user.business_id.clone();
@@ -1055,7 +1093,7 @@ async fn create_barber(
 ) -> ApiResult<(StatusCode, Json<BarberResponse>)> {
     let context = authenticate(&state, &headers).await?;
     require_mutation(&state, &headers, &context)?;
-    require_role(&context, Role::Owner)?;
+    require_admin(&context)?;
     let email = email_address(&request.email)?;
     let display_name = required_text(
         &request.display_name,
@@ -1136,7 +1174,7 @@ async fn create_schedule(
 ) -> ApiResult<(StatusCode, Json<MessageResponse>)> {
     let context = authenticate(&state, &headers).await?;
     require_mutation(&state, &headers, &context)?;
-    require_role(&context, Role::Owner)?;
+    require_admin(&context)?;
     let barber_id = valid_id(&request.barber_user_id)?;
     if !(0..=6).contains(&request.weekday)
         || !(0..=1439).contains(&request.start_minute)
@@ -1190,7 +1228,7 @@ async fn list_owner_schedules(
     Query(query): Query<ScheduleDateQuery>,
 ) -> ApiResult<Json<Vec<OwnerScheduleIntervalResponse>>> {
     let context = authenticate(&state, &headers).await?;
-    require_role(&context, Role::Owner)?;
+    require_admin(&context)?;
     let date = NaiveDate::parse_from_str(&query.date, "%Y-%m-%d")
         .map_err(|_| AppError::bad_request("INVALID_DATE", "Date must use YYYY-MM-DD"))?;
     let weekday = i64::from(date.weekday().num_days_from_sunday());
@@ -1330,7 +1368,7 @@ async fn create_commission_rule(
 ) -> ApiResult<(StatusCode, Json<MessageResponse>)> {
     let context = authenticate(&state, &headers).await?;
     require_mutation(&state, &headers, &context)?;
-    require_role(&context, Role::Owner)?;
+    require_super_admin(&context)?;
     let barber_id = request
         .barber_user_id
         .as_deref()
@@ -1549,8 +1587,9 @@ async fn create_admin_appointment(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(request): Json<AdminAppointmentRequest>,
-) -> ApiResult<(StatusCode, Json<AppointmentResponse>)> {
+) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
     let context = authenticate(&state, &headers).await?;
+    let hide_financials = context.user.is_admin() && !context.user.is_super_admin();
     require_mutation(&state, &headers, &context)?;
     let idempotency_key = idempotency_key(&headers)?;
     let walk_in = request.client_user_id.is_none();
@@ -1628,6 +1667,7 @@ async fn create_admin_appointment(
         },
     )
     .await?;
+    let appointment = appointment_json(appointment, hide_financials)?;
     Ok((StatusCode::CREATED, Json(appointment)))
 }
 
@@ -1635,8 +1675,9 @@ async fn list_appointments(
     State(state): State<AppState>,
     headers: HeaderMap,
     Query(query): Query<DateRangeQuery>,
-) -> ApiResult<Json<Vec<AppointmentResponse>>> {
+) -> ApiResult<Json<Vec<serde_json::Value>>> {
     let context = authenticate(&state, &headers).await?;
+    let hide_financials = context.user.is_admin() && !context.user.is_super_admin();
     let from = query.from.as_deref().map(parse_input_utc).transpose()?;
     let to = query.to.as_deref().map(parse_input_utc).transpose()?;
     if to.is_some_and(|end| {
@@ -1696,9 +1737,9 @@ async fn list_appointments(
             if scope == "client" {
                 item.commission_cents = None;
             }
-            item
+            appointment_json(item, hide_financials)
         })
-        .collect();
+        .collect::<Result<Vec<_>, AppError>>()?;
     Ok(Json(appointments))
 }
 
@@ -1707,14 +1748,15 @@ async fn reschedule_appointment(
     headers: HeaderMap,
     Path(id): Path<String>,
     Json(request): Json<RescheduleRequest>,
-) -> ApiResult<Json<AppointmentResponse>> {
+) -> ApiResult<Json<serde_json::Value>> {
     let context = authenticate(&state, &headers).await?;
+    let hide_financials = context.user.is_admin() && !context.user.is_super_admin();
     require_mutation(&state, &headers, &context)?;
     let appointment_id = valid_id(&id)?;
     let starts_at = parse_input_utc(&request.starts_at)?;
     let result =
         appointments::reschedule(&state.db, context.user, appointment_id, starts_at).await?;
-    Ok(Json(result))
+    Ok(Json(appointment_json(result, hide_financials)?))
 }
 
 async fn cancel_appointment(
@@ -1722,8 +1764,9 @@ async fn cancel_appointment(
     headers: HeaderMap,
     Path(id): Path<String>,
     Json(request): Json<CancelRequest>,
-) -> ApiResult<Json<AppointmentResponse>> {
+) -> ApiResult<Json<serde_json::Value>> {
     let context = authenticate(&state, &headers).await?;
+    let hide_financials = context.user.is_admin() && !context.user.is_super_admin();
     require_mutation(&state, &headers, &context)?;
     let appointment_id = valid_id(&id)?;
     let reason = optional_text(
@@ -1733,7 +1776,7 @@ async fn cancel_appointment(
         "Cancellation reason is invalid",
     )?;
     let result = appointments::cancel(&state.db, context.user, appointment_id, reason).await?;
-    Ok(Json(result))
+    Ok(Json(appointment_json(result, hide_financials)?))
 }
 
 async fn update_appointment_details(
@@ -1811,8 +1854,9 @@ async fn complete_appointment(
     headers: HeaderMap,
     Path(id): Path<String>,
     Json(request): Json<CompleteRequest>,
-) -> ApiResult<Json<AppointmentResponse>> {
+) -> ApiResult<Json<serde_json::Value>> {
     let context = authenticate(&state, &headers).await?;
+    let hide_financials = context.user.is_admin() && !context.user.is_super_admin();
     require_mutation(&state, &headers, &context)?;
     let appointment_id = valid_id(&id)?;
     let notes = optional_text(
@@ -1822,19 +1866,20 @@ async fn complete_appointment(
         "Execution notes are invalid",
     )?;
     let result = appointments::complete(&state.db, context.user, appointment_id, notes).await?;
-    Ok(Json(result))
+    Ok(Json(appointment_json(result, hide_financials)?))
 }
 
 async fn no_show_appointment(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(id): Path<String>,
-) -> ApiResult<Json<AppointmentResponse>> {
+) -> ApiResult<Json<serde_json::Value>> {
     let context = authenticate(&state, &headers).await?;
+    let hide_financials = context.user.is_admin() && !context.user.is_super_admin();
     require_mutation(&state, &headers, &context)?;
     let appointment_id = valid_id(&id)?;
     let result = appointments::no_show(&state.db, context.user, appointment_id).await?;
-    Ok(Json(result))
+    Ok(Json(appointment_json(result, hide_financials)?))
 }
 
 async fn create_rating(

@@ -1,4 +1,4 @@
-export type UserRole = 'client' | 'barber' | 'owner'
+export type UserRole = 'client' | 'barber' | 'admin' | 'super_admin' | 'owner'
 
 export type AppointmentStatus = 'confirmed' | 'completed' | 'no-show' | 'cancelled'
 

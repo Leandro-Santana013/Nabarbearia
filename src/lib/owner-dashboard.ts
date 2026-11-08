@@ -7,8 +7,8 @@ export interface OwnerBarber {
   photo_url?: string;
   active: boolean;
   completed_count: number;
-  revenue_cents: number;
-  outstanding_cents: number;
+  revenue_cents?: number;
+  outstanding_cents?: number;
 }
 export interface CommissionRule {
   id: string;
@@ -35,18 +35,18 @@ export interface OwnerAgendaRow {
   cells: OwnerAgendaCell[];
 }
 export interface OwnerSummary {
-  revenue_cents: number;
+  revenue_cents?: number;
   total_count: number;
   completed_count: number;
   no_show_count: number;
-  commission_cents: number;
-  commission_pending_count: number;
-  outstanding_cents: number;
-  retained_cents: number;
+  commission_cents?: number;
+  commission_pending_count?: number;
+  outstanding_cents?: number;
+  retained_cents?: number;
   team: OwnerBarber[];
-  rules: CommissionRule[];
-  payments: { method: string; count: number; amount_cents: number }[];
-  payouts: {
+  rules?: CommissionRule[];
+  payments?: { method: string; count: number; amount_cents: number }[];
+  payouts?: {
     id: string;
     barber_name: string;
     amount_cents: number;

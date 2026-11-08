@@ -9,11 +9,11 @@ mod storage;
 
 pub use error::{Error, Rejection};
 pub use payouts::record_payout;
-pub use queries::{earnings, owner_summary};
+pub use queries::{admin_summary, earnings, owner_summary};
 pub use rules::create_rule;
 pub(crate) use settlement::settle_commission;
 
-use crate::models::{AppointmentResponse, AuthUser, CommissionRuleType, Role};
+use crate::models::{AppointmentResponse, AuthUser, CommissionRuleType};
 use chrono::{DateTime, SecondsFormat, Utc};
 
 pub struct Rule {
@@ -75,8 +75,8 @@ impl From<&AppointmentResponse> for Settlement {
     }
 }
 
-fn require_owner(actor: &AuthUser) -> Result<(), Error> {
-    if !actor.roles.contains(&Role::Owner) {
+fn require_super_admin(actor: &AuthUser) -> Result<(), Error> {
+    if !actor.is_super_admin() {
         return Err(Error::forbidden());
     }
     Ok(())

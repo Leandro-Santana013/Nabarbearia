@@ -1,6 +1,6 @@
 # Backend — NA Barbearia
 
-API Rust/Axum com SQLite para autenticação, catálogo, disponibilidade, agendamentos, execução de serviços, comissões e gestão do proprietário. A visão geral da aplicação está no [README principal](../README.md).
+API Rust/Axum com SQLite para autenticação, catálogo, disponibilidade, agendamentos, execução de serviços, comissões e painéis de administração. A visão geral da aplicação está no [README principal](../README.md).
 
 ## Execução local
 
@@ -47,7 +47,13 @@ Consulte `GET /api/v1/setup/status`. Quando `needs_owner` for `true`, crie a pri
 - Corpo: `business_name`, `timezone`, `email`, `password` e `display_name`.
 - `timezone` deve corresponder à configuração do backend.
 
-O endpoint é destinado à configuração inicial; não redefine uma conta existente. Não há senha universal de proprietário. O cadastro público cria clientes; contas de barbeiro são cadastradas pelo proprietário.
+O endpoint é destinado à configuração inicial; não redefine uma conta existente. Não há senha universal de proprietário. A conta inicial recebe papel `super_admin`. O cadastro público cria clientes; contas de barbeiro são cadastradas pelo administrador ou superadministrador.
+
+## Perfis de gestão
+
+A migração `0010_admin_roles` converte os antigos papéis `owner` em `admin`, atribui `admin` à conta existente `dono@nabarbearia.com.br` e `super_admin` à conta existente `nailton@nabarbearia.com.br`. Ela também remove o acesso de barbeiro da conta admin; o perfil de superadministrador mantém seus papéis de barbeiro existentes. As contas precisam existir quando a migração for aplicada.
+
+O administrador acessa catálogo, equipe, escalas e agenda geral. Os endpoints de gestão retornam um resumo operacional sem valores financeiros; acesso a faturamento, comissões, repasses e relatórios é exclusivo do superadministrador. A conta do Nailton tem o painel completo e pode ativar/usar sua agenda de barbeiro.
 
 ## Endpoints principais
 
@@ -64,15 +70,15 @@ Todos os caminhos abaixo têm o prefixo `/api/v1`.
 | Detalhes operacionais | `PATCH /appointments/{id}/details` |
 | Agenda do barbeiro | `POST /barber/walk-ins`, `GET/POST /barber/blocks` |
 | Serviços | `GET/POST /admin/services`, `PUT /admin/services/{id}` |
-| Equipe e escalas | `POST /admin/barbers`, `PUT /admin/barbers/{id}`, `GET /admin/schedules?date=YYYY-MM-DD` (proprietário), `POST /admin/schedules`, `POST /admin/blocks` |
-| Comissões e repasses | `POST /admin/commission-rules`, `POST /admin/payouts` |
+| Equipe e escalas | `POST /admin/barbers`, `PUT /admin/barbers/{id}`, `GET /admin/schedules?date=YYYY-MM-DD`, `POST /admin/schedules`, `POST /admin/blocks` (admin e superadministrador) |
+| Comissões e repasses | `POST /admin/commission-rules`, `POST /admin/payouts` (somente superadministrador) |
 | Gestão | `GET /admin/summary`, `POST /admin/agenda/bulk`, `POST /admin/my-barber-profile` |
 | Relatórios | `GET /reports/revenue`, `GET /admin/reports/revenue` |
 | Consentimentos | `POST /consents` |
 
 Mutações autenticadas exigem cookie de sessão, `Origin` permitido e `X-CSRF-Token`. Criação de agendamentos, encaixes e registro de repasses também exigem `Idempotency-Key`, de 16 a 128 caracteres no formato aceito pela API. Repetir a mesma chave com dados diferentes gera conflito.
 
-Clientes acessam seus próprios agendamentos. Barbeiros acessam a própria operação. Gestão de catálogo, equipe, comissões e repasses exige papel `owner`. As consultas e alterações são isoladas por negócio.
+Clientes acessam seus próprios agendamentos. Barbeiros acessam a própria operação. Gestão operacional exige papel `admin` ou `super_admin`; operações financeiras exigem `super_admin`. As consultas e alterações são isoladas por negócio.
 
 `PATCH /account` altera somente a conta da sessão. Recebe `display_name`, `email` e `phone` (vazio ou de 10 a 13 dígitos com DDD), além de `current_password` e `new_password` opcionais. A senha atual é obrigatória ao alterar e-mail ou senha; a nova senha segue o limite de 12 a 128 caracteres. Essas mudanças encerram as outras sessões e mantêm a sessão atual. Campos de comissão, papel, negócio ou identidade de outro usuário são rejeitados. Dados e auditoria são gravados na mesma transação; o retorno contém o usuário atualizado, sem senhas.
 
@@ -95,7 +101,7 @@ Ao concluir um atendimento, a API aplica a regra compatível e registra o snapsh
 
 ## Gestão e ações em lote
 
-`GET /admin/summary?from=...&to=...` aceita períodos de até 366 dias. Retorna produção, faltas, equipe, regras, pagamentos previstos e repasses. A produção segue a data programada dos atendimentos; os saldos a repassar são acumulados. Forma prevista não representa recebimento conciliado, e o saldo após comissões não equivale ao lucro líquido sem despesas.
+`GET /admin/summary?from=...&to=...` aceita períodos de até 366 dias. Para admin, retorna somente contagens operacionais e equipe; para superadministrador, também retorna faturamento, comissões, regras, pagamentos previstos e repasses. A produção financeira segue a data programada dos atendimentos; os saldos a repassar são acumulados. Forma prevista não representa recebimento conciliado, e o saldo após comissões não equivale ao lucro líquido sem despesas.
 
 `POST /admin/agenda/bulk` recebe:
 
@@ -112,7 +118,7 @@ Ao concluir um atendimento, a API aplica a regra compatível e registra o snapsh
 
 Use `action: "cancel"` com apenas os IDs ou `action: "move"` com as novas datas/horários; o profissional é opcional no remanejamento. O lote aceita de 1 a 100 IDs únicos, somente de reservas confirmadas e não iniciadas. Conflitos ou dados inválidos desfazem todo o lote, incluindo histórico e auditoria.
 
-`POST /admin/my-barber-profile` ativa o perfil de barbeiro do próprio dono, mantendo seu papel de proprietário. Cadastre sua escala para disponibilizar horários.
+`POST /admin/my-barber-profile` ativa o perfil de barbeiro do próprio superadministrador. Cadastre sua escala para disponibilizar horários.
 
 ## Banco e migrações
 

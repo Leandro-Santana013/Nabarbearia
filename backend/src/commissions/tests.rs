@@ -47,7 +47,7 @@ async fn fixture(db: Db) -> Fixture {
         c.execute("INSERT INTO businesses(id,name,timezone,created_at_utc,updated_at_utc) VALUES (?1,'Finance Shop','America/Sao_Paulo',?2,?2)",params![business,now])?;
         for u in users {
             c.execute("INSERT INTO users(id,business_id,email,password_hash,display_name,created_at_utc,updated_at_utc) VALUES (?1,?2,?3,'!disabled-test-identity-without-login!',?4,?5,?5)",params![u.id,business,u.email,u.display_name,now])?;
-            let role = match u.roles[0] { Role::Owner=>"owner", Role::Barber=>"barber", Role::Client=>"client" };
+            let role = match u.roles[0] { Role::Owner=>"owner", Role::Admin=>"admin", Role::SuperAdmin=>"super_admin", Role::Barber=>"barber", Role::Client=>"client" };
             c.execute("INSERT INTO user_roles(business_id,user_id,role,created_at_utc) VALUES (?1,?2,?3,?4)",params![business,u.id,role,now])?;
             if u.roles.contains(&Role::Barber) {
                 c.execute("INSERT INTO barber_profiles(business_id,user_id,created_at_utc,updated_at_utc) VALUES (?1,?2,?3,?3)",params![business,u.id,now])?;

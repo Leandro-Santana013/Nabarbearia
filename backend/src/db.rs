@@ -50,6 +50,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "account_phone",
         include_str!("../migrations/0009_account_phone.sql"),
     ),
+    (
+        10,
+        "admin_roles",
+        include_str!("../migrations/0010_admin_roles.sql"),
+    ),
 ];
 
 #[derive(Debug, Error)]
@@ -221,6 +226,84 @@ mod tests {
         let lf = "CREATE TABLE test (id INTEGER);\n-- next line\n";
         let crlf = lf.replace('\n', "\r\n");
         assert_eq!(migration_checksum(lf), migration_checksum(&crlf));
+    }
+
+    #[test]
+    fn admin_role_migration_separates_the_named_accounts() {
+        let connection = Connection::open_in_memory().unwrap();
+        configure_connection(&connection).unwrap();
+        for (_, _, migration) in MIGRATIONS.iter().take(9) {
+            connection.execute_batch(migration).unwrap();
+        }
+        let now = "2026-09-21T00:00:00Z";
+        let business = "00000000-0000-7000-8000-000000000001";
+        connection
+            .execute(
+                "INSERT INTO businesses(id,name,timezone,created_at_utc,updated_at_utc)
+             VALUES (?1,'Test','America/Sao_Paulo',?2,?2)",
+                params![business, now],
+            )
+            .unwrap();
+        for (id, email) in [
+            (
+                "00000000-0000-7000-8000-000000000002",
+                "dono@nabarbearia.com.br",
+            ),
+            (
+                "00000000-0000-7000-8000-000000000003",
+                "nailton@nabarbearia.com.br",
+            ),
+        ] {
+            connection.execute(
+                "INSERT INTO users(id,business_id,email,password_hash,display_name,created_at_utc,updated_at_utc)
+                 VALUES (?1,?2,?3,?4,'Test',?5,?5)",
+                params![id, business, email, "x".repeat(32), now],
+            ).unwrap();
+            connection
+                .execute(
+                    "INSERT INTO user_roles(business_id,user_id,role,created_at_utc)
+                 VALUES (?1,?2,'owner',?3)",
+                    params![business, id, now],
+                )
+                .unwrap();
+        }
+        connection
+            .execute(
+                "INSERT INTO user_roles(business_id,user_id,role,created_at_utc)
+             VALUES (?1,'00000000-0000-7000-8000-000000000003','barber',?2)",
+                params![business, now],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO user_roles(business_id,user_id,role,created_at_utc)
+             VALUES (?1,'00000000-0000-7000-8000-000000000002','barber',?2)",
+                params![business, now],
+            )
+            .unwrap();
+
+        connection.execute_batch(MIGRATIONS[9].2).unwrap();
+
+        let admin_roles: Vec<String> = connection.prepare(
+            "SELECT role FROM user_roles WHERE user_id='00000000-0000-7000-8000-000000000002' ORDER BY role",
+        ).unwrap().query_map([], |row| row.get(0)).unwrap()
+            .collect::<Result<_, _>>().unwrap();
+        let super_admin_roles: Vec<String> = connection.prepare(
+            "SELECT role FROM user_roles WHERE user_id='00000000-0000-7000-8000-000000000003' ORDER BY role",
+        ).unwrap().query_map([], |row| row.get(0)).unwrap()
+            .collect::<Result<_, _>>().unwrap();
+        assert_eq!(admin_roles, ["admin"]);
+        assert_eq!(super_admin_roles, ["barber", "super_admin"]);
+        assert!(
+            connection
+                .prepare("PRAGMA foreign_key_check")
+                .unwrap()
+                .query([])
+                .unwrap()
+                .next()
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[tokio::test]

@@ -17,7 +17,7 @@ pub async fn cancel(
 ) -> Result<AppointmentResponse, Error> {
     let business_id = actor.business_id.clone();
     let actor_id = actor.id.clone();
-    let actor_is_owner = actor.roles.contains(&Role::Owner);
+    let actor_is_owner = actor.is_admin();
     let actor_is_client = actor.roles.contains(&Role::Client);
     db
         .with_conn(move |connection| -> Result<_, Error> {
@@ -57,7 +57,7 @@ pub async fn cancel(
 pub async fn start(db: &Db, actor: AuthUser, appointment_id: String) -> Result<(), Error> {
     let business_id = actor.business_id.clone();
     let actor_id = actor.id.clone();
-    let actor_is_owner = actor.roles.contains(&Role::Owner);
+    let actor_is_owner = actor.is_admin();
     let actor_is_barber = actor.roles.contains(&Role::Barber);
     db.with_conn(move |connection| -> Result<_, Error> {
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -101,7 +101,7 @@ pub async fn complete(
 ) -> Result<AppointmentResponse, Error> {
     let business_id = actor.business_id.clone();
     let actor_id = actor.id.clone();
-    let actor_is_owner = actor.roles.contains(&Role::Owner);
+    let actor_is_owner = actor.is_admin();
     let actor_is_barber = actor.roles.contains(&Role::Barber);
     db
         .with_conn(move |connection| -> Result<_, Error> {
@@ -162,7 +162,7 @@ pub async fn no_show(
 ) -> Result<AppointmentResponse, Error> {
     let business_id = actor.business_id.clone();
     let actor_id = actor.id.clone();
-    let actor_is_owner = actor.roles.contains(&Role::Owner);
+    let actor_is_owner = actor.is_admin();
     let actor_is_barber = actor.roles.contains(&Role::Barber);
     db
         .with_conn(move |connection| -> Result<_, Error> {
@@ -226,7 +226,7 @@ pub async fn edit_appointment(
     edit: AppointmentEdit,
 ) -> Result<AppointmentResponse, Error> {
     super::require_future(edit.starts_at)?;
-    if !actor.roles.contains(&Role::Owner) {
+    if !actor.is_admin() {
         return Err(Error::forbidden());
     }
     let business_id = actor.business_id;
@@ -321,7 +321,7 @@ pub async fn update_details(
     } = details;
     let business_id = actor.business_id.clone();
     let actor_id = actor.id.clone();
-    let owner = actor.roles.contains(&Role::Owner);
+    let owner = actor.is_admin();
     let barber = actor.roles.contains(&Role::Barber);
     db.with_conn(move |connection| -> Result<_, Error> {
         let tx = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -340,7 +340,7 @@ pub async fn reschedule(
     starts_at: DateTime<Utc>,
 ) -> Result<AppointmentResponse, Error> {
     super::require_future(starts_at)?;
-    let actor_is_owner = actor.roles.contains(&Role::Owner);
+    let actor_is_owner = actor.is_admin();
     let actor_is_client = actor.roles.contains(&Role::Client);
     let business_id = actor.business_id;
     let actor_id = actor.id;

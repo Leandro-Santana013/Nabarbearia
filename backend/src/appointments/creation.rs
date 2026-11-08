@@ -136,7 +136,7 @@ pub async fn create_reception(
         client_note,
     } = command;
     let walk_in = client_name.is_some();
-    if !actor.roles.contains(&Role::Owner)
+    if !actor.is_admin()
         && !(walk_in && actor.roles.contains(&Role::Barber) && barber_id == actor.id)
     {
         return Err(Error::forbidden());

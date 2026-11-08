@@ -4,7 +4,7 @@ import LoginScreen from '../../pages/LoginScreen'
 import { Button } from '../../components/ui/button'
 import { useAccess } from './AccessProvider'
 import { navigate } from './navigation'
-import { publicHome } from './routing'
+import { isManagement, publicHome } from './routing'
 
 export function CheckingAccess() {
   return <main aria-busy="true" aria-label="Carregando" className="min-h-dvh bg-background" />
@@ -25,6 +25,6 @@ export function DashboardAccess({ role, children }: { role: 'owner' | 'barber'; 
   if (connectionError) return <ConnectionFailure />
   if (checking) return <CheckingAccess />
   if (!session) return <LoginScreen key={notice} initialError={notice} onAuthenticated={accept} onGuest={() => navigate('/home')} onGoHome={() => navigate('/')} />
-  if (!session.user.roles.includes(role)) return <AccessDenied role={role} />
+  if (role === 'owner' ? !isManagement(session.user) : !session.user.roles.includes(role)) return <AccessDenied role={role} />
   return children(session)
 }

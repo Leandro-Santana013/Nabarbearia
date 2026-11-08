@@ -27,6 +27,126 @@ fn profile(email: &str) -> Value {
 }
 
 #[tokio::test]
+async fn admin_can_manage_operations_but_cannot_access_financial_data() {
+    let (state, app, owner_cookie, owner) = fixture().await;
+    let (_, _, admin) = request_json(
+        &app,
+        "POST",
+        "/api/v1/admin/barbers",
+        json!({
+            "email":"admin@account.test","password":PASSWORD,"display_name":"Admin"
+        }),
+        Some(&owner_cookie),
+        owner["csrf_token"].as_str(),
+        None,
+    )
+    .await;
+    let admin_user_id = admin["id"].as_str().unwrap().to_owned();
+    let business_id = owner["user"]["business_id"].as_str().unwrap().to_owned();
+    state
+        .db
+        .with_conn(move |connection| -> Result<(), crate::error::AppError> {
+            connection.execute("DELETE FROM user_roles WHERE user_id=?1", [&admin_user_id])?;
+            connection.execute(
+                "INSERT INTO user_roles(business_id,user_id,role,created_at_utc)
+             VALUES (?1,?2,'admin','2026-09-21T00:00:00Z')",
+                [&business_id, &admin_user_id],
+            )?;
+            Ok(())
+        })
+        .await
+        .unwrap();
+
+    let (status, headers, session) = request_json(
+        &app,
+        "POST",
+        "/api/v1/auth/staff/login",
+        json!({"email":"admin@account.test","password":PASSWORD}),
+        None,
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(session["user"]["roles"], json!(["admin"]));
+    let admin_cookie = cookie(&headers);
+    let csrf = session["csrf_token"].as_str();
+
+    let (status, _, services) = request_json(
+        &app,
+        "GET",
+        "/api/v1/admin/services",
+        json!({}),
+        Some(&admin_cookie),
+        csrf,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(services.is_array());
+
+    let (status, _, summary) = request_json(
+        &app,
+        "GET",
+        "/api/v1/admin/summary?from=2026-11-01T00%3A00%3A00Z&to=2026-12-01T00%3A00%3A00Z",
+        json!({}),
+        Some(&admin_cookie),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    for field in [
+        "revenue_cents",
+        "commission_cents",
+        "outstanding_cents",
+        "retained_cents",
+        "payments",
+        "payouts",
+        "rules",
+    ] {
+        assert!(
+            summary.get(field).is_none(),
+            "financial field {field} leaked"
+        );
+    }
+    assert!(summary["team"][0].get("revenue_cents").is_none());
+    assert!(summary["team"][0].get("outstanding_cents").is_none());
+
+    for path in ["/api/v1/reports/revenue", "/api/v1/admin/reports/revenue"] {
+        let (status, _, _) = request_json(
+            &app,
+            "GET",
+            path,
+            json!({}),
+            Some(&admin_cookie),
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{path}");
+    }
+    for (path, body) in [
+        (
+            "/api/v1/admin/commission-rules",
+            json!({
+                "rule_type":"percent","amount":5000
+            }),
+        ),
+        (
+            "/api/v1/admin/payouts",
+            json!({
+                "barber_user_id":admin["id"],"expected_amount_cents":1
+            }),
+        ),
+    ] {
+        let (status, _, _) =
+            request_json(&app, "POST", path, body, Some(&admin_cookie), csrf, None).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{path}");
+    }
+}
+
+#[tokio::test]
 async fn client_and_barber_can_update_only_their_own_account() {
     let (state, app, owner_cookie, owner) = fixture().await;
     let (_, _, barber) = request_json(
@@ -85,7 +205,7 @@ async fn client_and_barber_can_update_only_their_own_account() {
         for (field, value) in [
             ("commission", json!(100)),
             ("amount", json!(9999)),
-            ("roles", json!(["owner"])),
+            ("roles", json!(["super_admin"])),
             ("user_id", owner["user"]["id"].clone()),
             ("business_id", json!("other")),
         ] {

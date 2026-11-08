@@ -1,12 +1,12 @@
 use super::{
-    authenticate, idempotency_key, parse_input_utc, require_mutation, require_role, required_text,
-    utc_text, valid_id,
+    appointment_json, authenticate, idempotency_key, parse_input_utc, require_admin,
+    require_mutation, require_super_admin, required_text, utc_text, valid_id,
 };
 use crate::{
     AppState, appointments,
     db::insert_audit,
     error::{ApiResult, AppError},
-    models::{DateRangeQuery, MessageResponse, Role, ServiceResponse},
+    models::{DateRangeQuery, MessageResponse, ServiceResponse},
 };
 use axum::{
     Json,
@@ -22,7 +22,7 @@ pub(super) async fn services(
     headers: HeaderMap,
 ) -> ApiResult<Json<Vec<ServiceResponse>>> {
     let context = authenticate(&state, &headers).await?;
-    require_role(&context, Role::Owner)?;
+    require_admin(&context)?;
     let business = context.user.business_id;
     let result = state.db.with_conn(move |connection| -> Result<_, AppError> {
         let mut statement = connection.prepare("SELECT id,name,description,category,price_cents,duration_minutes,active FROM services WHERE business_id=?1 ORDER BY category,name")?;
@@ -38,7 +38,7 @@ pub(super) async fn summary(
     Query(query): Query<DateRangeQuery>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let context = authenticate(&state, &headers).await?;
-    require_role(&context, Role::Owner)?;
+    require_admin(&context)?;
     let from = query.from.as_deref().map(parse_input_utc).transpose()?;
     let to = query.to.as_deref().map(parse_input_utc).transpose()?;
     if from.is_none()
@@ -51,9 +51,13 @@ pub(super) async fn summary(
             "Selecione um período de até 366 dias.",
         ));
     }
-    let result =
+    let result = if context.user.is_super_admin() {
         crate::commissions::owner_summary(&state.db, context.user, from.unwrap(), to.unwrap())
-            .await?;
+            .await?
+    } else {
+        crate::commissions::admin_summary(&state.db, context.user, from.unwrap(), to.unwrap())
+            .await?
+    };
     Ok(Json(result))
 }
 
@@ -70,7 +74,7 @@ pub(super) async fn payout(
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
     let context = authenticate(&state, &headers).await?;
     require_mutation(&state, &headers, &context)?;
-    require_role(&context, Role::Owner)?;
+    require_super_admin(&context)?;
     let barber = valid_id(&request.barber_user_id)?;
     let key = idempotency_key(&headers)?;
     let result = crate::commissions::record_payout(
@@ -92,7 +96,7 @@ pub(super) async fn enable_hybrid(
 ) -> ApiResult<Json<MessageResponse>> {
     let context = authenticate(&state, &headers).await?;
     require_mutation(&state, &headers, &context)?;
-    require_role(&context, Role::Owner)?;
+    require_admin(&context)?;
     let business = context.user.business_id;
     let actor = context.user.id;
     state.db.with_conn(move |connection|->Result<_,AppError>{let tx=connection.transaction_with_behavior(TransactionBehavior::Immediate)?;let now=utc_text(Utc::now());
@@ -119,7 +123,7 @@ pub(super) async fn edit_barber(
 ) -> ApiResult<Json<MessageResponse>> {
     let context = authenticate(&state, &headers).await?;
     require_mutation(&state, &headers, &context)?;
-    require_role(&context, Role::Owner)?;
+    require_admin(&context)?;
     let barber = valid_id(&id)?;
     let name = required_text(
         &request.display_name,
@@ -170,7 +174,7 @@ pub(super) async fn bulk_agenda(
 ) -> ApiResult<Json<MessageResponse>> {
     let context = authenticate(&state, &headers).await?;
     require_mutation(&state, &headers, &context)?;
-    require_role(&context, Role::Owner)?;
+    require_admin(&context)?;
     if !["cancel", "move"].contains(&request.action.as_str())
         || request.changes.is_empty()
         || request.changes.len() > 100
@@ -239,10 +243,11 @@ pub(super) async fn edit_appointment(
     headers: HeaderMap,
     Path(id): Path<String>,
     Json(request): Json<AppointmentEdit>,
-) -> ApiResult<Json<crate::models::AppointmentResponse>> {
+) -> ApiResult<Json<serde_json::Value>> {
     let context = authenticate(&state, &headers).await?;
+    let hide_financials = context.user.is_admin() && !context.user.is_super_admin();
     require_mutation(&state, &headers, &context)?;
-    require_role(&context, Role::Owner)?;
+    require_admin(&context)?;
     let appointment_id = valid_id(&id)?;
     let service_id = valid_id(&request.service_id)?;
     let barber_id = valid_id(&request.barber_user_id)?;
@@ -258,5 +263,5 @@ pub(super) async fn edit_appointment(
         },
     )
     .await?;
-    Ok(Json(updated))
+    Ok(Json(appointment_json(updated, hide_financials)?))
 }

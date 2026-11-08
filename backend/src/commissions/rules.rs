@@ -1,4 +1,4 @@
-use super::{Error, Rule, Settlement, new_id, require_owner, settle_commission, utc_text};
+use super::{Error, Rule, Settlement, new_id, require_super_admin, settle_commission, utc_text};
 use crate::{
     db::{Db, insert_audit},
     models::AuthUser,
@@ -9,7 +9,7 @@ use rusqlite::{TransactionBehavior, params};
 /// Replace an equivalent active rule and regularize missing commissions atomically.
 /// Posted history is deliberately never selected for recalculation.
 pub async fn create_rule(db: &Db, actor: AuthUser, rule: Rule) -> Result<(), Error> {
-    require_owner(&actor)?;
+    require_super_admin(&actor)?;
     Rule::validate_values(rule.rule_type, rule.amount, rule.priority)?;
     if rule
         .valid_until

@@ -7,6 +7,8 @@ describe('entrada da equipe', () => {
   it('recusa clientes e prioriza gestão para dono híbrido', () => {
     expect(isStaff(user(['client']))).toBe(false)
     expect(staffHome(user(['owner', 'barber']))).toBe('/equipe/gestao/financeiro')
+    expect(staffHome(user(['admin']))).toBe('/equipe/gestao/agenda-geral')
+    expect(staffHome(user(['super_admin', 'barber']))).toBe('/equipe/gestao/financeiro')
     expect(staffHome(user(['barber']))).toBe('/equipe/barbeiro')
   })
   it('mantém navegação dos painéis dentro da equipe e bloqueia rotas públicas', () => {
