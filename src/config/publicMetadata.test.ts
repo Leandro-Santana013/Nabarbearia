@@ -41,7 +41,8 @@ describe('metadados públicos', () => {
     expect(data).not.toHaveProperty('aggregateRating')
     expect(data).not.toHaveProperty('rating')
     expect(JSON.stringify(data)).not.toContain('/illustrative/')
-    expect(data.image).toEqual([`${PUBLIC_SITE_ORIGIN}/brand/na-team.webp`])
+    expect(data.image).toEqual([`${PUBLIC_SITE_ORIGIN}/brand/optimized/team-1024.webp`])
+    expect(data.logo).toBe(`${PUBLIC_SITE_ORIGIN}/brand/optimized/logo-960.webp`)
   })
 
   it('escapa a fronteira do script JSON sem alterar os dados ao fazer parse', () => {

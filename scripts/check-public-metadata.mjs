@@ -43,8 +43,15 @@ function checkHtml(html, label) {
 }
 
 checkHtml(readFileSync(join(root, 'dist/index.html'), 'utf8'), 'dist/index.html')
-for (const asset of ['favicon.png', 'brand/og-cover.jpg', 'brand/na-team.webp', 'brand/na-logo-cutout.png']) {
+for (const asset of ['favicon.png', 'brand/og-cover.jpg', 'brand/optimized/team-1024.webp', 'brand/optimized/logo-960.webp']) {
   assert.equal(existsSync(join(root, 'dist', asset)), true, `Asset público ausente: ${asset}`)
+}
+for (const source of [
+  'brand/na-team.webp',
+  'brand/na-logo-cutout.png',
+  ...['acabamento', 'ambiente', 'barba', 'classico', 'combo', 'fade', 'textura'].map((name) => `brand/illustrative/${name}.png`),
+]) {
+  assert.equal(existsSync(join(root, 'dist', source)), false, `Original desnecessário copiado para o build: ${source}`)
 }
 const favicon = readFileSync(join(root, 'dist/favicon.png'))
 assert.equal(favicon.subarray(1, 4).toString(), 'PNG')

@@ -1,6 +1,7 @@
 import * as React from "react"
 import { Avatar as AvatarPrimitive } from "@base-ui/react/avatar"
 import { cn } from "cn"
+import { publicImageProps } from "../../lib/public-media"
 
 function Avatar({
   className,
@@ -23,6 +24,10 @@ function Avatar({
 }
 
 function AvatarImage({ className, ...props }: AvatarPrimitive.Image.Props) {
+  const responsiveImageProps = typeof props.src === "string"
+    ? publicImageProps(props.src, "40px")
+    : {}
+
   return (
     <AvatarPrimitive.Image
       data-slot="avatar-image"
@@ -30,7 +35,10 @@ function AvatarImage({ className, ...props }: AvatarPrimitive.Image.Props) {
         "aspect-square size-full rounded-full object-cover",
         className
       )}
+      loading="lazy"
+      decoding="async"
       {...props}
+      {...responsiveImageProps}
     />
   )
 }

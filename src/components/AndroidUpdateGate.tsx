@@ -81,7 +81,7 @@ export default function AndroidUpdateGate({ children }: { children: ReactNode })
   return <main className="flex min-h-dvh flex-col bg-background px-6 py-10 text-foreground">
     <div className="m-auto w-full max-w-sm">
       <div className="mb-10 flex items-center gap-3 border-b border-border pb-5">
-        <img src="/brand/na-logo-cutout.png" alt="NA Barbearia" className="size-14 rounded-2xl bg-[#079dc5] object-contain" />
+        <img src="/brand/optimized/logo-256.webp" alt="NA Barbearia" width="56" height="56" className="size-14 rounded-2xl bg-[#079dc5] object-contain" decoding="async" />
         <div><p className="font-semibold">NA Barbearia</p><p className="text-sm text-muted-foreground">Aplicativo da equipe</p></div>
       </div>
       <div className="space-y-6">

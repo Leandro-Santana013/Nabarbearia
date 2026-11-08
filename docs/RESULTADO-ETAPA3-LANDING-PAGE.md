@@ -63,13 +63,13 @@ Foi usada a skill `imagegen`, pelo modo de ferramenta integrada. Os arquivos sel
 
 | Arquivo salvo | Assunto do prompt |
 | --- | --- |
-| [fade.png](../public/brand/illustrative/fade.png) | Rear three-quarter close view of an anonymous adult man's fresh low taper fade haircut, dark hair, black barber cape, no face visible. |
-| [textura.png](../public/brand/illustrative/textura.png) | Side and rear close view of an anonymous adult man's short curly textured haircut, medium brown skin, black barber cape, face outside the frame. |
-| [classico.png](../public/brand/illustrative/classico.png) | Rear three-quarter close view of a neat classic side-part men's haircut, dark brown hair, black barber cape, no face visible. |
-| [barba.png](../public/brand/illustrative/barba.png) | Close view of the lower face of an anonymous adult man with a neatly shaped full beard and natural skin texture, black cape, face cropped above nose. |
-| [acabamento.png](../public/brand/illustrative/acabamento.png) | Close side view of an anonymous adult man's short beard and precise sideburn fade, face cropped above nose, no tools touching skin. |
-| [combo.png](../public/brand/illustrative/combo.png) | Rear three-quarter close view of an anonymous adult man with short textured haircut and neat short beard, black cape, no frontal face. |
-| [ambiente.png](../public/brand/illustrative/ambiente.png) | A fictional empty contemporary neighborhood barbershop interior, one black barber chair, large mirror, warm timber ceiling, pale walls, restrained cyan accents, no people. |
+| [fade.png](../media-sources/brand/illustrative/fade.png) | Rear three-quarter close view of an anonymous adult man's fresh low taper fade haircut, dark hair, black barber cape, no face visible. |
+| [textura.png](../media-sources/brand/illustrative/textura.png) | Side and rear close view of an anonymous adult man's short curly textured haircut, medium brown skin, black barber cape, face outside the frame. |
+| [classico.png](../media-sources/brand/illustrative/classico.png) | Rear three-quarter close view of a neat classic side-part men's haircut, dark brown hair, black barber cape, no face visible. |
+| [barba.png](../media-sources/brand/illustrative/barba.png) | Close view of the lower face of an anonymous adult man with a neatly shaped full beard and natural skin texture, black cape, face cropped above nose. |
+| [acabamento.png](../media-sources/brand/illustrative/acabamento.png) | Close side view of an anonymous adult man's short beard and precise sideburn fade, face cropped above nose, no tools touching skin. |
+| [combo.png](../media-sources/brand/illustrative/combo.png) | Rear three-quarter close view of an anonymous adult man with short textured haircut and neat short beard, black cape, no frontal face. |
+| [ambiente.png](../media-sources/brand/illustrative/ambiente.png) | A fictional empty contemporary neighborhood barbershop interior, one black barber chair, large mirror, warm timber ceiling, pale walls, restrained cyan accents, no people. |
 
 Prompt final de cada imagem: o texto abaixo, substituindo `{assunto}` pela célula correspondente acima e `{enquadramento}` por `Portrait 3:4`, ou `Landscape 3:2` no ambiente.
 
