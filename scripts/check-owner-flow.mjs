@@ -320,9 +320,6 @@ try {
     })()`);
   const assertAgendaStableOnHover = async (viewport) => {
     await send("Emulation.setDeviceMetricsOverride", viewport);
-    await send("Emulation.setEmulatedMedia", {
-      features: [{ name: "hover", value: "hover" }],
-    });
     await send("Input.dispatchMouseEvent", {
       type: "mouseMoved",
       x: 1,
@@ -353,11 +350,6 @@ try {
       layoutBeforeHover,
       "a grade, as colunas e o botão devem manter o tamanho ao exibir Agendar",
     );
-    if (viewport.mobile) {
-      await send("Emulation.setEmulatedMedia", {
-        features: [{ name: "hover", value: "none" }],
-      });
-    }
   };
   await assertAgendaStableOnHover({
     width: 1280,

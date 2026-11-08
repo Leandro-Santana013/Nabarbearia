@@ -971,11 +971,11 @@ export default function OwnerDashboard({
                                     >
                                       <span
                                         aria-hidden="true"
-                                        className="group-hover:hidden"
+                                        className="owner-agenda-open-slot-placeholder"
                                       >
                                         —
                                       </span>
-                                      <span className="hidden items-center justify-center gap-1 group-hover:inline-flex">
+                                      <span className="owner-agenda-open-slot-label items-center justify-center gap-1">
                                         <Plus aria-hidden="true" className="size-3" />
                                         Agendar
                                       </span>
