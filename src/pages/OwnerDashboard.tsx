@@ -4,7 +4,6 @@ import {
   ArrowRightLeft,
   Calendar,
   DollarSign,
-  Home,
   LogOut,
   Plus,
   RefreshCw,
@@ -343,7 +342,7 @@ export default function OwnerDashboard({
             ) : superAdmin ? (
               <Dialog open={hybridPrompt} onOpenChange={setHybridPrompt}>
                 <DialogTrigger
-                  render={<Button variant="outline" className={button} />}
+                  render={<Button variant="outline" className={button} disabled={busy} />}
                 >
                   <ArrowRightLeft className="size-4" />
                   Modo Híbrido: Minha Agenda
@@ -354,8 +353,8 @@ export default function OwnerDashboard({
                   </DialogTitle>
                   <DialogDescription className="text-sm text-muted-foreground">
                     Você será incluído na equipe como barbeiro e manterá o
-                    acesso de proprietário. Configure seus horários em Equipe →
-                    Escala para receber reservas.
+                    acesso de proprietário. Depois, poderá configurar seus
+                    horários para receber reservas.
                   </DialogDescription>
                   {error && (
                     <p role="alert" className="text-sm text-destructive">
@@ -372,16 +371,6 @@ export default function OwnerDashboard({
                 </DialogContent>
               </Dialog>
             ) : null}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onNavigate("/")}
-              aria-label="Ir para a página principal"
-              className="h-10 gap-1.5 rounded-xl border-border bg-white px-3 text-xs! font-semibold! text-foreground shadow-xs transition-colors hover:bg-accent"
-            >
-              <Home aria-hidden="true" className="size-4 text-primary" />
-              <span>Início</span>
-            </Button>
             <Button
               variant="ghost"
               size="icon"
