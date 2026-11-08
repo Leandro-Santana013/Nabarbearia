@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, MessageCircle } from 'lucide-react'
 import { motion, useMotionValueEvent, useReducedMotion, useScroll, useSpring, useTransform } from 'motion/react'
-import type { FocusEvent } from 'react'
+import type { FocusEvent, PointerEvent } from 'react'
 import type { LandingContent, LandingFaq, LandingGalleryPhoto, LandingPhoto, LandingTestimonial } from '../config/landingContent'
 import { publicImageProps, publicImageSizes } from '../lib/public-media'
 
@@ -58,6 +58,7 @@ export function PublicGallery({ photos }: { photos: readonly LandingGalleryPhoto
   const [currentIndex, setCurrentIndex] = useState(0)
   const [hovered, setHovered] = useState(false)
   const [focusWithin, setFocusWithin] = useState(false)
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
   const paused = hovered || focusWithin
 
   useEffect(() => {
@@ -71,6 +72,20 @@ export function PublicGallery({ photos }: { photos: readonly LandingGalleryPhoto
   const moveTo = (index: number) => setCurrentIndex(index % visiblePhotos.length)
   const nextSlide = () => setCurrentIndex((index) => (index + 1) % visiblePhotos.length)
   const previousSlide = () => setCurrentIndex((index) => (index - 1 + visiblePhotos.length) % visiblePhotos.length)
+  const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== 'touch') return
+    touchStart.current = { x: event.clientX, y: event.clientY }
+  }
+  const handlePointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    const start = touchStart.current
+    touchStart.current = null
+    if (!start || event.pointerType !== 'touch') return
+    const deltaX = event.clientX - start.x
+    const deltaY = event.clientY - start.y
+    if (Math.abs(deltaX) < 45 || Math.abs(deltaX) < Math.abs(deltaY) * 1.2) return
+    if (deltaX < 0) nextSlide()
+    else previousSlide()
+  }
   const handleBlur = (event: FocusEvent<HTMLDivElement>) => {
     if (!event.currentTarget.contains(event.relatedTarget)) setFocusWithin(false)
   }
@@ -80,11 +95,6 @@ export function PublicGallery({ photos }: { photos: readonly LandingGalleryPhoto
     <div className="public-container">
       <div className="public-gallery-carousel-heading">
         <div className="public-section-heading"><span className="public-eyebrow">Referências de estilo</span><h2 id="gallery-title">Encontre seu próximo visual.</h2><p>{visiblePhotos.some((photo) => photo.illustrative) ? 'Inspirações de estilo e registros da barbearia. As imagens ilustrativas estão identificadas.' : 'Cortes e acabamentos feitos pela equipe da NA.'}</p></div>
-        <div className="public-gallery-controls" aria-label="Controles da galeria">
-          <button type="button" className="public-gallery-arrow" onClick={previousSlide} aria-label="Foto anterior"><ArrowLeft size={20} /></button>
-          <span className="public-gallery-count" aria-hidden="true">{String(currentIndex + 1).padStart(2, '0')} <span>/</span> {String(visiblePhotos.length).padStart(2, '0')}</span>
-          <button type="button" className="public-gallery-arrow" onClick={nextSlide} aria-label="Próxima foto"><ArrowRight size={20} /></button>
-        </div>
       </div>
       <div
         className="public-gallery-carousel"
@@ -93,6 +103,9 @@ export function PublicGallery({ photos }: { photos: readonly LandingGalleryPhoto
         aria-roledescription="carrossel"
         onPointerEnter={() => setHovered(true)}
         onPointerLeave={() => setHovered(false)}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={() => { touchStart.current = null }}
         onFocusCapture={() => setFocusWithin(true)}
         onBlurCapture={handleBlur}
       >
@@ -119,6 +132,11 @@ export function PublicGallery({ photos }: { photos: readonly LandingGalleryPhoto
             aria-current={currentIndex === index ? 'true' : undefined}
             onClick={() => moveTo(index)}
           />)}
+        </div>
+        <div className="public-gallery-controls" aria-label="Controles da galeria">
+          <button type="button" className="public-gallery-arrow" onClick={previousSlide} aria-label="Foto anterior"><ArrowLeft size={20} /></button>
+          <span className="public-gallery-count" aria-hidden="true">{String(currentIndex + 1).padStart(2, '0')} <span>/</span> {String(visiblePhotos.length).padStart(2, '0')}</span>
+          <button type="button" className="public-gallery-arrow" onClick={nextSlide} aria-label="Próxima foto"><ArrowRight size={20} /></button>
         </div>
       </div>
     </div>

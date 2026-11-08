@@ -7,7 +7,6 @@ import {
   Instagram,
   Layers,
   Menu,
-  Phone,
   Scissors,
   X,
 } from 'lucide-react'
@@ -20,7 +19,7 @@ import { groupLandingServices } from './lib/landing-services'
 import type { Barber, Service } from './types'
 import { clearLandingIntent, saveLandingIntent, type LandingSelection } from './lib/booking/landing-intent'
 import { landingContent } from './config/landingContent'
-import { PublicFaq, PublicGallery, PublicPracticalInfo, PublicShopPhoto, PublicShopReel, PublicTestimonials } from './components/PublicContent'
+import { PublicFaq, PublicGallery, PublicShopReel, PublicTestimonials } from './components/PublicContent'
 import { publicImageProps, publicImageSizes } from './lib/public-media'
 
 const serviceHighlights = [
@@ -82,7 +81,7 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
     if (!main || !('IntersectionObserver' in window) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
     const targets = Array.from(main.querySelectorAll<HTMLElement>(
-      '.public-hero-copy, .public-hero-art, .public-section-heading, .public-service-card, .public-team-story, .public-team-list-heading, .public-team-card, .public-how-grid > *, .public-testimonial-grid > figure, .public-visit-info, .public-visit-media, .public-faq-grid > *',
+      '.public-hero-copy, .public-hero-art, .public-section-heading, .public-service-card, .public-team-story, .public-team-list-heading, .public-team-card, .public-how-grid > *, .public-testimonial-grid > figure, .public-location, .public-faq',
     ))
     targets.forEach((target, index) => {
       target.dataset.scrollReveal = 'hidden'
@@ -315,27 +314,15 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
               <h2 id="location-title">A gente te espera no Macuco.</h2>
               <address>{siteConfig.address.street}<br />{siteConfig.address.neighborhood} · {siteConfig.address.city}/{siteConfig.address.state} · {siteConfig.address.postalCode}</address>
               <div className="location-actions"><a className="public-button public-button-dark" href={siteConfig.address.mapsUrl} {...externalLinkProps}>Como chegar <ArrowUpRight size={16} /></a></div>
-              <div className="public-visit-hours">
-                <h3>Horários da unidade</h3>
-                <dl className="public-hours-list">
-                  {siteConfig.hours.map((hours) => <div key={hours.days}><dt>{hours.label}</dt><dd>{hours.closed ? 'Fechado' : `${hours.open}–${hours.close}`}</dd></div>)}
-                </dl>
-                <p>Horários gerais de atendimento. Consulte a agenda para ver a disponibilidade de cada profissional.</p>
-              </div>
-              <div className="public-visit-contact">
-                <a href={siteConfig.phoneHref}><Phone size={18} aria-hidden="true" /><span>{siteConfig.phone}</span></a>
-                <a href={siteConfig.instagramUrl} {...externalLinkProps} aria-label="Instagram da NA Barbearia (abre em nova aba)"><Instagram size={18} aria-hidden="true" /><span>@nabarbeariaa</span></a>
-              </div>
-              <PublicPracticalInfo content={landingContent} />
             </div>
             <div className="public-visit-media">
-              <PublicShopPhoto photo={landingContent.shopPhoto} />
               <div className="public-map-frame"><iframe title="Mapa da localização da NA Barbearia" src={siteConfig.mapEmbedUrl} loading="lazy" referrerPolicy="no-referrer-when-downgrade" /></div>
             </div>
           </div>
         </section>
 
         <PublicFaq items={landingContent.faq} />
+
       </main>
 
       <footer className="public-footer"><div className="public-container public-footer-inner"><a className="public-brand" href="#inicio" aria-label="NA Barbearia, voltar ao início"><BrandSymbol loading="lazy" /></a><span>© {new Date().getFullYear()} NA Barbearia · Santos/SP</span><a className="public-social-link" href={siteConfig.instagramUrl} {...externalLinkProps} aria-label="Instagram da NA Barbearia (abre em nova aba)" title="@nabarbeariaa"><Instagram size={21} aria-hidden="true" /></a></div></footer>

@@ -311,11 +311,17 @@ body:has(.public-site) { min-width: 0; }
 .public-site .public-how .public-button, .public-site .public-button-cyan { color: var(--blue-dark); background: var(--cyan); }
 .public-site .public-how .public-button:hover, .public-site .public-button-cyan:hover { background: #67d7ff; }
 .public-site .public-steps li > span { border-color: #409ebc; color: #6ed9ff; }
-.public-site .public-location { background: var(--brand-paper); }
-:where(.public-site) .public-visit-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; gap: 56px; }
+.public-site .public-location { height: 516px; min-height: 516px; padding: 0; color: #fff; background: #041e2b; font-family: 'Plus Jakarta Sans Variable', Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.public-site .public-location > .public-container { box-sizing: border-box; width: calc(100% - 48px); max-width: 1160px; height: 100%; min-height: 0; margin-inline: auto; }
+:where(.public-site) .public-visit-grid { display: grid; grid-template-columns: minmax(0, .705fr) minmax(0, 1fr); align-items: center; gap: clamp(32px, 4vw, 76px); }
 :where(.public-site) .public-visit-grid > * { min-width: 0; }
-:where(.public-site) .public-visit-info h2 { max-width: 560px; margin: 15px 0 18px; color: var(--blue-dark); font-size: clamp(30px, 4vw, 48px); font-weight: 750; letter-spacing: -.035em; line-height: 1.16; }
-:where(.public-site) .public-visit-info address { color: var(--blue-dark); font-size: 18px; font-style: normal; line-height: 1.7; }
+:where(.public-site) .public-visit-info { align-self: center; padding-block: clamp(42px, 5vw, 72px); }
+:where(.public-site) .public-visit-info .public-eyebrow { color: #7896f0; }
+:where(.public-site) .public-visit-info h2 { max-width: 580px; margin: 22px 0 16px; color: #fff; font-size: clamp(38px, 3.15vw, 60px); font-weight: 500; letter-spacing: -.055em; line-height: .99; }
+:where(.public-site) .public-visit-info address { color: #c8d4e1; font-size: clamp(16px, 1.2vw, 22px); font-style: normal; line-height: 1.65; }
+:where(.public-site) .public-location :is(.public-visit-hours, .public-visit-contact, .public-practical-info, .public-shop-photo) { display: none; }
+:where(.public-site) .public-location .location-actions { margin-top: 24px; }
+:where(.public-site) .public-location .location-actions .public-button { min-height: 56px; padding-inline: 24px; border-radius: 12px; color: #1e2c40; background: #7896f0; }
 :where(.public-site) .public-visit-info > p { margin: 12px 0 0; color: var(--muted-foreground); font-size: 15px; line-height: 1.65; }
 :where(.public-site) .public-visit-hours { margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--line); }
 :where(.public-site) .public-visit-hours h3 { margin: 0 0 12px; color: var(--blue-dark); font-size: 16px; font-weight: 750; line-height: 1.4; }
@@ -326,8 +332,9 @@ body:has(.public-site) { min-width: 0; }
 :where(.public-site) .public-visit-hours > p { margin: 14px 0 0; color: var(--muted-foreground); font-size: 12px; line-height: 1.6; }
 :where(.public-site) .public-visit-contact { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 24px; margin-top: 24px; }
 :where(.public-site) .public-visit-contact a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; max-width: 100%; color: var(--blue); font-size: 14px; font-weight: 650; line-height: 1.5; }
-.public-site .public-location .public-map-frame { min-height: 400px; height: auto; border: 1px solid var(--line); background: #fff; }
-.public-site .public-location .public-map-frame iframe { min-height: 400px; height: 100%; }
+.public-site .public-location .public-visit-media { justify-content: center; padding-block: 0; }
+.public-site .public-location .public-map-frame { flex: 0 0 auto; width: 100%; min-height: 0; height: auto; max-height: none; aspect-ratio: 1.95; border: 4px solid #fff; border-radius: 16px; background: #fff; }
+.public-site .public-location .public-map-frame iframe { min-height: 100%; height: 100%; }
 .public-site .public-team { background: #fff; }
 :where(.public-site) .public-team-story { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); overflow: hidden; border-radius: 18px; background: var(--blue-dark); }
 :where(.public-site) .public-team-group { position: relative; min-width: 0; margin: 0; }
@@ -455,16 +462,27 @@ body:has(.public-site) { min-width: 0; }
   :where(.public-site) .public-service-card { padding: 28px; }
   :where(.public-site) .public-service-card h3 { margin-top: 18px; }
   .public-site .public-how-grid { gap: 36px; }
-  :where(.public-site) .public-visit-grid { grid-template-columns: minmax(0, 1fr); gap: 32px; }
-  .public-site .public-location .public-map-frame { min-height: 320px; height: 320px; }
-  .public-site .public-location .public-map-frame iframe { min-height: 320px; height: 100%; }
+  .public-site .public-location { height: auto; min-height: 0; padding: 0; }
+  .public-site .public-location > .public-container { width: min(680px, calc(100% - 48px)); max-width: none; height: auto; min-height: 0; }
+  :where(.public-site) .public-visit-grid { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .public-site .public-location .public-visit-info { padding-block: 36px 0; }
+  .public-site .public-location .public-visit-media { padding-block: 0 36px; }
+  .public-site .public-location .public-map-frame { min-height: 0; height: auto; aspect-ratio: 1.55; }
+  .public-site .public-location .public-map-frame iframe { min-height: 0; height: 100%; }
 }
 @media (max-width: 700px) {
   .public-site .public-faq, .public-site .public-gallery, .public-site .public-testimonials, .public-site .public-reel { padding-block: 48px; }
   :where(.public-site) .public-testimonial-grid { gap: 24px; }
   .public-site .public-gallery { padding-bottom: 32px; }
-  .public-site .public-gallery-carousel-heading { align-items: end; gap: 12px; margin-bottom: 22px; }
-  .public-site .public-gallery-controls { gap: 6px; }
+  .public-site .public-gallery-carousel-heading { flex-direction: column; align-items: center; gap: 18px; margin-bottom: 0; text-align: center; }
+  .public-site .public-gallery-carousel-heading .public-section-heading { width: 100%; max-width: 440px; }
+  .public-site .public-gallery-carousel-heading .public-eyebrow { justify-content: center; }
+  .public-site .public-gallery-carousel-heading .public-section-heading h2,
+  .public-site .public-gallery-carousel-heading .public-section-heading p { margin-inline: auto; }
+  .public-site .public-gallery-carousel { display: flex; flex-direction: column; }
+  .public-site .public-gallery-carousel-window { order: 0; width: 100%; margin-top: 22px; touch-action: pan-y; }
+  .public-site .public-gallery-pagination { order: 1; }
+  .public-site .public-gallery-controls { order: 2; justify-content: center; gap: 10px; margin-top: 8px; padding: 0; }
   .public-site .public-gallery-arrow { width: 40px; height: 40px; }
   :where(.public-site) .public-gallery-carousel-window { height: 420px; }
   :where(.public-site) .public-gallery-grid figure { width: min(76%, 340px); }
@@ -499,7 +517,7 @@ body:has(.public-site) { min-width: 0; }
   :where(.public-site) .public-service-card { padding: 24px; }
   :where(.public-site) .public-service-card h3 { font-size: 22px; }
   .public-site .public-how-grid { gap: 28px; }
-  :where(.public-site) .public-visit-info h2 { font-size: clamp(28px, 7.5vw, 42px); }
+  :where(.public-site) .public-visit-info h2 { font-size: clamp(32px, 8vw, 46px); }
   :where(.public-site) .public-visit-info address { font-size: 16px; }
   .public-site .public-team-story { border-radius: 12px; }
   :where(.public-site) .public-team-intro { padding: 30px 24px; }
