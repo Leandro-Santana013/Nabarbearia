@@ -749,12 +749,10 @@ pub(super) fn appointment_json(
     hide_financials: bool,
 ) -> Result<serde_json::Value, AppError> {
     let mut value = serde_json::to_value(appointment).map_err(|_| AppError::Internal)?;
-    if hide_financials {
-        if let Some(fields) = value.as_object_mut() {
-            fields.remove("price_cents");
-            fields.remove("payment_method");
-            fields.remove("commission_cents");
-        }
+    if hide_financials && let Some(fields) = value.as_object_mut() {
+        fields.remove("price_cents");
+        fields.remove("payment_method");
+        fields.remove("commission_cents");
     }
     Ok(value)
 }
