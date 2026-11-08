@@ -423,7 +423,10 @@ async fn login_for_channel(
     {
         return Err(AppError::too_many_requests());
     }
-    let password = password_value(&request.password)?;
+    // No login, uma senha incorreta deve resultar no erro genérico de
+    // autenticação. A política de complexidade vale para criação e alteração
+    // de senha, não para validar tentativas de acesso existentes.
+    let password = request.password;
     let email_for_query = email.clone();
     let candidate = state
         .db
@@ -2116,6 +2119,24 @@ mod tests {
     #[tokio::test]
     async fn login_attempts_return_rate_limit_error_after_ten_requests() {
         let app = test_app();
+        let bootstrap = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let (status, _, _) = request_json(
+            &app,
+            "POST",
+            "/api/v1/setup/owner",
+            json!({
+                "business_name":"Rate Limit Test",
+                "timezone":"America/Sao_Paulo",
+                "email":"limit@example.test",
+                "password":"TestPassword123!",
+                "display_name":"Owner"
+            }),
+            None,
+            None,
+            Some(bootstrap),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
         let payload = json!({"email":"limit@example.test","password":"short"});
         for _ in 0..10 {
             let (status, _, body) = request_json(
@@ -2128,8 +2149,8 @@ mod tests {
                 None,
             )
             .await;
-            assert_eq!(status, StatusCode::BAD_REQUEST);
-            assert_eq!(body["code"], "INVALID_PASSWORD");
+            assert_eq!(status, StatusCode::UNAUTHORIZED);
+            assert_eq!(body["code"], "UNAUTHORIZED");
         }
         let (status, headers, body) = request_json(
             &app,
