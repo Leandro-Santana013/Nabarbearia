@@ -1,83 +1,83 @@
 {
-  "_AccessScreen-D0GhHjiA.js": {
-    "file": "assets/AccessScreen-D0GhHjiA.js",
+  "_AccessScreen-BcugPIxO.js": {
+    "file": "assets/AccessScreen-BcugPIxO.js",
     "name": "AccessScreen",
     "imports": [
       "index.html",
-      "_alert-C86sZ2ji.js"
+      "_alert-DJxdqUiW.js"
     ]
   },
-  "_AccountDetailsForm-DeSYPqUQ.js": {
-    "file": "assets/AccountDetailsForm-DeSYPqUQ.js",
+  "_AccountDetailsForm-C_sh1V6o.js": {
+    "file": "assets/AccountDetailsForm-C_sh1V6o.js",
     "name": "AccountDetailsForm",
     "imports": [
       "index.html",
-      "_alert-C86sZ2ji.js",
-      "_AccessScreen-D0GhHjiA.js"
+      "_alert-DJxdqUiW.js",
+      "_AccessScreen-BcugPIxO.js"
     ]
   },
-  "_BarberDashboard-C6jS8Bnl.js": {
-    "file": "assets/BarberDashboard-C6jS8Bnl.js",
+  "_BarberDashboard-8E07R-Kj.css": {
+    "file": "assets/BarberDashboard-8E07R-Kj.css",
+    "src": "_BarberDashboard-8E07R-Kj.css"
+  },
+  "_BarberDashboard-CHIgOiPF.js": {
+    "file": "assets/BarberDashboard-CHIgOiPF.js",
     "name": "BarberDashboard",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_alert-C86sZ2ji.js",
-      "_badge-Pvi97mWg.js",
-      "_AccountDetailsForm-DeSYPqUQ.js",
-      "_AccessScreen-D0GhHjiA.js"
+      "_alert-DJxdqUiW.js",
+      "_badge-D7RxrhT6.js",
+      "_AccountDetailsForm-C_sh1V6o.js",
+      "_AccessScreen-BcugPIxO.js"
     ],
     "css": [
-      "assets/BarberDashboard-DTXKGcFA.css"
+      "assets/BarberDashboard-8E07R-Kj.css"
     ]
   },
-  "_BarberDashboard-DTXKGcFA.css": {
-    "file": "assets/BarberDashboard-DTXKGcFA.css",
-    "src": "_BarberDashboard-DTXKGcFA.css"
-  },
-  "_alert-C86sZ2ji.js": {
-    "file": "assets/alert-C86sZ2ji.js",
+  "_alert-DJxdqUiW.js": {
+    "file": "assets/alert-DJxdqUiW.js",
     "name": "alert",
     "imports": [
       "index.html"
     ]
   },
-  "_badge-Pvi97mWg.js": {
-    "file": "assets/badge-Pvi97mWg.js",
+  "_badge-D7RxrhT6.js": {
+    "file": "assets/badge-D7RxrhT6.js",
     "name": "badge",
     "imports": [
       "index.html",
-      "_alert-C86sZ2ji.js"
+      "_alert-DJxdqUiW.js"
     ]
   },
-  "_radio-group-Sy8AM5lU.js": {
-    "file": "assets/radio-group-Sy8AM5lU.js",
+  "_radio-group-BXzDU9SL.js": {
+    "file": "assets/radio-group-BXzDU9SL.js",
     "name": "radio-group",
     "imports": [
       "index.html",
-      "_alert-C86sZ2ji.js",
-      "_useValueChanged-Dn2FGrLs.js"
+      "_alert-DJxdqUiW.js",
+      "_useValueChanged-CbIH2_7r.js"
     ]
   },
-  "_tabs-BaLVDWLF.js": {
-    "file": "assets/tabs-BaLVDWLF.js",
+  "_tabs-Dy0UTKHX.js": {
+    "file": "assets/tabs-Dy0UTKHX.js",
     "name": "tabs",
     "imports": [
       "index.html",
-      "_alert-C86sZ2ji.js",
-      "_useValueChanged-Dn2FGrLs.js"
+      "_alert-DJxdqUiW.js",
+      "_useValueChanged-CbIH2_7r.js"
     ]
   },
-  "_useValueChanged-Dn2FGrLs.js": {
-    "file": "assets/useValueChanged-Dn2FGrLs.js",
+  "_useValueChanged-CbIH2_7r.js": {
+    "file": "assets/useValueChanged-CbIH2_7r.js",
     "name": "useValueChanged",
     "imports": [
-      "_alert-C86sZ2ji.js",
+      "_alert-DJxdqUiW.js",
       "index.html"
     ]
   },
   "index.html": {
-    "file": "assets/index-BeuRoICo.js",
+    "file": "assets/index-CBZhvcfc.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -87,7 +87,7 @@
       "src/StyleguideApp.tsx"
     ],
     "css": [
-      "assets/index-Dx6MEdCC.css"
+      "assets/index-RqBnRIWq.css"
     ],
     "assets": [
       "assets/plus-jakarta-sans-vietnamese-wght-normal-qRpaaN48.woff2",
@@ -133,82 +133,82 @@
     "src": "node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-vietnamese-wght-normal.woff2"
   },
   "src/ClientApp.tsx": {
-    "file": "assets/ClientApp-KuNYAHjy.js",
+    "file": "assets/ClientApp-dd58O0hy.js",
     "name": "ClientApp",
     "src": "src/ClientApp.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_tabs-BaLVDWLF.js",
-      "_alert-C86sZ2ji.js",
-      "_badge-Pvi97mWg.js",
-      "_useValueChanged-Dn2FGrLs.js",
-      "_radio-group-Sy8AM5lU.js",
-      "_AccountDetailsForm-DeSYPqUQ.js",
-      "_AccessScreen-D0GhHjiA.js"
+      "_tabs-Dy0UTKHX.js",
+      "_alert-DJxdqUiW.js",
+      "_badge-D7RxrhT6.js",
+      "_useValueChanged-CbIH2_7r.js",
+      "_radio-group-BXzDU9SL.js",
+      "_AccountDetailsForm-C_sh1V6o.js",
+      "_AccessScreen-BcugPIxO.js"
     ]
   },
   "src/PublicApp.tsx": {
-    "file": "assets/PublicApp-DJIzVf-7.js",
+    "file": "assets/PublicApp-FlQRuRya.js",
     "name": "PublicApp",
     "src": "src/PublicApp.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_AccessScreen-D0GhHjiA.js",
-      "_alert-C86sZ2ji.js"
+      "_AccessScreen-BcugPIxO.js",
+      "_alert-DJxdqUiW.js"
     ],
     "dynamicImports": [
       "src/ClientApp.tsx",
-      "_BarberDashboard-C6jS8Bnl.js",
+      "_BarberDashboard-CHIgOiPF.js",
       "src/pages/OwnerDashboard.tsx"
     ]
   },
   "src/StaffApp.tsx": {
-    "file": "assets/StaffApp-BPVBCiwV.js",
+    "file": "assets/StaffApp-C6RguCvr.js",
     "name": "StaffApp",
     "src": "src/StaffApp.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_AccessScreen-D0GhHjiA.js",
-      "_alert-C86sZ2ji.js"
+      "_AccessScreen-BcugPIxO.js",
+      "_alert-DJxdqUiW.js"
     ],
     "dynamicImports": [
-      "_BarberDashboard-C6jS8Bnl.js",
+      "_BarberDashboard-CHIgOiPF.js",
       "src/pages/OwnerDashboard.tsx"
     ]
   },
   "src/StyleguideApp.tsx": {
-    "file": "assets/StyleguideApp-8FzADj7d.js",
+    "file": "assets/StyleguideApp-7y8ZrR2k.js",
     "name": "StyleguideApp",
     "src": "src/StyleguideApp.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_alert-C86sZ2ji.js",
-      "_badge-Pvi97mWg.js",
-      "_radio-group-Sy8AM5lU.js",
-      "_useValueChanged-Dn2FGrLs.js"
+      "_alert-DJxdqUiW.js",
+      "_badge-D7RxrhT6.js",
+      "_radio-group-BXzDU9SL.js",
+      "_useValueChanged-CbIH2_7r.js"
     ]
   },
   "src/pages/OwnerDashboard.tsx": {
-    "file": "assets/OwnerDashboard-DWNB8tVi.js",
+    "file": "assets/OwnerDashboard-RIJZ6JEe.js",
     "name": "OwnerDashboard",
     "src": "src/pages/OwnerDashboard.tsx",
     "isDynamicEntry": true,
     "imports": [
       "index.html",
-      "_badge-Pvi97mWg.js",
-      "_alert-C86sZ2ji.js",
-      "_tabs-BaLVDWLF.js",
-      "_AccessScreen-D0GhHjiA.js",
-      "_useValueChanged-Dn2FGrLs.js",
-      "_BarberDashboard-C6jS8Bnl.js",
-      "_AccountDetailsForm-DeSYPqUQ.js"
+      "_badge-D7RxrhT6.js",
+      "_alert-DJxdqUiW.js",
+      "_tabs-Dy0UTKHX.js",
+      "_AccessScreen-BcugPIxO.js",
+      "_useValueChanged-CbIH2_7r.js",
+      "_BarberDashboard-CHIgOiPF.js",
+      "_AccountDetailsForm-C_sh1V6o.js"
     ],
     "css": [
-      "assets/OwnerDashboard-2hKX7kSk.css"
+      "assets/OwnerDashboard-Cl5PUR1B.css"
     ]
   }
 }

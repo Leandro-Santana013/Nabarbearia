@@ -50,7 +50,7 @@ export default function Home({
   }
 
   return (
-    <div className="min-h-screen bg-[#F4F4F6] text-[#111111] font-sans antialiased flex flex-col">
+    <div className="min-h-screen bg-background text-foreground font-sans antialiased flex flex-col">
       {/* Conteúdo Principal (Mobile-First max-w-md no mobile, expansível no desktop) */}
       <main className="w-full max-w-md md:max-w-4xl lg:max-w-5xl mx-auto px-4 md:px-6 pt-4 md:pt-8 pb-12 md:pb-16 flex flex-col gap-4 md:gap-6">
 
@@ -111,7 +111,7 @@ export default function Home({
                 setSelectedCategory("Todos")
                 setSearchQuery("")
               }}
-              className="text-xs text-[#0099FF] font-semibold cursor-pointer hover:underline"
+              className="text-xs text-primary font-semibold cursor-pointer hover:underline"
             >
               Ver todos ({services.length})
             </span>
@@ -143,7 +143,7 @@ export default function Home({
                   setSelectedCategory("Todos")
                   setSearchQuery("")
                 }}
-                className="text-xs text-[#0099FF] font-bold hover:underline"
+                className="text-xs text-primary font-bold hover:underline"
               >
                 Limpar filtros
               </button>
@@ -159,7 +159,7 @@ export default function Home({
                   <img src="/brand/optimized/logo-256.webp" alt="Logo da NA Barbearia" width="256" height="256" loading="lazy" decoding="async" className="size-12 object-contain" />
                 </span>
                 <div>
-                  <p className="text-lg font-bold tracking-tight text-[#111111]">{BARBERSHOP_INFO.name}</p>
+                  <p className="text-lg font-bold tracking-tight text-primary">{BARBERSHOP_INFO.name}</p>
                   <p className="mt-1 max-w-xs text-sm leading-relaxed">Estética, cuidado pessoal e bem-estar masculino em Santos.</p>
                 </div>
               </div>

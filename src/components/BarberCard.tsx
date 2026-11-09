@@ -35,7 +35,7 @@ export default function BarberCard({
   return (
     <Card className="rounded-3xl border-border/80 bg-card p-3 shadow-xs hover:shadow-md transition-all flex flex-col justify-between overflow-hidden group">
       {/* Topo: Imagem ou Placeholder Ilustrativo com Badge de Nota */}
-      <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-gradient-to-br from-[#0099FF]/15 to-muted border border-border/40 flex items-center justify-center">
+      <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-gradient-to-br from-primary/15 to-accent border border-border/40 flex items-center justify-center">
         {image ? (
           <img
             src={image}
@@ -62,7 +62,7 @@ export default function BarberCard({
 
       {/* Meio: Identificação e Especialidade */}
       <CardContent className="px-1 pt-3 pb-2 space-y-1">
-        <h4 className="font-bold text-sm text-foreground tracking-tight truncate group-hover:text-[#0099FF] transition-colors">
+        <h4 className="font-bold text-sm text-foreground tracking-tight truncate group-hover:text-primary transition-colors">
           {name}
         </h4>
         <p className="text-xs text-muted-foreground truncate font-medium">
@@ -76,7 +76,7 @@ export default function BarberCard({
           <span className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">
             A partir de
           </span>
-          <span className="text-sm font-extrabold text-[#0099FF] leading-none">
+          <span className="text-sm font-extrabold text-primary leading-none">
             {formattedPrice}
           </span>
         </div>
@@ -85,7 +85,7 @@ export default function BarberCard({
           size="sm"
           onClick={onBook}
           aria-label={`Agendar com ${name}`}
-          className="rounded-full w-8 h-8 p-0 bg-[#0099FF] hover:bg-[#0088EE] text-white shadow-xs active:scale-95 transition-all flex items-center justify-center"
+          className="rounded-full w-9 h-9 p-0 bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs active:scale-95 transition-all flex items-center justify-center"
         >
           <Plus className="w-4 h-4" />
         </Button>

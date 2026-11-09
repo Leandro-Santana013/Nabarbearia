@@ -92,3 +92,39 @@
 @media (prefers-reduced-motion: reduce) {
   .barber-agenda-header button, .barber-day-actions button { transition: none; }
 }
+
+/* Shared brand finish for the barber's agenda and date selector. */
+.barber-agenda-header { border-color: #d4e4e9; box-shadow: 0 10px 26px rgba(6,45,64,.07); }
+.barber-agenda-greeting { position: relative; overflow: hidden; background: linear-gradient(115deg, #fff 0%, #f4fbfd 100%); }
+.barber-agenda-eyebrow { display: inline-flex; align-items: center; gap: 8px; color: #006487; }
+.barber-agenda-eyebrow::before { width: 25px; height: 25px; flex: 0 0 25px; content: ""; border: 1px solid #d5e7ed; border-radius: 50%; background: #fff url('/brand/optimized/logo-256.webp') center / contain no-repeat; box-shadow: 0 2px 7px rgba(6,45,64,.08); }
+.barber-agenda-intro h1 { color: #062d40; }
+.barber-agenda-calendar { border-top-color: #e4eff3; }
+.barber-agenda-calendar-heading h2 { color: #52616b; }
+.barber-agenda-calendar-heading h2 svg { color: #006487; }
+.barber-agenda-header .barber-agenda-icon { border: 1px solid #d8e7ec; color: #006487; background: #fff; }
+.barber-agenda-header .barber-agenda-icon:hover:not(:disabled) { border-color: #8bd8ee; color: #062d40; background: #eef8fc; }
+.barber-agenda-days { gap: 6px; }
+.barber-agenda-header .barber-agenda-day { position: relative; min-height: 72px; border: 1px solid #e0ebef; border-radius: 14px; background: linear-gradient(155deg, #fff 45%, #f6fbfd 100%); box-shadow: 0 2px 7px rgba(6,45,64,.035); transition: border-color .16s ease, background .16s ease, box-shadow .16s ease, transform .16s ease; }
+.barber-agenda-header .barber-agenda-day:hover:not(:disabled) { transform: translateY(-1px); border-color: #83d2e9; background: #f0faff; }
+.barber-agenda-weekday { color: #52616b; font-size: 10px; font-weight: 750; letter-spacing: .04em; }
+.barber-agenda-day-number { color: #062d40; }
+.barber-agenda-header .barber-agenda-day[aria-current="date"]:not([aria-pressed="true"]) { border-color: #b5e5f2; color: #006487; background: #eef8fc; }
+.barber-agenda-header .barber-agenda-day[aria-pressed="true"] { border-color: #062d40; color: #fff; background: linear-gradient(145deg, #062d40, #006487); box-shadow: inset 0 3px 0 #01a6e0, 0 7px 16px rgba(6,45,64,.17); }
+.barber-agenda-header .barber-agenda-day[aria-pressed="true"] .barber-agenda-weekday,
+.barber-agenda-header .barber-agenda-day[aria-pressed="true"] .barber-agenda-day-number { color: #fff; }
+.barber-agenda-header .barber-agenda-day[aria-pressed="true"]:hover:not(:disabled) { border-color: #062d40; background: linear-gradient(145deg, #062d40, #006487); }
+.barber-agenda-header .barber-agenda-today { color: #006487; }
+.barber-agenda-header .barber-agenda-today:hover:not(:disabled) { color: #062d40; background: #eef8fc; }
+.barber-day-actions .barber-day-action:hover, .barber-day-actions .barber-day-action[aria-expanded="true"] { border-color: #b8e3ef; color: #062d40; background: #eef8fc; }
+.barber-day-actions .barber-day-walkin { border-color: #006487; color: #fff; background: #006487; }
+.barber-day-actions .barber-day-walkin:hover, .barber-day-actions .barber-day-walkin[aria-expanded="true"] { border-color: #062d40; background: #062d40; }
+
+@media (max-width: 767.98px) {
+  .barber-agenda-header .barber-agenda-day { min-height: 66px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barber-agenda-header .barber-agenda-day { transition: none; }
+  .barber-agenda-header .barber-agenda-day:hover:not(:disabled) { transform: none; }
+}

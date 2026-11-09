@@ -45,7 +45,7 @@ export default function CategoryFilter({
             <button
               type="button"
               onClick={onViewAll}
-              className="text-xs text-[#0099FF] hover:underline font-semibold cursor-pointer"
+              className="text-xs text-primary hover:underline font-semibold cursor-pointer"
             >
               Ver todas
             </button>
@@ -66,8 +66,8 @@ export default function CategoryFilter({
               onClick={() => handleSelect(category)}
               className={`h-auto min-h-8 shrink-0 cursor-pointer rounded-full px-3.5 py-1.5 text-xs! whitespace-nowrap shadow-sm transition-colors ${
                 isActive
-                  ? "border-transparent bg-[#0099FF] font-semibold! text-white shadow-blue-500/20 hover:bg-[#0088EE] hover:text-white"
-                  : "border-border/80 bg-white font-medium! text-muted-foreground hover:bg-slate-50 hover:text-foreground"
+                  ? "border-transparent bg-primary font-semibold! text-primary-foreground shadow-blue-900/10 hover:bg-primary/90 hover:text-primary-foreground"
+                  : "border-border/80 bg-white font-medium! text-muted-foreground hover:bg-accent hover:text-foreground"
               }`}
             >
               {category}

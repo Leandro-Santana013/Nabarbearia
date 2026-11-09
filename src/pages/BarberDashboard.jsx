@@ -15,6 +15,15 @@ import { ApiError, api } from "@/services/api"
 import { dailySchedule, isAppointmentInProgress, money, shopDate, scheduleTime } from "@/lib/barber-schedule"
 import { useAndroidReady } from "@/lib/android-startup"
 
+const barberPortraits = {
+  sorriso: "sorriso",
+  nailton: "nailton",
+  bolacha: "bolacha",
+  pedrinho: "pedrinho",
+  jailson: "jailson",
+  luizao: "luizao",
+}
+
 /** @param {import("./BarberDashboard.types").BarberDashboardProps} props */
 export default function BarberDashboard({ session, onManage }) {
   const { logout: logoutSession, accept } = useAccess()
@@ -153,10 +162,12 @@ export default function BarberDashboard({ session, onManage }) {
   const name = session.user.display_name
 
   const dateLabel = new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeZone: "America/Sao_Paulo" }).format(new Date(`${date}T12:00:00-03:00`))
+  const portraitKey = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("pt-BR")
+  const portrait = barberPortraits[portraitKey]
   const tabs = [{ id: "agenda", label: "Agenda", icon: Calendar }, { id: "ganhos", label: "Meus Ganhos", icon: DollarSign }, { id: "perfil", label: "Perfil", icon: User }]
 
   return (
-    <div ref={dashboardRef} data-in-progress={activeAppointment ? "true" : undefined} className="barber-dashboard min-h-dvh bg-[#F4F4F6] font-sans text-[#111111] antialiased">
+    <div ref={dashboardRef} data-in-progress={activeAppointment ? "true" : undefined} className="barber-dashboard min-h-dvh bg-background font-sans text-foreground antialiased">
       <main className="barber-dashboard-main mx-auto flex max-w-xl flex-col gap-3 p-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
         {activeTab === "agenda" && <>
           <BarberAgendaHeader name={name} date={date} inProgress={inProgress} paused={paused} busy={busy} loading={loading} onDateChange={setDate} onRefresh={load} />
@@ -186,6 +197,10 @@ export default function BarberDashboard({ session, onManage }) {
         </section>}
         {activeTab === "perfil" && <section aria-labelledby="barber-profile" className="space-y-4">
           <h1 id="barber-profile" className="text-lg font-semibold">Meu Perfil</h1>
+          {portrait && <div className="barber-profile-photo">
+            <img src={`/brand/optimized/portrait-${portrait}-256.webp`} alt={`Foto de ${name}`} width="256" height="256" />
+            <div><span>Profissional NA</span><strong>{name}</strong></div>
+          </div>}
           <Card className="gap-4 rounded-2xl bg-white p-4 shadow-sm ring-0">
             <div><p className="text-[11px] text-muted-foreground">Nome</p><p className="break-words text-sm font-semibold">{name}</p></div>
             <div><p className="text-[11px] text-muted-foreground">E-mail</p><p className="break-all text-sm">{session.user.email}</p></div>

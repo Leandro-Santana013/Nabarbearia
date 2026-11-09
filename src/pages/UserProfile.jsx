@@ -73,21 +73,21 @@ export default function UserProfile({
   }
 
   return (
-    <div className="min-h-dvh bg-[#F4F4F6] font-sans text-[#111111] antialiased">
+    <div className="min-h-dvh bg-background font-sans text-foreground antialiased">
       <main className="mx-auto mb-16 max-w-xl px-4 py-6">
-        <header className="mb-6 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2">
+        <header className="client-screen-header mb-6 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2">
           <Button type="button" variant="ghost" size="icon" onClick={onBack ?? (() => window.history.back())} aria-label="Voltar ao início" className="size-11 rounded-full transition-colors">
             <ArrowLeft aria-hidden="true" className="size-5" />
           </Button>
           <h1 className="text-center text-base font-semibold">Meu Perfil</h1>
-          <span aria-hidden="true" />
+          <img src="/brand/optimized/logo-256.webp" alt="NA Barbearia" width="40" height="40" className="size-10 justify-self-end rounded-full object-contain" />
         </header>
 
         <Card className="relative overflow-hidden rounded-3xl bg-white p-6 text-center shadow-sm">
           <CardContent className="p-0">
             <Avatar className="mx-auto size-20 border-2 border-primary">
               {user.avatar && <AvatarImage src={user.avatar} alt="" />}
-              <AvatarFallback className="bg-blue-50 text-xl font-bold text-primary">{initials}</AvatarFallback>
+              <AvatarFallback className="bg-accent text-xl font-bold text-accent-foreground">{initials}</AvatarFallback>
             </Avatar>
             <h2 className="mt-3 break-words text-xl font-bold">{user.name}</h2>
             <p className="mt-2 flex items-center justify-center gap-2 text-sm text-muted-foreground">

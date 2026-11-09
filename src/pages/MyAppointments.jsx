@@ -64,12 +64,12 @@ export default function MyAppointments({
   }
 
   return (
-    <div className="min-h-dvh bg-[#F4F4F6] font-sans text-[#111111] antialiased">
+    <div className="min-h-dvh bg-background font-sans text-foreground antialiased">
       <main className="mx-auto mb-20 max-w-2xl px-4 py-6">
-        <header className="mb-6 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2">
+        <header className="client-screen-header mb-6 grid grid-cols-[44px_minmax(0,1fr)_44px] items-center gap-2">
           <Button type="button" variant="ghost" size="icon" onClick={onBack ?? (() => window.history.back())} aria-label="Voltar ao início" className="size-11 rounded-full transition-colors"><ArrowLeft aria-hidden="true" className="size-5" /></Button>
           <h1 className="text-center text-base font-semibold">Meus Agendamentos</h1>
-          <span aria-hidden="true" />
+          <img src="/brand/optimized/logo-256.webp" alt="NA Barbearia" width="40" height="40" className="size-10 justify-self-end rounded-full object-contain" />
         </header>
         {isDemo && <p className="mb-4 text-center text-xs text-muted-foreground">Agenda demonstrativa. Alterações salvas nesta sessão.</p>}
         <Tabs defaultValue="upcoming">
@@ -94,7 +94,7 @@ export default function MyAppointments({
                     <h2 className="break-words font-semibold">{appointment.service.title}</h2>
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground"><span className="flex items-center gap-1.5"><Clock aria-hidden="true" className="size-4" />{appointment.service.duration}</span><span className="font-bold text-primary">{appointment.service.price}</span></div>
                   </div>
-                  <p className="flex items-start gap-2 rounded-2xl bg-blue-50/70 p-3 text-xs leading-relaxed text-accent-foreground"><MessageSquare aria-hidden="true" className="size-4 shrink-0" />{isDemo ? "Demonstração de lembrete via WhatsApp" : appointment.whatsappReminderEnabled ? "Lembrete automático ativado via WhatsApp" : "Lembrete via WhatsApp não ativado"}</p>
+                  <p className="flex items-start gap-2 rounded-2xl bg-accent/70 p-3 text-xs leading-relaxed text-accent-foreground"><MessageSquare aria-hidden="true" className="size-4 shrink-0" />{isDemo ? "Demonstração de lembrete via WhatsApp" : appointment.whatsappReminderEnabled ? "Lembrete automático ativado via WhatsApp" : "Lembrete via WhatsApp não ativado"}</p>
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" variant="ghost" disabled={busy} onClick={() => setCancelId(appointment.id)} className="min-h-11 rounded-full px-4 text-muted-foreground transition-colors">Cancelar</Button>
                     <Button type="button" variant="outline" disabled={busy} onClick={() => onReschedule ? onReschedule(appointment) : newBooking()} className="min-h-11 rounded-full px-4 transition-colors">Remarcar</Button>

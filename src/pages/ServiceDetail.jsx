@@ -73,7 +73,7 @@ export default function ServiceDetail({
                 <Clock aria-hidden="true" className="size-4" />
                 <span><span className="sr-only">Duração: </span>{service.duration}</span>
               </span>
-              <span className="text-lg font-bold text-[#0099FF]">
+              <span className="text-lg font-bold text-primary">
                 <span className="sr-only">Valor: </span>{service.price}
               </span>
             </div>
@@ -108,15 +108,15 @@ export default function ServiceDetail({
               return (
                 <Card
                   key={barber.id}
-                  className={`relative rounded-2xl border-2 p-0 shadow-sm ring-0 focus-within:ring-2 focus-within:ring-[#0099FF] focus-within:ring-offset-2 ${
+                  className={`relative rounded-2xl border-2 p-0 shadow-sm ring-0 focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 ${
                     isSelected
-                      ? "border-[#0099FF] bg-blue-50/30"
+                      ? "border-primary bg-accent/50"
                       : "border-gray-100 bg-white hover:border-blue-200"
                   }`}
                 >
                   <CardContent className="flex items-center gap-3 p-3">
                     {barber.isAny ? (
-                      <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent text-[#0099FF]">
+                      <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-accent text-primary">
                         <Zap aria-hidden="true" className="size-5" />
                       </span>
                     ) : (
@@ -150,7 +150,7 @@ export default function ServiceDetail({
                       value={barber.id}
                       aria-labelledby={`${optionId}-label`}
                       aria-describedby={`${optionId}-description${barber.isAny ? "" : ` ${optionId}-rating`}`}
-                      className="relative z-10 size-6 items-center justify-center border-slate-300 data-checked:border-[#0099FF] data-checked:bg-[#0099FF]"
+                      className="relative z-10 size-6 items-center justify-center border-slate-300 data-checked:border-primary data-checked:bg-primary"
                     />
                   </CardContent>
                 </Card>
@@ -165,14 +165,14 @@ export default function ServiceDetail({
           <div className="min-w-0 flex-1 basis-32" role="status" aria-live="polite" aria-atomic="true">
             <p className="text-xs text-muted-foreground">Profissional selecionado</p>
             <p className="mt-1 flex items-start gap-1.5 text-sm font-semibold">
-              <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-[#0099FF]" />
+              <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
               <span className="break-words">{selectedName}</span>
             </p>
           </div>
           <Button
             type="button"
             onClick={handleContinue}
-            className="h-12 gap-2 rounded-full bg-[#0099FF] px-6 py-6 font-semibold text-white shadow-lg shadow-blue-500/20 transition-colors hover:bg-[#0088EE]"
+            className="h-12 gap-2 rounded-full bg-primary px-6 py-6 font-semibold text-primary-foreground shadow-lg shadow-blue-900/15 transition-colors hover:bg-primary/90"
           >
             Escolher Horário
             <ArrowRight aria-hidden="true" className="size-4" />

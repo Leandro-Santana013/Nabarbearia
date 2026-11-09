@@ -2,6 +2,16 @@ import { Clock, Plus } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { publicImageProps } from "@/lib/public-media"
+
+const illustrations = {
+  "Combos": "/brand/illustrative/combo.png",
+  "Cabelo": "/brand/illustrative/fade.png",
+  "Barba": "/brand/illustrative/barba.png",
+  "Acabamento": "/brand/illustrative/acabamento.png",
+  "Coloração e Tratamentos": "/brand/illustrative/textura.png",
+  "Cera Quente": "/brand/illustrative/barba.png",
+}
 
 /** @param {{ service: import("@/data/barbershopData").CatalogService, onBook?: () => void }} props */
 export default function BarberServiceCard({ service, onBook }) {
@@ -14,24 +24,34 @@ export default function BarberServiceCard({ service, onBook }) {
         { name: "Cera", included: service.name.includes("Depilação") },
       ].filter((item) => item.included)
     : []
+  const illustration = illustrations[service.category]
+  const illustrationProps = publicImageProps(illustration, "(max-width: 380px) 54px, 60px")
 
   return (
-    <Card className="w-full min-w-0 gap-2 rounded-2xl border border-border/60 bg-white p-3.5 shadow-sm ring-0">
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="min-w-0 flex-1 break-words text-[15px] leading-snug font-semibold text-foreground">
-          {service.name}
-        </h3>
-        <Badge variant="secondary" className="h-auto shrink-0 gap-1 rounded-full border-0 bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
-          <Clock aria-hidden="true" className="size-3" />
-          <span className="sr-only">Duração: </span>{service.durationMinutes}m
-        </Badge>
+    <Card className="w-full min-w-0 gap-2 overflow-hidden rounded-2xl border border-border/70 bg-white p-3 shadow-sm ring-0">
+      <div className="flex min-w-0 items-start gap-3">
+        {illustration && <img {...illustrationProps} alt="" width="60" height="80" loading="lazy" decoding="async" className="size-[60px] shrink-0 rounded-xl border border-border/50 bg-accent object-cover object-center" />}
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="min-w-0 flex-1 break-words text-[15px] leading-snug font-semibold text-foreground">
+              {service.name}
+            </h3>
+            <Badge variant="secondary" className="h-auto shrink-0 gap-1 rounded-full border-0 bg-accent px-2 py-0.5 text-[11px] font-medium text-accent-foreground">
+              <Clock aria-hidden="true" className="size-3" />
+              <span className="sr-only">Duração: </span>{service.durationMinutes}m
+            </Badge>
+          </div>
+          <p title={service.description} className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+            {service.description}
+          </p>
+        </div>
       </div>
 
       {comboItems.length > 0 && (
         <ul aria-label="Itens incluídos no combo" className="flex flex-wrap gap-1">
           {comboItems.map((item) => (
             <li key={item.name}>
-              <Badge className="h-auto rounded-md border-0 bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-600">
+              <Badge className="h-auto rounded-md border-0 bg-accent px-2 py-0.5 text-[10px] font-medium text-accent-foreground">
                 {item.name}
               </Badge>
             </li>
@@ -39,13 +59,9 @@ export default function BarberServiceCard({ service, onBook }) {
         </ul>
       )}
 
-      <p title={service.description} className="line-clamp-2 text-xs leading-relaxed text-gray-500">
-        {service.description}
-      </p>
-
       <div className="mt-0.5 flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-2">
         <span className="whitespace-nowrap text-base font-bold text-primary">{price}</span>
-        <Button type="button" onClick={onBook} aria-label={`Selecionar ${service.name}`} className="h-auto min-h-8 gap-1 rounded-lg bg-primary px-3.5 py-1.5 text-xs! font-semibold! text-primary-foreground transition-colors hover:bg-primary/90">
+        <Button type="button" onClick={onBook} aria-label={`Selecionar ${service.name}`} className="h-auto min-h-9 gap-1 rounded-lg bg-primary px-3.5 py-1.5 text-xs! font-semibold! text-primary-foreground transition-colors hover:bg-primary/90">
           <Plus aria-hidden="true" className="size-3.5" /> Selecionar
         </Button>
       </div>

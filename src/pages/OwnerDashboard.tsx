@@ -317,16 +317,19 @@ export default function OwnerDashboard({
     <div className="owner-dashboard min-h-dvh bg-background text-foreground">
       <div className="owner-container mx-auto max-w-6xl space-y-4 px-4 py-5 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
         <header className="owner-header flex flex-col justify-between gap-3 rounded-2xl border border-border/60 bg-white p-4 shadow-sm md:flex-row md:items-center">
-          <div className="min-w-0">
-            <Badge className="mb-1 rounded-full border-0 bg-blue-50 px-2.5 text-[10px] text-primary">
-              {superAdmin ? "Super Administrador" : "Administrador"}
-            </Badge>
-            <h1 className="text-lg font-semibold">
-              Painel de Gestão — NA Barbearia
-            </h1>
-            <p className="mt-1 break-words text-xs text-muted-foreground">
-              {session.user.display_name}
-            </p>
+          <div className="owner-heading min-w-0">
+            <img src="/brand/optimized/logo-256.webp" alt="" width="256" height="256" className="owner-logo" />
+            <div className="min-w-0">
+              <Badge className="mb-1 rounded-full border-0 bg-blue-50 px-2.5 text-[10px] text-primary">
+                {superAdmin ? "Super Administrador" : "Administrador"}
+              </Badge>
+              <h1 className="text-lg font-semibold">
+                Painel de Gestão — NA Barbearia
+              </h1>
+              <p className="mt-1 break-words text-xs text-muted-foreground">
+                {session.user.display_name}
+              </p>
+            </div>
           </div>
           <div className="owner-header-actions flex flex-wrap gap-2">
             {superAdmin && session.user.roles.includes("barber") ? (

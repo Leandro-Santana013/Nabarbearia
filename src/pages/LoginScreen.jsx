@@ -111,8 +111,24 @@ export default function LoginScreen({
   }
 
   return (
-    <div className="min-h-dvh bg-[#F4F4F6] font-sans text-[#111111] antialiased [--primary:#00749C]">
-      <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col px-5 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:px-8 sm:py-6">
+    <div className="auth-shell min-h-dvh bg-background font-sans text-foreground antialiased [--primary:#006487]">
+      <aside className="auth-story" aria-label="NA Barbearia">
+        <img
+          src="/brand/optimized/team-640.webp"
+          srcSet="/brand/optimized/team-384.webp 384w, /brand/optimized/team-640.webp 640w, /brand/optimized/team-1024.webp 1024w"
+          sizes="(max-width: 860px) 100vw, 44vw"
+          alt="Equipe reunida na barbearia"
+          width="640"
+          height="640"
+          fetchPriority="high"
+          className="auth-story-image"
+        />
+        <div className="auth-story-copy">
+          <span>NA Barbearia</span>
+          <p>{staffOnly ? "Um bom atendimento começa com uma agenda bem cuidada." : "Seu próximo corte começa com um bom encontro."}</p>
+        </div>
+      </aside>
+      <main className="auth-form mx-auto flex min-h-dvh w-full max-w-lg flex-col px-5 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] sm:px-8 sm:py-6">
         <div className="flex h-11 items-center justify-end">
           <Button
             type="button"

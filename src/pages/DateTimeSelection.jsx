@@ -60,7 +60,7 @@ export default function DateTimeSelection({
             <ArrowLeft aria-hidden="true" className="size-5" />
           </Button>
           <h1 className="text-center text-base font-semibold sm:text-lg">Escolher Data e Horário</h1>
-          <span aria-hidden="true" />
+          <img src="/brand/optimized/logo-256.webp" alt="NA Barbearia" width="40" height="40" className="size-10 justify-self-end rounded-full object-contain" />
         </header>
 
         <Card className="mb-6 rounded-2xl bg-card p-4 shadow-sm">
@@ -95,19 +95,19 @@ export default function DateTimeSelection({
             </h2>
             <span className="text-xs capitalize text-muted-foreground">{formatDate(selectedDate, { month: "long", year: "numeric" })}</span>
           </div>
-          <div role="group" aria-labelledby={`${id}-day-heading`} className="flex snap-x gap-2 overflow-x-auto scroll-smooth px-1 py-2 motion-reduce:scroll-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div role="group" aria-labelledby={`${id}-day-heading`} className="booking-date-strip flex snap-x gap-2 overflow-x-auto scroll-smooth px-1 py-2 motion-reduce:scroll-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {days.map(({ date, closed }) => (
               <Button
                 key={date} type="button" variant="outline" disabled={closed || confirming}
                 aria-pressed={date === selectedDate}
-                aria-label={`${formatDate(date, { dateStyle: "full" })}${closed ? ", fechado" : ""}`}
+                aria-label={`${formatDate(date, { dateStyle: "full" })}${closed ? ", fechado" : ", consulte os horários desta data"}`}
                 onClick={() => chooseDate(date)}
                 onFocus={(event) => event.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" })}
-                className={`h-auto min-w-16 snap-start flex-col gap-0 rounded-2xl px-3 py-2.5 transition-colors ${date === selectedDate ? "border-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 hover:text-primary-foreground" : "border-border bg-card text-foreground hover:bg-accent"}`}
+                className={`booking-date-option h-auto min-w-16 snap-start flex-col gap-0 rounded-2xl px-3 py-2.5 transition-colors ${date === selectedDate ? "is-selected" : ""} ${closed ? "is-closed" : ""}`}
               >
-                <span className={`text-[11px] font-semibold tracking-wider uppercase ${date === selectedDate ? "text-blue-100" : "text-gray-500"}`}>{formatDate(date, { weekday: "short" }).replace(".", "")}</span>
-                <span className="my-0.5 text-lg leading-tight font-bold">{formatDate(date, { day: "2-digit" })}</span>
-                <span className={`text-[10px] leading-none font-medium uppercase ${date === selectedDate ? "text-blue-100" : "text-gray-400"}`}>{closed ? "Fechado" : formatDate(date, { month: "short" }).replace(".", "")}</span>
+                <span className="booking-date-weekday">{formatDate(date, { weekday: "short" }).replace(".", "")}</span>
+                <span className="booking-date-number">{formatDate(date, { day: "2-digit" })}</span>
+                <span className="booking-date-status">{closed ? "Fechado" : "Ver horários"}</span>
               </Button>
             ))}
           </div>

@@ -102,3 +102,26 @@
   .owner-metrics { grid-template-columns: minmax(0, 1fr); }
   .owner-bulk-actions { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Refined brand shell; the established tab, table, and mobile navigation layout stays intact. */
+.owner-header {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(1,166,224,.22) !important;
+  background-image: linear-gradient(90deg, rgba(255,255,255,.98) 0%, rgba(238,248,252,.96) 60%, rgba(238,248,252,.62) 100%), url('/brand/optimized/team-640.webp') !important;
+  background-position: center, right 38% center;
+  background-size: cover;
+  box-shadow: 0 12px 30px rgba(6,45,64,.075);
+}
+.owner-heading { display: flex; align-items: center; gap: 12px; }
+.owner-logo { display: block; width: 54px; height: 54px; flex: 0 0 54px; padding: 3px; border: 1px solid rgba(1,166,224,.18); border-radius: 50%; background: #fff; object-fit: contain; box-shadow: 0 4px 12px rgba(6,45,64,.08); }
+.owner-header h1 { color: #062d40; }
+.owner-dashboard [data-slot="card"] { border-color: #dce9ee; box-shadow: 0 6px 20px rgba(6,45,64,.045); }
+.owner-dashboard [data-slot="tabs-list"] { border-color: #dce9ee; background: rgba(255,255,255,.96); }
+.owner-tab-indicator { background: #e4f5fb; }
+
+@media (max-width: 767.98px) {
+  .owner-heading { align-items: flex-start; gap: 10px; }
+  .owner-logo { width: 42px; height: 42px; flex-basis: 42px; }
+  .owner-header { background-position: center, right 42% center; }
+}
