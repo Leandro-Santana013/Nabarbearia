@@ -146,7 +146,7 @@ class ApiService {
     if (!response.ok) {
       if (response.status === 401 && this.csrfToken !== null && this.sessionRevision === requestSession && !path.startsWith('/auth/')) this.clearSession(true)
       const code = typeof body?.code === 'string' ? body.code : 'REQUEST_FAILED'
-      const login = path === '/auth/login' || path === '/auth/staff/login'
+      const login = path === '/auth/login' || path === '/auth/staff/login' || path === '/auth/google'
       throw new ApiError(apiErrorMessage(code, response.status, login), code, response.status,
         typeof body?.message === 'string' ? body.message : undefined)
     }
@@ -200,6 +200,13 @@ class ApiService {
     return this.setSession(await this.request<AuthResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
+    }))
+  }
+
+  async googleLogin(idToken: string): Promise<AuthResponse> {
+    return this.setSession(await this.request<AuthResponse>('/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ id_token: idToken }),
     }))
   }
 

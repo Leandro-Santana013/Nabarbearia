@@ -8,6 +8,9 @@ use std::{
 
 use thiserror::Error;
 
+pub const DEFAULT_GOOGLE_CLIENT_ID: &str =
+    "488884468147-6kv3uhrfbqc0rf6gl70irn1fobporove.apps.googleusercontent.com";
+
 #[derive(Clone)]
 pub struct Config {
     pub bind_addr: SocketAddr,
@@ -18,6 +21,7 @@ pub struct Config {
     pub secure_cookies: bool,
     pub session_days: i64,
     pub timezone: String,
+    pub google_client_id: String,
 }
 
 impl fmt::Debug for Config {
@@ -32,6 +36,7 @@ impl fmt::Debug for Config {
             .field("secure_cookies", &self.secure_cookies)
             .field("session_days", &self.session_days)
             .field("timezone", &self.timezone)
+            .field("google_client_id", &self.google_client_id)
             .finish()
     }
 }
@@ -126,6 +131,15 @@ impl Config {
             )
         })?;
 
+        let google_client_id = env::var("NABARBEARIA_GOOGLE_CLIENT_ID")
+            .unwrap_or_else(|_| DEFAULT_GOOGLE_CLIENT_ID.to_string());
+        if google_client_id.trim().is_empty() || google_client_id.len() > 256 {
+            return Err(ConfigError::Invalid(
+                "NABARBEARIA_GOOGLE_CLIENT_ID".into(),
+                "must be a non-empty client ID with at most 256 characters".into(),
+            ));
+        }
+
         let db_path = env::var("NABARBEARIA_DB_PATH")
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("backend/data/nabarbearia.db"));
@@ -142,6 +156,7 @@ impl Config {
             secure_cookies,
             session_days,
             timezone,
+            google_client_id,
         })
     }
 }

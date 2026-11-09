@@ -52,7 +52,9 @@ pub async fn hash_password(password: String) -> Result<String, AppError> {
 
 pub async fn verify_password(password: String, password_hash: String) -> Result<bool, AppError> {
     tokio::task::spawn_blocking(move || {
-        let parsed = PasswordHash::new(&password_hash).map_err(|_| AppError::Internal)?;
+        let Ok(parsed) = PasswordHash::new(&password_hash) else {
+            return Ok(false);
+        };
         Ok(Argon2::default()
             .verify_password(password.as_bytes(), &parsed)
             .is_ok())

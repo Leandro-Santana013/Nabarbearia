@@ -6,6 +6,6 @@ export interface LoginScreenProps {
   initialError?: string
   onAuthenticated?: (session: AuthResponse) => void
   onGuest?: () => void
-  onGoogleSignIn?: () => Promise<AuthResponse>
+  onGoogleSignIn?: (credential: string) => Promise<AuthResponse>
   onGoHome?: () => void
 }

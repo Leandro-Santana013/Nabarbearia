@@ -36,6 +36,7 @@ Use [`.env.example`](.env.example) como referência e mantenha valores reais em 
 | `NABARBEARIA_SECURE_COOKIES` | `false` no desenvolvimento local |
 | `NABARBEARIA_SESSION_DAYS` | `7` |
 | `NABARBEARIA_TIMEZONE` | `America/Sao_Paulo` |
+| `NABARBEARIA_GOOGLE_CLIENT_ID` | Client ID público do OAuth web do Google |
 
 Datas da API usam UTC. As interfaces exibem datas e horários da barbearia em São Paulo. Mudar a porta da API exige ajustar também o proxy do frontend.
 

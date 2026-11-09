@@ -4,6 +4,7 @@ mod commissions;
 mod config;
 mod db;
 mod error;
+mod google;
 mod handlers;
 mod models;
 mod security;

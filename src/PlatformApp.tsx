@@ -4,6 +4,7 @@ import { useAccess } from './lib/access/AccessProvider'
 import { AccessDenied, CheckingAccess, ConnectionFailure } from './lib/access/AccessScreen'
 import { publicHome } from './lib/access/routing'
 import { navigate } from './lib/access/navigation'
+import { api } from './services/api'
 
 // Compatibility entry for /painel and /agendar. Only current panels are reachable.
 export default function PlatformApp() {
@@ -14,7 +15,7 @@ export default function PlatformApp() {
   }, [checking, connectionError, destination])
   if (connectionError) return <ConnectionFailure />
   if (checking) return <CheckingAccess />
-  if (!session) return <LoginScreen key={notice} initialError={notice} onAuthenticated={accept} />
+  if (!session) return <LoginScreen key={notice} initialError={notice} onAuthenticated={accept} onGoogleSignIn={(credential) => api.googleLogin(credential)} />
   if (!destination) return <AccessDenied />
   return <CheckingAccess />
 }

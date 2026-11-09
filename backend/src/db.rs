@@ -55,6 +55,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "admin_roles",
         include_str!("../migrations/0010_admin_roles.sql"),
     ),
+    (
+        11,
+        "google_identity",
+        include_str!("../migrations/0011_google_identity.sql"),
+    ),
 ];
 
 #[derive(Debug, Error)]

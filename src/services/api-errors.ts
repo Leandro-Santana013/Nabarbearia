@@ -9,6 +9,8 @@ const messages: Record<string, string> = {
   RATING_EXISTS: 'Este atendimento já foi avaliado.',
   INVALID_RATING: 'Só é possível avaliar atendimentos concluídos, com uma nota de 1 a 5.',
   ACCOUNT_NOT_AVAILABLE: 'Não foi possível cadastrar esta conta. Confira os dados ou fale com a recepção.',
+  GOOGLE_ACCOUNT_MISMATCH: 'Esta conta já está vinculada a outro acesso do Google.',
+  GOOGLE_STAFF_LOGIN: 'Para acessar a área da equipe, use e-mail e senha.',
   INVALID_EMAIL: 'Informe um e-mail válido.',
   INVALID_NAME: 'O nome deve ter de 2 a 120 caracteres.',
   CURRENT_PASSWORD_REQUIRED: 'Informe a senha atual para alterar o e-mail ou a senha.',
