@@ -40,7 +40,7 @@ try {
   await until(async () => (await evaluate('document.body.innerText')).includes('Acesso da equipe'), 'login visível durante consulta de versão', 2500)
   assert(!(await evaluate('document.body.innerText')).includes('Verificando atualizações'))
   assert.equal(await evaluate('getComputedStyle(document.documentElement).colorScheme'), 'light')
-  assert.equal(await evaluate('getComputedStyle(document.documentElement).backgroundColor'), 'rgb(244, 244, 246)')
+  assert.equal(await evaluate('getComputedStyle(document.documentElement).backgroundColor'), 'rgb(247, 251, 252)')
   await evaluate(`document.querySelector('input[type=email]').value = 'entrada-preservada@example.test'; window.loginInput = document.querySelector('input[type=email]'); window.releaseChecks.shift()()`)
   await until(() => evaluate('window.releaseChecks.length === 0'), 'consulta liberada')
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))")
