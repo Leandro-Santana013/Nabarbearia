@@ -30,7 +30,7 @@ async function startup(email, destination) {
     await send('Page.navigate', { url: test.origin + '/equipe' })
     await until(() => evaluate('window.held?.some(item => item.path === "/api/v1/auth/session") && !!document.querySelector("main")'), 'sessão pendente')
     assert.equal((await evaluate('document.body.innerText')).trim(), '', 'A validação da sessão não deve exibir mensagem, login ou painel antes da resposta')
-    assert.equal(await evaluate('getComputedStyle(document.querySelector("main")).backgroundColor'), 'rgb(244, 244, 246)')
+    assert.equal(await evaluate('getComputedStyle(document.querySelector("main")).backgroundColor'), 'rgb(247, 251, 252)')
     assert.equal(await ready(), false, 'Não liberar logo antes da sessão')
     await evaluate('window.held.splice(0).forEach(item => item.release())')
     if (email) {

@@ -367,7 +367,7 @@ try {
   assertRequested('barber', mark, 'equipe autenticada pendente')
   assertNotRequested(['public', 'client', 'owner', 'styleguide'], mark, 'equipe autenticada pendente')
   assert.equal(await evaluate('document.body.innerText.trim()'), '', 'Painel interno pendente mantém superfície vazia.')
-  assert.equal(await evaluate('getComputedStyle(document.querySelector("main[aria-label=Carregando]")).backgroundColor'), 'rgb(244, 244, 246)')
+  assert.equal(await evaluate('getComputedStyle(document.querySelector("main[aria-label=Carregando]")).backgroundColor'), 'rgb(247, 251, 252)')
   assert.equal(await evaluate(nativeReady), false, 'JS interno pendente não pode liberar a abertura Android.')
   releaseHeld()
   scenario = null

@@ -93,9 +93,9 @@ try {
     await until(
       () =>
         evaluate(
-          `Boolean(document.querySelector(${JSON.stringify(selector)}))`,
+          `(()=>{const element=document.querySelector(${JSON.stringify(selector)});return Boolean(element&&!element.disabled&&element.getAttribute('aria-disabled')!=='true')})()`,
         ),
-      selector,
+      `controle habilitado ${selector}`,
     );
     await evaluate(
       `document.querySelector(${JSON.stringify(selector)}).click()`,
