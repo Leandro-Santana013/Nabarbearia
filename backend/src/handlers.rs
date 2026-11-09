@@ -998,6 +998,12 @@ async fn public_barbers(
                 "SELECT u.id, u.display_name, p.photo_url, p.recommendations
                  FROM barber_profiles p JOIN users u ON u.id = p.user_id AND u.business_id = p.business_id
                  WHERE p.business_id = ?1 AND p.active = 1 AND u.active = 1
+                   AND NOT EXISTS (
+                       SELECT 1 FROM user_roles management_role
+                       WHERE management_role.business_id = u.business_id
+                         AND management_role.user_id = u.id
+                         AND management_role.role IN ('owner', 'admin', 'super_admin')
+                   )
                  ORDER BY u.display_name COLLATE NOCASE LIMIT 100",
             )?;
             statement
@@ -1496,7 +1502,14 @@ async fn public_availability(
 
             let mut barber_statement = connection.prepare(
                 "SELECT p.user_id FROM barber_profiles p JOIN users u ON u.id = p.user_id AND u.business_id = p.business_id
-                 WHERE p.business_id = ?1 AND p.active = 1 AND u.active = 1 AND (?2 IS NULL OR p.user_id = ?2)
+                 WHERE p.business_id = ?1 AND p.active = 1 AND u.active = 1
+                   AND (?2 IS NULL OR p.user_id = ?2)
+                   AND NOT EXISTS (
+                       SELECT 1 FROM user_roles management_role
+                       WHERE management_role.business_id = u.business_id
+                         AND management_role.user_id = u.id
+                         AND management_role.role IN ('owner', 'admin', 'super_admin')
+                   )
                  ORDER BY p.user_id LIMIT 100",
             )?;
             let barbers = barber_statement
@@ -2165,6 +2178,81 @@ mod tests {
         assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
         assert_eq!(body["code"], "RATE_LIMITED");
         assert_eq!(headers[header::RETRY_AFTER], "60");
+    }
+
+    #[tokio::test]
+    async fn public_barbers_exclude_management_users_with_hybrid_profiles() {
+        let app = test_app();
+        let bootstrap = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let (status, owner_headers, owner) = request_json(
+            &app,
+            "POST",
+            "/api/v1/setup/owner",
+            json!({
+                "business_name":"Public Team Test",
+                "timezone":"America/Sao_Paulo",
+                "email":"owner@public-team.test",
+                "password":"TestPassword123!",
+                "display_name":"Dono NA Barbearia"
+            }),
+            None,
+            None,
+            Some(bootstrap),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let owner_cookie = cookie(&owner_headers);
+        let owner_csrf = owner["csrf_token"].as_str().unwrap();
+        let owner_id = owner["user"]["id"].as_str().unwrap();
+
+        let (status, _, _) = request_json(
+            &app,
+            "POST",
+            "/api/v1/admin/my-barber-profile",
+            json!({}),
+            Some(&owner_cookie),
+            Some(owner_csrf),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+
+        let (status, _, barber) = request_json(
+            &app,
+            "POST",
+            "/api/v1/admin/barbers",
+            json!({
+                "email":"barber@public-team.test",
+                "password":"TestPassword123!",
+                "display_name":"Barbeiro Público"
+            }),
+            Some(&owner_cookie),
+            Some(owner_csrf),
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        let barber_id = barber["id"].as_str().unwrap();
+
+        let (status, _, public_barbers) = request_json(
+            &app,
+            "GET",
+            "/api/v1/public/barbers",
+            json!({}),
+            None,
+            None,
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let public_ids: Vec<&str> = public_barbers
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|item| item["id"].as_str())
+            .collect();
+        assert!(!public_ids.contains(&owner_id));
+        assert!(public_ids.contains(&barber_id));
     }
 
     fn test_app() -> Router {
