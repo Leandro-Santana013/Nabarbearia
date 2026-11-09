@@ -47,7 +47,7 @@ try {
   async function bookFromDetail() {
     await click('Escolher Horário')
     await waitText('Escolher Data e Horário')
-    await clickSelector(`button[aria-label=${JSON.stringify(dateLabel)}]`)
+    await clickSelector(`button[aria-label^=${JSON.stringify(dateLabel)}]`)
     const selector = '[role="group"][aria-labelledby$="-time-heading"] button:not(:disabled)'
     await clickSelector(selector)
     await click('Revisar Agendamento')
