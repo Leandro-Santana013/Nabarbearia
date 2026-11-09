@@ -10,6 +10,7 @@ import android.webkit.*
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import androidx.activity.SystemBarStyle
@@ -23,6 +24,7 @@ class MainActivity : TauriActivity() {
   private var hasResumed = false
   private var updater: AppUpdater? = null
   private var startup: AppStartup? = null
+  private val bundledStaffAssets by lazy { WebViewAssetLoader.AssetsPathHandler(this) }
 
   override fun onResume() {
     super.onResume()
@@ -36,6 +38,7 @@ class MainActivity : TauriActivity() {
     appWebView?.evaluateJavascript("""
       (async () => {
         window.dispatchEvent(new Event('staff-resume'));
+        if (${BuildConfig.DEBUG}) return;
         try {
           const response = await fetch('/equipe', {cache:'no-store', signal:AbortSignal.timeout(5000)});
           if (!response.ok) return;
@@ -47,6 +50,22 @@ class MainActivity : TauriActivity() {
         } catch (_) { /* Session handling presents real connection failures. */ }
       })();
     """.trimIndent(), null)
+  }
+
+  private fun bundledStaffResponse(request: WebResourceRequest): WebResourceResponse? {
+    val url = request.url
+    if (!BuildConfig.DEBUG || request.method != "GET" || url.scheme != "https" ||
+        url.authority != "na-barbearia.duckdns.org") return null
+    val path = url.path ?: return null
+    if (request.isForMainFrame && (path == "/equipe" || path.startsWith("/equipe/"))) {
+      return bundledStaffAssets.handle("index.html")?.takeIf { it.data != null }
+    }
+    if (!request.isForMainFrame && (path == "/favicon.png" ||
+        path.startsWith("/assets/") || path.startsWith("/brand/") || path.startsWith("/icons/")) &&
+        path.split('/').none { it == ".." || it == "." }) {
+      return bundledStaffAssets.handle(path.removePrefix("/"))?.takeIf { it.data != null }
+    }
+    return null
   }
 
   override fun onPause() {
@@ -112,7 +131,7 @@ class MainActivity : TauriActivity() {
     startup?.onTimeout = { failed = true; showError() }
     webView.webViewClient = object : WebViewClient() {
       override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? =
-        delegate.shouldInterceptRequest(view, request)
+        bundledStaffResponse(request) ?: delegate.shouldInterceptRequest(view, request)
       override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
         val uri = request.url
         val teamHost = "na-barbearia.duckdns.org"

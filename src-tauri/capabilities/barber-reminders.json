@@ -1,0 +1,19 @@
+{
+  "identifier": "barber-reminders",
+  "description": "Native appointment reminders on the Android staff app",
+  "windows": ["main"],
+  "platforms": ["android"],
+  "remote": {
+    "urls": [
+      "https://na-barbearia.duckdns.org/equipe",
+      "https://na-barbearia.duckdns.org/equipe/*"
+    ]
+  },
+  "permissions": [
+    "notification:allow-is-permission-granted",
+    "notification:allow-request-permission",
+    "notification:allow-create-channel",
+    "notification:allow-notify",
+    "notification:allow-cancel"
+  ]
+}

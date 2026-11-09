@@ -14,6 +14,12 @@ import BarberSchedule from "./BarberSchedule"
 import { ApiError, api } from "@/services/api"
 import { dailySchedule, isAppointmentInProgress, money, shopDate, scheduleTime } from "@/lib/barber-schedule"
 import { useAndroidReady } from "@/lib/android-startup"
+import {
+  disableBarberLocalReminders,
+  enableBarberLocalReminders,
+  supportsBarberLocalReminders,
+  syncBarberLocalReminders,
+} from "@/lib/barber-local-reminders"
 
 const barberPortraits = {
   sorriso: "sorriso",
@@ -39,6 +45,12 @@ export default function BarberDashboard({ session, onManage }) {
   const [startedIds, setStartedIds] = useState(() => new Set())
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
+  const [remindersEnabled, setRemindersEnabled] = useState(() => {
+    try { return localStorage.getItem(`na-barbearia:barber-reminders-enabled:${session?.user.id}`) === "true" }
+    catch { return false }
+  })
+  const [remindersBusy, setRemindersBusy] = useState(false)
+  const [agendaSyncVersion, setAgendaSyncVersion] = useState(0)
   const requestId = useRef(0)
   const actionPending = useRef(false)
   const dashboardRef = useRef(null)
@@ -89,7 +101,7 @@ export default function BarberDashboard({ session, onManage }) {
       const to = new Date(from.getTime() + 24 * 60 * 60 * 1000)
       const range = { from: from.toISOString(), to: to.toISOString() }
       const [result, pauses] = await Promise.all([api.listAppointments(range), api.listOwnBlocks(range)])
-      if (currentRequest === requestId.current) { setAppointments(result); setBlocks(pauses) }
+      if (currentRequest === requestId.current) { setAppointments(result); setBlocks(pauses); setAgendaSyncVersion((version) => version + 1) }
     } catch (failure) {
       if (currentRequest === requestId.current) {
         setAppointments([]); setBlocks([])
@@ -104,6 +116,30 @@ export default function BarberDashboard({ session, onManage }) {
     void load()
     return () => { requestId.current += 1 }
   }, [load])
+
+  useEffect(() => {
+    const onResume = () => { void load() }
+    const onVisible = () => { if (document.visibilityState === "visible") void load() }
+    window.addEventListener("staff-resume", onResume)
+    document.addEventListener("visibilitychange", onVisible)
+    return () => {
+      window.removeEventListener("staff-resume", onResume)
+      document.removeEventListener("visibilitychange", onVisible)
+    }
+  }, [load])
+
+  useEffect(() => {
+    if (!supportsBarberLocalReminders || !remindersEnabled || remindersBusy || busy || !allowed || loading || error) return
+    let current = true
+    const from = new Date()
+    const to = new Date(from.getTime() + 30 * 24 * 60 * 60 * 1000)
+    void api.listAppointments({ from: from.toISOString(), to: to.toISOString() })
+      .then((futureAppointments) => current && syncBarberLocalReminders(session.user.id, futureAppointments))
+      .catch((failure) => {
+        if (current) setNotice(failure instanceof Error ? failure.message : "Não foi possível atualizar os lembretes neste aparelho.")
+      })
+    return () => { current = false }
+  }, [agendaSyncVersion, allowed, busy, error, loading, remindersBusy, remindersEnabled, session.user.id])
 
   async function updateAppointment(appointment, action) {
     if (actionPending.current) return
@@ -147,11 +183,41 @@ export default function BarberDashboard({ session, onManage }) {
     setBusy(true)
     setError("")
     try {
+      if (supportsBarberLocalReminders) {
+        await disableBarberLocalReminders(session.user.id)
+        localStorage.removeItem(`na-barbearia:barber-reminders-enabled:${session.user.id}`)
+      }
       await logoutSession()
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Não foi possível sair da conta. Tente novamente.")
       actionPending.current = false
       setBusy(false)
+    }
+  }
+
+  async function toggleLocalReminders() {
+    if (remindersBusy || !supportsBarberLocalReminders) return
+    setRemindersBusy(true)
+    setError("")
+    setNotice("")
+    try {
+      if (remindersEnabled) {
+        await disableBarberLocalReminders(session.user.id)
+        localStorage.removeItem(`na-barbearia:barber-reminders-enabled:${session.user.id}`)
+        setRemindersEnabled(false)
+        setNotice("Lembretes locais desativados neste aparelho.")
+      } else {
+        const granted = await enableBarberLocalReminders()
+        if (!granted) throw new Error("Permita notificações para ativar os lembretes da agenda.")
+        localStorage.setItem(`na-barbearia:barber-reminders-enabled:${session.user.id}`, "true")
+        setRemindersEnabled(true)
+        setAgendaSyncVersion((version) => version + 1)
+        setNotice("Lembretes da agenda ativados neste aparelho.")
+      }
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Não foi possível alterar os lembretes.")
+    } finally {
+      setRemindersBusy(false)
     }
   }
 
@@ -201,6 +267,16 @@ export default function BarberDashboard({ session, onManage }) {
             <img src={`/brand/optimized/portrait-${portrait}-256.webp`} alt={`Foto de ${name}`} width="256" height="256" />
             <div><span>Profissional NA</span><strong>{name}</strong></div>
           </div>}
+          {supportsBarberLocalReminders && <Card className="gap-3 rounded-2xl bg-white p-4 shadow-sm ring-0">
+            <div>
+              <h2 className="text-sm font-semibold">Lembretes da agenda</h2>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Receba um aviso com vibração uma hora antes dos seus atendimentos. Os avisos são agendados neste aparelho e sincronizados quando você abre o app.</p>
+            </div>
+            <Button type="button" variant={remindersEnabled ? "outline" : "default"} disabled={remindersBusy || busy} onClick={toggleLocalReminders} className="min-h-11 rounded-xl text-xs!">
+              {remindersBusy ? "Atualizando…" : remindersEnabled ? "Desativar lembretes neste aparelho" : "Ativar lembretes neste aparelho"}
+            </Button>
+            <p className="text-[11px] leading-relaxed text-muted-foreground">Se um horário mudar enquanto o app estiver fechado, o aviso será atualizado na próxima vez que você abrir o app. O Android pode ajustar o momento do aviso conforme as configurações de bateria.</p>
+          </Card>}
           <Card className="gap-4 rounded-2xl bg-white p-4 shadow-sm ring-0">
             <div><p className="text-[11px] text-muted-foreground">Nome</p><p className="break-words text-sm font-semibold">{name}</p></div>
             <div><p className="text-[11px] text-muted-foreground">E-mail</p><p className="break-all text-sm">{session.user.email}</p></div>

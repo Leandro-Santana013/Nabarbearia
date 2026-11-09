@@ -73,6 +73,7 @@ android {
     buildFeatures {
         buildConfig = true
     }
+    sourceSets.getByName("debug").assets.srcDir(rootProject.file("../../../dist"))
 }
 
 kotlin {
