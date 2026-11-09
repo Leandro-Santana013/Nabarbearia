@@ -127,6 +127,12 @@ pub struct LoginRequest {
     pub password: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GoogleLoginRequest {
+    pub id_token: String,
+}
+
 #[derive(Debug, Serialize)]
 pub struct SetupStatusResponse {
     pub needs_owner: bool,

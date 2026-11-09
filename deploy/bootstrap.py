@@ -54,6 +54,7 @@ NABARBEARIA_ALLOWED_ORIGINS=https://{domain}
 NABARBEARIA_SECURE_COOKIES=true
 NABARBEARIA_SESSION_DAYS=7
 NABARBEARIA_TIMEZONE=America/Sao_Paulo
+NABARBEARIA_GOOGLE_CLIENT_ID=488884468147-6kv3uhrfbqc0rf6gl70irn1fobporove.apps.googleusercontent.com
 ''')
     environment.chmod(0o600)
 backup_env = Path('/etc/nabarbearia/backup.env')

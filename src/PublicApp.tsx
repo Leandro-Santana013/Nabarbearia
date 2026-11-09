@@ -7,6 +7,7 @@ import { publicHome } from './lib/access/routing'
 import { navigate } from './lib/access/navigation'
 import { CLIENT_ROUTES } from './lib/access/paths'
 import { RouteBoundary } from './components/RouteBoundary'
+import { api } from './services/api'
 
 const ClientApp = lazy(() => import('./ClientApp'))
 const BarberDashboard = lazy(() => import('./pages/BarberDashboard'))
@@ -23,6 +24,6 @@ function PublicRoutes({ path }: { path: string }) {
   if (CLIENT_ROUTES.has(path)) return <ClientApp path={path} onNavigate={navigate} />
   if (path === '/barbeiro' || path.startsWith('/barbeiro/')) return <DashboardAccess role="barber">{(session) => <BarberDashboard session={session} onManage={() => navigate('/gestao/financeiro')} />}</DashboardAccess>
   if (path === '/login' || path === '/entrar' || path === '/cadastro') return <LoginScreen key={path} initialMode={path === '/cadastro' ? 'register' : 'login'}
-    onAuthenticated={(session) => { accept(session); navigate(publicHome(session.user) ?? '/painel') }} onGuest={() => navigate('/home')} onGoHome={() => navigate('/')} />
+    onAuthenticated={(session) => { accept(session); navigate(publicHome(session.user) ?? '/painel') }} onGoogleSignIn={(credential) => api.googleLogin(credential)} onGuest={() => navigate('/home')} onGoHome={() => navigate('/')} />
   return <PlatformApp />
 }

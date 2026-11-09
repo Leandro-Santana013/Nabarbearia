@@ -7,6 +7,9 @@ import { ApiError, api } from "@/services/api"
 import { BARBERSHOP_INFO, WHATSAPP_URL } from "@/data/barbershopData"
 import { LandingChoiceNotice } from "@/components/LandingChoiceNotice"
 import { clearLandingIntent } from "@/lib/booking/landing-intent"
+import { GoogleSignInButton } from "@/lib/google-sign-in"
+
+const GOOGLE_CLIENT_ID = "488884468147-6kv3uhrfbqc0rf6gl70irn1fobporove.apps.googleusercontent.com"
 
 const inputClass = "h-12 rounded-xl! border-gray-200! bg-white! px-3.5! py-2.5! text-base! sm:text-sm! outline-none! focus:border-primary! focus:shadow-[0_0_0_1px_var(--primary)]!"
 const commonPasswords = new Set([
@@ -62,7 +65,8 @@ export default function LoginScreen({
     else window.location.assign("/home")
   }
 
-  async function authenticate(social = false) {
+  async function authenticate(googleCredential = null) {
+    const social = typeof googleCredential === "string"
     if (submittingRef.current || (social && !onGoogleSignIn)) return
     if (!social && isRegister) {
       if (!passwordIsValid) {
@@ -81,7 +85,7 @@ export default function LoginScreen({
       const session = staffOnly
         ? await api.staffLogin(email.trim(), password)
         : social
-        ? await onGoogleSignIn()
+        ? await onGoogleSignIn(googleCredential)
         : isRegister
           ? await api.register(email.trim(), password, name.trim())
           : await api.login(email.trim(), password)
@@ -157,11 +161,15 @@ export default function LoginScreen({
 
           <section aria-label={isRegister ? "Cadastro de cliente" : "Acesso à conta"} className="mt-10 flex flex-col gap-4 sm:mt-12">
           {!staffOnly && <div>
-            <Button type="button" variant="outline" disabled={busy || !onGoogleSignIn} onClick={() => authenticate(true)} aria-describedby={!onGoogleSignIn ? `${id}-google-status` : undefined} className="h-12 w-full gap-2.5 rounded-xl border-gray-200 bg-white px-4 py-2.5 text-sm! font-semibold! text-gray-700 shadow-sm transition-colors hover:bg-gray-50">
-              <img src="/icons/google.svg" alt="" aria-hidden="true" className="size-4" />
-              Continuar com o Google
-            </Button>
-            {!onGoogleSignIn && <p id={`${id}-google-status`} className="mt-2 text-center text-xs text-gray-600">Acesso com Google ainda não disponível.</p>}
+            {onGoogleSignIn
+              ? <GoogleSignInButton clientId={GOOGLE_CLIENT_ID} disabled={busy} onCredential={(credential) => { void authenticate(credential) }} />
+              : <>
+                <Button type="button" variant="outline" disabled aria-describedby={`${id}-google-status`} className="h-12 w-full gap-2.5 rounded-xl border-gray-200 bg-white px-4 py-2.5 text-sm! font-semibold! text-gray-700 shadow-sm">
+                  <img src="/icons/google.svg" alt="" aria-hidden="true" className="size-4" />
+                  Continuar com o Google
+                </Button>
+                <p id={`${id}-google-status`} className="mt-2 text-center text-xs text-gray-600">Acesso com Google ainda não disponível.</p>
+              </>}
           </div>}
           {!staffOnly && <div className="my-2 flex items-center gap-3">
             <span aria-hidden="true" className="flex-1 border-t border-gray-200" />

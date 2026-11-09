@@ -34,7 +34,7 @@ use crate::{
         AdminAppointmentRequest, AppointmentRequest, AppointmentResponse, AppointmentStatus,
         AuthContext, AuthResponse, AuthUser, AvailabilityQuery, AvailableSlot, BarberRequest,
         BarberResponse, BlockRequest, CancelRequest, CommissionRuleRequest, CompleteRequest,
-        ConsentRequest, DateRangeQuery, LoginRequest, MessageResponse,
+        ConsentRequest, DateRangeQuery, GoogleLoginRequest, LoginRequest, MessageResponse,
         OwnerScheduleIntervalResponse, PublicBarberResponse, RatingRequest, RegisterRequest,
         RescheduleRequest, RevenueReport, Role, ScheduleDateQuery, ScheduleRequest, ServiceRequest,
         ServiceResponse, SetupOwnerRequest, SetupStatusResponse,
@@ -49,6 +49,7 @@ const MAX_BODY_BYTES: usize = 16 * 1024;
 const MAX_APPOINTMENTS_PER_RESPONSE: usize = 500;
 const PASSWORD_MIN_LENGTH: usize = 8;
 const PASSWORD_MAX_LENGTH: usize = 128;
+const GOOGLE_PASSWORD_SENTINEL: &str = "!google-only-identity-without-password-login!";
 const COMMON_PASSWORDS: &[&str] = &[
     "12345678",
     "123456789",
@@ -114,6 +115,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/auth/register", post(register))
         .route("/api/v1/auth/login", post(login))
         .route("/api/v1/auth/staff/login", post(staff_login))
+        .route("/api/v1/auth/google", post(google_login))
         .route("/api/v1/staff/android/apk", get(staff_android_apk))
         .route("/api/v1/staff/android/release", get(android::release))
         .route("/api/v1/auth/session", get(auth_session))
@@ -202,7 +204,7 @@ pub async fn add_security_headers(mut response: Response) -> Response {
     );
     headers.insert(
         "content-security-policy",
-        HeaderValue::from_static("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https://d39p7gjvbgwtet.cloudfront.net https://www.trinks.com data:; font-src 'self' data:; connect-src 'self'; frame-src https://www.google.com https://maps.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"),
+        HeaderValue::from_static("default-src 'self'; script-src 'self' https://accounts.google.com/gsi/; style-src 'self' 'unsafe-inline'; img-src 'self' https://d39p7gjvbgwtet.cloudfront.net https://www.trinks.com https://www.gstatic.com data:; font-src 'self' data:; connect-src 'self' https://accounts.google.com; frame-src https://www.google.com https://maps.google.com https://accounts.google.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"),
     );
     response
 }
@@ -404,6 +406,203 @@ async fn staff_login(
     Json(request): Json<LoginRequest>,
 ) -> ApiResult<(HeaderMap, Json<AuthResponse>)> {
     login_for_channel(state, headers, request, true).await
+}
+
+async fn google_login(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(request): Json<GoogleLoginRequest>,
+) -> ApiResult<(HeaderMap, Json<AuthResponse>)> {
+    check_origin(&headers, &state.config.allowed_origins)?;
+    if !state
+        .limiter
+        .check("google-login:global", 120, Duration::from_secs(60))
+    {
+        return Err(AppError::too_many_requests());
+    }
+
+    let identity =
+        crate::google::verify_id_token(&request.id_token, &state.config.google_client_id)
+            .await
+            .map_err(|failure| match failure {
+                crate::google::GoogleTokenError::Invalid => AppError::unauthorized(),
+                crate::google::GoogleTokenError::Unavailable => {
+                    tracing::warn!("Google token verification service is unavailable");
+                    AppError::Internal
+                }
+            })?;
+    let email = email_address(&identity.email)?;
+    let display_name = identity
+        .display_name
+        .as_deref()
+        .and_then(|value| {
+            required_text(value, 2, 120, "INVALID_NAME", "Display name is invalid").ok()
+        })
+        .unwrap_or_else(|| {
+            email
+                .split('@')
+                .next()
+                .filter(|value| value.chars().count() >= 2)
+                .unwrap_or("Cliente Google")
+                .to_string()
+        });
+    let google_subject = identity.subject;
+    let email_for_tx = email.clone();
+    let display_name_for_tx = display_name.clone();
+    let subject_for_tx = google_subject.clone();
+    let (business_id, user_id, stored_email, stored_name, phone) = state
+        .db
+        .with_conn(move |connection| -> Result<_, AppError> {
+            let transaction =
+                connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            let business_id = single_active_business(&transaction)?;
+
+            let subject_user = transaction
+                .query_row(
+                    "SELECT id, email, display_name, phone, active FROM users
+                     WHERE business_id = ?1 AND google_subject = ?2",
+                    params![business_id, subject_for_tx],
+                    |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, String>(2)?,
+                            row.get::<_, String>(3)?,
+                            row.get::<_, i64>(4)?,
+                        ))
+                    },
+                )
+                .optional()?;
+
+            if let Some((user_id, stored_email, stored_name, phone, active)) = subject_user {
+                if active == 0 {
+                    return Err(AppError::unauthorized());
+                }
+                reject_google_staff_account(&transaction, &business_id, &user_id)?;
+                transaction.commit()?;
+                return Ok((business_id, user_id, stored_email, stored_name, phone));
+            }
+
+            let email_user = transaction
+                .query_row(
+                    "SELECT id, display_name, phone, google_subject, active FROM users
+                     WHERE business_id = ?1 AND email = ?2",
+                    params![business_id, email_for_tx],
+                    |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, String>(2)?,
+                            row.get::<_, Option<String>>(3)?,
+                            row.get::<_, i64>(4)?,
+                        ))
+                    },
+                )
+                .optional()?;
+
+            if let Some((user_id, stored_name, phone, linked_subject, active)) = email_user {
+                if active == 0 {
+                    return Err(AppError::unauthorized());
+                }
+                if linked_subject.is_some() {
+                    return Err(AppError::conflict(
+                        "GOOGLE_ACCOUNT_MISMATCH",
+                        "This account is linked to another Google account",
+                    ));
+                }
+                reject_google_staff_account(&transaction, &business_id, &user_id)?;
+                transaction.execute(
+                    "UPDATE users SET google_subject = ?1, updated_at_utc = ?2
+                     WHERE business_id = ?3 AND id = ?4",
+                    params![google_subject, utc_text(Utc::now()), business_id, user_id],
+                )?;
+                insert_audit(
+                    &transaction,
+                    &business_id,
+                    Some(&user_id),
+                    "auth.google_account_linked",
+                    "user",
+                    &user_id,
+                    "{}",
+                )?;
+                transaction.commit()?;
+                return Ok((business_id, user_id, email_for_tx, stored_name, phone));
+            }
+
+            let user_id = new_id();
+            let now = utc_text(Utc::now());
+            transaction.execute(
+                "INSERT INTO users(id, business_id, email, password_hash, display_name, google_subject, created_at_utc, updated_at_utc)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7)",
+                params![
+                    user_id,
+                    business_id,
+                    email_for_tx,
+                    GOOGLE_PASSWORD_SENTINEL,
+                    display_name_for_tx,
+                    google_subject,
+                    now
+                ],
+            )?;
+            transaction.execute(
+                "INSERT INTO user_roles(business_id, user_id, role, created_at_utc)
+                 VALUES (?1, ?2, 'client', ?3)",
+                params![business_id, user_id, now],
+            )?;
+            insert_audit(
+                &transaction,
+                &business_id,
+                Some(&user_id),
+                "auth.google_account_created",
+                "user",
+                &user_id,
+                "{}",
+            )?;
+            transaction.commit()?;
+            Ok((
+                business_id,
+                user_id,
+                email_for_tx,
+                display_name_for_tx,
+                String::new(),
+            ))
+        })
+        .await?;
+    let roles = load_roles(&state, &business_id, &user_id).await?;
+    let user = AuthUser {
+        id: user_id,
+        business_id,
+        email: stored_email,
+        display_name: stored_name,
+        roles,
+        phone,
+    };
+    let session = create_session(&state, &user).await?;
+    auth_json_response(&state, user, session)
+}
+
+fn reject_google_staff_account(
+    transaction: &rusqlite::Transaction<'_>,
+    business_id: &str,
+    user_id: &str,
+) -> Result<(), AppError> {
+    let is_staff: i64 = transaction.query_row(
+        "SELECT EXISTS(
+            SELECT 1 FROM user_roles
+            WHERE business_id = ?1 AND user_id = ?2
+              AND role IN ('barber', 'admin', 'super_admin', 'owner')
+        )",
+        params![business_id, user_id],
+        |row| row.get(0),
+    )?;
+    if is_staff != 0 {
+        return Err(AppError::Api {
+            status: StatusCode::FORBIDDEN,
+            code: "GOOGLE_STAFF_LOGIN",
+            message: "Use o acesso da equipe com e-mail e senha.",
+        });
+    }
+    Ok(())
 }
 
 async fn login_for_channel(
@@ -2103,6 +2302,7 @@ mod tests {
             secure_cookies: false,
             session_days: 7,
             timezone: "America/Sao_Paulo".into(),
+            google_client_id: crate::config::DEFAULT_GOOGLE_CLIENT_ID.into(),
         };
         AppState {
             config: Arc::new(config),
