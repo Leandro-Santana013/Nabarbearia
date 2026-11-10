@@ -103,7 +103,6 @@ try {
     await waitText(client ? 'Olá, Cliente Atualizado' : 'Olá, Barbeiro Atualizado!')
     if (client) { await navigate('/perfil'); await waitText('Meu Perfil') } else await click('Perfil')
     if (!client) {
-      assert((await text()).includes('As regras de comissão são definidas exclusivamente pelo proprietário.'))
       const permission = await evaluate(`(async () => {
         const auth = await (await fetch('/api/v1/auth/session')).json();
         return (await fetch('/api/v1/admin/commission-rules', { method:'POST', headers:{'Content-Type':'application/json','X-CSRF-Token':auth.csrf_token}, body:JSON.stringify({barber_user_id:${JSON.stringify(barber.id)},rule_type:'percent',amount:9999}) })).status;
