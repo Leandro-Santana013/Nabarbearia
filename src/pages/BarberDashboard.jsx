@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Calendar, DollarSign, LayoutDashboard, LogOut, RefreshCw, User, MessageSquare } from "lucide-react"
+import { Calendar, DollarSign, LayoutDashboard, LogOut, RefreshCw, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import AccountDetailsForm from "@/components/AccountDetailsForm"
 import { Input } from "@/components/ui/input"
-import { WHATSAPP_URL } from "@/data/barbershopData"
 import BarberDayTools from "@/components/BarberDayTools"
 import BarberAgendaHeader from "@/components/BarberAgendaHeader"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -283,8 +282,6 @@ export default function BarberDashboard({ session, onManage }) {
             <div><p className="text-[11px] text-muted-foreground">Telefone / WhatsApp</p><p className="break-words text-sm">{session.user.phone || "Não informado"}</p></div>
             <Button ref={editAccountRef} type="button" variant="outline" disabled={busy || editingAccount} aria-expanded={editingAccount} aria-controls="barber-account-editor" onClick={() => { setEditingAccount(true); setNotice("") }} className="min-h-11 rounded-xl text-xs!">Editar informações da conta</Button>
             {canManage && <Button type="button" variant="outline" disabled={busy} onClick={openManagement} className="min-h-11 rounded-xl border-primary/25 bg-blue-50 text-xs! text-primary hover:bg-blue-100"><LayoutDashboard className="size-4" />Painel de gestão</Button>}
-            <p className="text-xs text-muted-foreground">As regras de comissão são definidas exclusivamente pelo proprietário.</p>
-            <Button nativeButton={false} variant="outline" render={<a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" />} className="min-h-11 rounded-xl text-xs!"><MessageSquare className="size-4" />Falar com a recepção</Button>
           </Card>
           {editingAccount && <Card id="barber-account-editor" className="rounded-2xl bg-white p-4 shadow-sm ring-0">
             <AccountDetailsForm account={session.user} onBusyChange={setBusy} onCancel={() => {
