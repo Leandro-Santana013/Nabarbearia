@@ -101,6 +101,30 @@ try {
       `document.querySelector(${JSON.stringify(selector)}).click()`,
     );
   };
+  const setSelected = async (selector, selected) => {
+    await until(
+      () =>
+        evaluate(
+          `(()=>{const element=document.querySelector(${JSON.stringify(selector)});return Boolean(element&&!element.disabled)})()`,
+        ),
+      `controle habilitado ${selector}`,
+    );
+    const current = await evaluate(
+      `(()=>{const element=document.querySelector(${JSON.stringify(selector)});return element.matches('input[type=checkbox]')?element.checked:element.getAttribute('aria-pressed')==='true'})()`,
+    );
+    if (current !== selected) {
+      await evaluate(
+        `document.querySelector(${JSON.stringify(selector)}).click()`,
+      );
+    }
+    await until(
+      () =>
+        evaluate(
+          `(()=>{const element=document.querySelector(${JSON.stringify(selector)});return element&&(element.matches('input[type=checkbox]')?element.checked:element.getAttribute('aria-pressed')==='true')===${JSON.stringify(selected)}})()`,
+        ),
+      `seleção ${selected ? "ativa" : "inativa"} ${selector}`,
+    );
+  };
   const navigate = async (path) => {
     await send("Page.navigate", { url: `${origin}${path}` });
   };
@@ -365,7 +389,7 @@ try {
   });
   const selectAll =
     'input[aria-label="Selecionar todos os agendamentos elegíveis"]';
-  await clickSelector(selectAll);
+  await setSelected(selectAll, true);
   await waitText("2 selecionado(s)");
   assert.equal(
     await evaluate(
@@ -373,10 +397,11 @@ try {
     ),
     true,
   );
-  await clickSelector(selectAll);
+  await setSelected(selectAll, false);
   await waitText("0 selecionado(s)");
-  await clickSelector(
-    'button[aria-label="Selecionar agendamento de Cliente Integração às 11:00"]',
+  await setSelected(
+    'button[aria-label$="agendamento de Cliente Integração às 11:00"]',
+    true,
   );
   await waitText("1 selecionado(s)");
   await click("Editar agendamento");
@@ -437,7 +462,7 @@ try {
     new Date(`${date}T15:00:00-03:00`).toISOString(),
   );
 
-  await clickSelector(selectAll);
+  await setSelected(selectAll, true);
   await waitText("3 selecionado(s)");
   await click("Cancelar selecionados");
   await waitText("Confirmar alterações");

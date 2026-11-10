@@ -14,40 +14,24 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: nabarbearia-demo
-  cancel-in-progress: false
-
 jobs:
-  publish:
+  validate:
     if: github.repository == 'Leandro-Santana013/Nabarbearia' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       CHROME_BIN: /usr/bin/google-chrome
       NABARBEARIA_TEST_BACKEND: ${{ github.workspace }}/backend/target/debug/nabarbearia-backend
-      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
-      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
-      DEPLOY_DOMAIN: ${{ vars.DEPLOY_DOMAIN }}
-      RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
-      - name: Validar configurações
-        if: github.event_name == 'push' || inputs.publish
-        run: |
-          test -n "$DEPLOY_HOST"
-          test -n "$DEPLOY_USER"
-          test -n "$DEPLOY_DOMAIN"
-          test "$DEPLOY_DOMAIN" = na-barbearia.duckdns.org
-      - name: Instalar dependências
+      - name: Instalar dependências e toolchain Rust fixado
         run: |
           npm ci
-          rustup update stable --no-self-update
-          rustup default stable
+          rustup toolchain install 1.99.1 --profile minimal --component clippy --component rustfmt --no-self-update
       - name: Testar frontend e operações de banco
         run: |
           npm test
@@ -71,8 +55,37 @@ jobs:
           node scripts/check-account-flow.mjs
           node scripts/check-booking-flow.mjs
           node scripts/check-android-update-flow.mjs
+
+  package:
+    needs: validate
+    if: github.repository == 'Leandro-Santana013/Nabarbearia' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_DOMAIN: ${{ vars.DEPLOY_DOMAIN }}
+      RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Validar configurações de publicação
+        if: github.event_name == 'push' || inputs.publish
+        run: |
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_USER"
+          test -n "$DEPLOY_DOMAIN"
+          test "$DEPLOY_DOMAIN" = na-barbearia.duckdns.org
+      - name: Instalar dependências e toolchain Rust fixado
+        run: |
+          npm ci
+          rustup toolchain install 1.99.1 --profile minimal --component clippy --component rustfmt --no-self-update
       - name: Compilar e empacotar Linux AMD64
         run: |
+          npm run build
           cargo build --release --locked --manifest-path backend/Cargo.toml
           python3 deploy/operations.py package-web --backend backend/target/release/nabarbearia-backend --dist dist --revision "$RELEASE_ID" --output release.tar.gz
       - uses: actions/upload-artifact@v4
@@ -82,8 +95,32 @@ jobs:
             release.tar.gz
             release.tar.gz.sha256
           retention-days: 7
+
+  publish:
+    needs: package
+    if: github.repository == 'Leandro-Santana013/Nabarbearia' && github.ref == 'refs/heads/master' && (github.event_name == 'push' || inputs.publish)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    concurrency:
+      group: nabarbearia-demo-deploy
+      cancel-in-progress: false
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_DOMAIN: ${{ vars.DEPLOY_DOMAIN }}
+      RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-amd64-${{ github.sha }}
+      - name: Validar configurações
+        run: |
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_USER"
+          test -n "$DEPLOY_DOMAIN"
+          test "$DEPLOY_DOMAIN" = na-barbearia.duckdns.org
       - name: Publicar com backup e recuperação
-        if: github.event_name == 'push' || inputs.publish
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}

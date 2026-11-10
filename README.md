@@ -50,7 +50,7 @@ Ações em lote aceitam até 100 reservas confirmadas e não iniciadas. O remane
 ### Requisitos
 
 - Node.js **24 recomendado**, com npm.
-- Rust estável e Cargo, com suporte à edição 2024.
+- Rust **1.99.1** e Cargo (versão fixada em `rust-toolchain.toml`).
 - Ferramentas de compilação C/C++ da plataforma para as dependências nativas do backend.
 
 O SQLite é compilado junto ao backend; não é necessário instalar um servidor de banco separado. Execute os comandos a partir da raiz do repositório.

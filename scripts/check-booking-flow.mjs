@@ -39,11 +39,24 @@ try {
   }
   const registered = await request('/auth/register', { display_name: 'Cliente F2', email: 'client@booking.test', password })
   const client = { cookie: registered.cookie, csrf: registered.body.csrf_token }
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
-  const sunday = new Date(`${today}T12:00:00Z`)
-  do { sunday.setUTCDate(sunday.getUTCDate() + 1) } while (sunday.getUTCDay() !== 0)
-  const date = sunday.toISOString().slice(0, 10)
-  const dateLabel = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full', timeZone: 'UTC' }).format(sunday)
+  const shopToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+  const day = new Date(`${shopToday}T12:00:00Z`)
+  const localTime = new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+  const dateFormatter = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'full', timeZone: 'UTC' })
+  let date
+  let dateLabel
+  for (let offset = 1; offset < 14; offset++) {
+    const candidate = new Date(day)
+    candidate.setUTCDate(candidate.getUTCDate() + offset)
+    const candidateDate = candidate.toISOString().slice(0, 10)
+    const slots = (await request(`/public/availability?service_id=${encodeURIComponent(service.id)}&date=${candidateDate}`, null, null)).body
+    if (slots.some((slot) => localTime.format(new Date(slot.starts_at)) === '09:00')) {
+      date = candidateDate
+      dateLabel = dateFormatter.format(candidate)
+      break
+    }
+  }
+  if (!date || !dateLabel) throw new Error('A API não retornou horário real às 09:00 nos próximos 13 dias, apesar da escala de teste.')
 
   await test.startBrowser()
   await send('Page.enable')
@@ -66,7 +79,7 @@ try {
   assert((await text()).includes('R$ 45,99'))
   assert((await text()).includes('Qualquer disponível'))
   await until(() => evaluate('Boolean(document.activeElement.getAttribute("aria-labelledby")?.endsWith("-review-heading"))'), 'foco no resumo')
-  console.log('OK: visitante retoma reserva após autenticação; domingo e 09:00 vêm da escala operacional, com navegador em Tóquio.')
+  console.log('OK: visitante retoma reserva após autenticação; data e 09:00 são obtidos da disponibilidade real, com navegador em Tóquio.')
 
   for (const width of [320, 390, 1440]) {
     await send('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: width < 768 })
