@@ -130,6 +130,7 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
 
   const appointments = useMemo(() => records.filter((item) => item.clientUserId === session?.user.id).map((item) => appointmentFromApi(item, barbers)), [records, barbers, session?.user.id])
   const { upcoming } = splitAppointments(appointments)
+  const cancellationNotice = appointments.find((item) => item.cancellationSource === 'schedule_block' && !item.cancellationNoticeAckAt)
   const successId = new URLSearchParams(window.location.search).get('id')
   const success = completed?.id === successId ? completed : appointments.find((item) => item.id === successId && item.status === 'confirmed')
 
@@ -188,6 +189,10 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
       if (failure instanceof ApiError && failure.status === 401) { setRecords([]); setError(clientError(failure)) }
       throw failure
     }
+  }
+  async function acknowledgeCancellationNotice(id: string) {
+    await api.acknowledgeCancellationNotice(id)
+    setRecords((previous) => previous.map((item) => item.id === id ? { ...item, cancellationNoticeAckAt: new Date().toISOString() } : item))
   }
   async function rateAppointment(id: string, rating: number) {
     try {
@@ -256,5 +261,5 @@ export default function ClientApp({ path, onNavigate }: { path: string; onNaviga
   const chosenProfessional = barbers.find((item) => item.id === landingIntent?.barberId)
   const chosenService = services.find((item) => item.id === landingIntent?.serviceId)
   const choiceSummary = [chosenService?.name, chosenProfessional?.name].filter(Boolean).join(' · ')
-  return <>{error && <Alert variant="destructive" className="mx-auto mt-4 max-w-xl rounded-xl border-destructive/20 bg-white p-3"><AlertDescription>{error}</AlertDescription><Button type="button" variant="outline" onClick={() => { void refresh() }} className="mt-2 min-h-10 rounded-xl px-3">Atualizar dados</Button></Alert>}{landingIntent && ['/home', '/mobile', '/servico', '/detalhes', '/horarios'].includes(path) && <LandingChoiceNotice key={landingIntent.createdAt} disabled={confirming} summary={`Sua escolha: ${choiceSummary}`} onCancel={() => { forgetChoice(); reservation.clear(); onNavigate('/home') }} />}{page}</>
+  return <>{error && <Alert variant="destructive" className="mx-auto mt-4 max-w-xl rounded-xl border-destructive/20 bg-white p-3"><AlertDescription>{error}</AlertDescription><Button type="button" variant="outline" onClick={() => { void refresh() }} className="mt-2 min-h-10 rounded-xl px-3">Atualizar dados</Button></Alert>}{landingIntent && ['/home', '/mobile', '/servico', '/detalhes', '/horarios'].includes(path) && <LandingChoiceNotice key={landingIntent.createdAt} disabled={confirming} summary={`Sua escolha: ${choiceSummary}`} onCancel={() => { forgetChoice(); reservation.clear(); onNavigate('/home') }} />}{page}{cancellationNotice && <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/35 p-4" role="presentation"><section role="alertdialog" aria-modal="true" aria-labelledby="cancellation-notice-title" className="w-full max-w-md space-y-4 rounded-2xl bg-white p-5 text-foreground shadow-2xl"><h2 id="cancellation-notice-title" className="text-base font-semibold">Alteração no seu agendamento</h2><p className="text-sm leading-relaxed text-muted-foreground">Seu atendimento de {cancellationNotice.service.title} com {cancellationNotice.barber.name} em {cancellationNotice.date.split('-').reverse().join('/')} às {cancellationNotice.time.slice(0, 5)} precisou ser desmarcado por uma alteração na agenda. Entre em seus agendamentos para escolher outro horário.</p><Button type="button" className="min-h-11 w-full rounded-xl" onClick={() => { void acknowledgeCancellationNotice(cancellationNotice.id) }}>Entendi</Button></section></div>}</>
 }

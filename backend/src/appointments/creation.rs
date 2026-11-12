@@ -99,6 +99,7 @@ pub async fn create(
                 rating: None,
                 client_phone: None, payment_method: None, client_note: None, execution_started: false,
                 commission_cents: None,
+                cancellation_source: None, cancellation_notice_ack_at: None,
             };
             let response_json = serde_json::to_string(&response).map_err(|_| Error::Internal)?;
             transaction.execute(
@@ -237,6 +238,7 @@ pub async fn create_reception(
                 rating: None,
                 client_phone: None, payment_method: None, client_note: None, execution_started: false,
                 commission_cents: None,
+                cancellation_source: None, cancellation_notice_ack_at: None,
             };
             let response_json = serde_json::to_string(&response).map_err(|_| Error::Internal)?;
             transaction.execute(

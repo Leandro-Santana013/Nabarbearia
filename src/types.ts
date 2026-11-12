@@ -44,4 +44,6 @@ export interface Appointment {
   executionStarted?: boolean
   commissionCents?: number
   rating?: number
+  cancellationSource?: 'schedule_block' | 'client' | 'staff'
+  cancellationNoticeAckAt?: string
 }

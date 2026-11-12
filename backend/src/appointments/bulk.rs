@@ -66,8 +66,8 @@ pub async fn change_agenda(
         for (change, item) in changes.iter().zip(&previous) {
             match action {
                 BatchAction::Cancel => {
-                    tx.execute("UPDATE appointments SET cancellation_reason='Cancelado pela gestão em lote',cancelled_at_utc=?1,updated_at_utc=?1,version=version+1 WHERE business_id=?2 AND id=?3",params![now,business,item.id])?;
-                    insert_history(&tx,&business,&item.id,Some(&actor),"cancelled",Some("confirmed"),Some("cancelled"),None,None,"Cancelado pela gestão em lote")?;
+                    tx.execute("UPDATE appointments SET cancellation_reason='Alteração na agenda do profissional',cancellation_source='schedule_block',cancelled_at_utc=?1,updated_at_utc=?1,version=version+1 WHERE business_id=?2 AND id=?3",params![now,business,item.id])?;
+                    insert_history(&tx,&business,&item.id,Some(&actor),"cancelled",Some("confirmed"),Some("cancelled"),None,None,"Alteração na agenda do profissional")?;
                 }
                 BatchAction::Move => {
                     let starts = change.starts_at.ok_or_else(|| Error::bad_request("INVALID_BATCH", "Informe a nova data e hora."))?;

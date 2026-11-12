@@ -229,6 +229,18 @@ pub struct BlockRequest {
     pub starts_at_utc: String,
     pub ends_at_utc: String,
     pub reason: Option<String>,
+    pub block_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecurringBlockRequest {
+    pub barber_user_id: String,
+    pub weekday: i64,
+    pub start_minute: i64,
+    pub end_minute: i64,
+    pub reason: Option<String>,
+    pub block_type: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -312,6 +324,10 @@ pub struct AppointmentResponse {
     pub execution_started: bool,
     #[serde(default)]
     pub commission_cents: Option<i64>,
+    #[serde(default)]
+    pub cancellation_source: Option<String>,
+    #[serde(default)]
+    pub cancellation_notice_ack_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]

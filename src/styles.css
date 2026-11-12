@@ -102,6 +102,8 @@ button, a, [role='button'] {
 }
 
 input, textarea, select { font-size: 16px; }
+input[type="checkbox"] { width: 16px; height: 16px; min-height: 16px; flex: 0 0 16px; margin: 0; padding: 0; accent-color: var(--primary); cursor: pointer; vertical-align: middle; }
+input[type="checkbox"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 body { margin: 0; min-width: 320px; background: var(--background); }
 button, input, select { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }

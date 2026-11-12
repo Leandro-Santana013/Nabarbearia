@@ -30,6 +30,8 @@ export function appointmentFromApi(item: Appointment, barbers: Barber[]): Client
       price: new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.amountCents / 100),
       priceAmount: item.amountCents / 100, duration: `${item.durationMinutes ?? 0} min`, durationMinutes: item.durationMinutes },
     barber: barbers.find((barber) => barber.id === item.barberId) ?? { id: item.barberId, name: item.barberName ?? 'Profissional', specialty: 'Barbeiro(a)' },
+    cancellationSource: item.cancellationSource,
+    cancellationNoticeAckAt: item.cancellationNoticeAckAt,
   }
 }
 export function clientError(error: unknown) {

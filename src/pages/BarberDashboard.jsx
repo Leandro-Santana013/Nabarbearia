@@ -37,6 +37,7 @@ export default function BarberDashboard({ session, onManage }) {
   const [activeTab, setActiveTab] = useState("agenda")
   const [appointments, setAppointments] = useState([])
   const [blocks, setBlocks] = useState([])
+  const [recurringBlocks, setRecurringBlocks] = useState([])
   const [date, setDate] = useState(() => shopDate())
   const [loading, setLoading] = useState(true)
   useAndroidReady(!loading)
@@ -99,11 +100,11 @@ export default function BarberDashboard({ session, onManage }) {
       const from = new Date(`${date}T00:00:00-03:00`)
       const to = new Date(from.getTime() + 24 * 60 * 60 * 1000)
       const range = { from: from.toISOString(), to: to.toISOString() }
-      const [result, pauses] = await Promise.all([api.listAppointments(range), api.listOwnBlocks(range)])
-      if (currentRequest === requestId.current) { setAppointments(result); setBlocks(pauses); setAgendaSyncVersion((version) => version + 1) }
+      const [result, pauses, recurring] = await Promise.all([api.listAppointments(range), api.listOwnBlocks(range), api.listOwnRecurringBlocks()])
+      if (currentRequest === requestId.current) { setAppointments(result); setBlocks(pauses); setRecurringBlocks(recurring); setAgendaSyncVersion((version) => version + 1) }
     } catch (failure) {
       if (currentRequest === requestId.current) {
-        setAppointments([]); setBlocks([])
+        setAppointments([]); setBlocks([]); setRecurringBlocks([])
         setError(failure instanceof ApiError ? failure.message : "Não foi possível carregar a agenda.")
       }
     } finally {
@@ -237,12 +238,11 @@ export default function BarberDashboard({ session, onManage }) {
         {activeTab === "agenda" && <>
           <BarberAgendaHeader name={name} date={date} inProgress={inProgress} paused={paused} busy={busy} loading={loading} onDateChange={setDate} onRefresh={load} />
           <BarberDayTools date={date} barberId={session.user.id} busy={busy || loading} onRun={runAction} />
-          {blocks.length > 0 && <section aria-label="Pausas bloqueadas" className="flex flex-wrap gap-2">{blocks.map((block) => <span key={block.id} className="rounded-lg bg-white px-2 py-1 text-[11px] text-gray-500">{block.reason || "Pausa"} · {scheduleTime(block.starts_at)}–{scheduleTime(block.ends_at)}</span>)}</section>}
         </>}
         {error && <Alert variant="destructive" className="rounded-xl border-destructive/20 bg-white p-3"><AlertDescription className="text-xs">{error}</AlertDescription></Alert>}
         {notice && <p role="status" className="rounded-xl bg-emerald-50 p-2.5 text-xs text-emerald-700">{notice}</p>}
         {error && appointments.length === 0 && activeTab !== "perfil" && <Button type="button" variant="outline" disabled={busy || loading} onClick={load} className="min-h-11 rounded-xl text-xs!">Tentar carregar novamente</Button>}
-        {activeTab === "agenda" && <BarberSchedule appointments={schedule.items} date={date} barberName={name} startedIds={startedIds}
+        {activeTab === "agenda" && <BarberSchedule appointments={schedule.items} blocks={blocks} recurringBlocks={recurringBlocks} date={date} barberName={name} startedIds={startedIds}
           loading={loading} loadFailed={Boolean(error && appointments.length === 0)}
           onNoShow={(appointment) => updateAppointment(appointment, "no-show")}
           onSaveDetails={(appointment, details) => runAction(() => api.updateAppointmentDetails(appointment.id, details), "Detalhes atualizados.")}

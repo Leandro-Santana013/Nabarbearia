@@ -73,7 +73,7 @@
   .owner-team-table .owner-row-actions button:last-child { grid-column: 1 / -1; }
   .owner-services-table .owner-row-actions button { width: 100%; }
 
-  .owner-dashboard input[type="checkbox"], .owner-dialog input[type="checkbox"] { flex: 0 0 20px; width: 20px; height: 20px; min-height: 0; margin: 2px; padding: 0; accent-color: var(--primary); cursor: pointer; }
+  .owner-dashboard input[type="checkbox"], .owner-dialog input[type="checkbox"] { flex: 0 0 16px; width: 16px; height: 16px; min-height: 16px; margin: 0; padding: 0; accent-color: var(--primary); cursor: pointer; }
   .owner-agenda-select-all { grid-column: 1 / -1; }
   .owner-agenda-grid-scroll { max-width: 100%; overscroll-behavior-x: contain; }
   .owner-agenda-grid { min-width: max(100%, 520px); }

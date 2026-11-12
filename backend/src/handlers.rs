@@ -9,7 +9,7 @@ use axum::{
     http::{HeaderMap, HeaderValue, StatusCode, header},
     middleware,
     response::{IntoResponse, Response},
-    routing::{get, patch, post, put},
+    routing::{delete, get, patch, post, put},
 };
 use chrono::{
     DateTime, Datelike, Duration as ChronoDuration, LocalResult, NaiveDate, SecondsFormat,
@@ -36,7 +36,7 @@ use crate::{
         BarberResponse, BlockRequest, CancelRequest, CommissionRuleRequest, CompleteRequest,
         ConsentRequest, DateRangeQuery, GoogleLoginRequest, LoginRequest, MessageResponse,
         OwnerScheduleIntervalResponse, PublicBarberResponse, RatingRequest, RegisterRequest,
-        RescheduleRequest, RevenueReport, Role, ScheduleDateQuery, ScheduleRequest, ServiceRequest,
+        RecurringBlockRequest, RescheduleRequest, RevenueReport, Role, ScheduleDateQuery, ScheduleRequest, ServiceRequest,
         ServiceResponse, SetupOwnerRequest, SetupStatusResponse,
     },
     security::{
@@ -133,6 +133,7 @@ pub fn router(state: AppState) -> Router {
             patch(reschedule_appointment),
         )
         .route("/api/v1/appointments/{id}/cancel", post(cancel_appointment))
+        .route("/api/v1/appointments/{id}/cancellation-notice", patch(acknowledge_cancellation_notice))
         .route("/api/v1/appointments/{id}/start", post(start_execution))
         .route(
             "/api/v1/appointments/{id}/details",
@@ -176,7 +177,10 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/admin/schedules",
             get(list_owner_schedules).post(create_schedule),
         )
-        .route("/api/v1/admin/blocks", post(create_block))
+        .route("/api/v1/admin/blocks", get(list_owner_blocks).post(create_block))
+        .route("/api/v1/admin/recurring-blocks", get(list_recurring_blocks).post(create_recurring_block))
+        .route("/api/v1/admin/recurring-blocks/{id}", delete(delete_recurring_block))
+        .route("/api/v1/barber/recurring-blocks", get(list_own_recurring_blocks))
         .route(
             "/api/v1/admin/commission-rules",
             post(create_commission_rule),
@@ -1114,6 +1118,13 @@ fn valid_id(value: &str) -> Result<String, AppError> {
     Ok(value.to_string())
 }
 
+fn valid_block_type(value: &str) -> Result<String, AppError> {
+    match value {
+        "break" | "appointment" | "day_off" | "vacation" | "other" => Ok(value.to_string()),
+        _ => Err(AppError::bad_request("INVALID_BLOCK_TYPE", "Block type is invalid")),
+    }
+}
+
 fn idempotency_key(headers: &HeaderMap) -> Result<String, AppError> {
     let value = headers
         .get("idempotency-key")
@@ -1542,8 +1553,41 @@ async fn list_own_blocks(
     let business = context.user.business_id;
     let barber = context.user.id;
     let blocks = state.db.with_conn(move |connection| -> Result<_, AppError> {
-        let mut statement = connection.prepare("SELECT id, starts_at_utc, ends_at_utc, reason FROM availability_blocks WHERE business_id=?1 AND barber_user_id=?2 AND active=1 AND (?3 IS NULL OR ends_at_utc > ?3) AND (?4 IS NULL OR starts_at_utc < ?4) ORDER BY starts_at_utc LIMIT 500")?;
-        let rows = statement.query_map(params![business,barber,from,to], |row| Ok(json!({ "id":row.get::<_,String>(0)?, "starts_at":row.get::<_,String>(1)?, "ends_at":row.get::<_,String>(2)?, "reason":row.get::<_,Option<String>>(3)? })))?.collect::<Result<Vec<_>,_>>()?;
+        let mut statement = connection.prepare("SELECT id, starts_at_utc, ends_at_utc, reason, block_type FROM availability_blocks WHERE business_id=?1 AND barber_user_id=?2 AND active=1 AND (?3 IS NULL OR ends_at_utc > ?3) AND (?4 IS NULL OR starts_at_utc < ?4) ORDER BY starts_at_utc LIMIT 500")?;
+        let rows = statement.query_map(params![business,barber,from,to], |row| Ok(json!({ "id":row.get::<_,String>(0)?, "starts_at":row.get::<_,String>(1)?, "ends_at":row.get::<_,String>(2)?, "reason":row.get::<_,Option<String>>(3)?, "block_type":row.get::<_,String>(4)? })))?.collect::<Result<Vec<_>,_>>()?;
+        Ok(rows)
+    }).await?;
+    Ok(Json(blocks))
+}
+
+async fn list_owner_blocks(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<DateRangeQuery>,
+) -> ApiResult<Json<Vec<serde_json::Value>>> {
+    let context = authenticate(&state, &headers).await?;
+    require_admin(&context)?;
+    let from = query.from.as_deref().map(parse_input_utc).transpose()?;
+    let to = query.to.as_deref().map(parse_input_utc).transpose()?;
+    if to.is_some_and(|end| from.as_ref().is_some_and(|start| end <= *start || end - *start > ChronoDuration::days(366))) {
+        return Err(AppError::bad_request("INVALID_RANGE", "Date range is invalid"));
+    }
+    let from = from.map(utc_text);
+    let to = to.map(utc_text);
+    let business_id = context.user.business_id;
+    let blocks = state.db.with_conn(move |connection| -> Result<_, AppError> {
+        let mut statement = connection.prepare(
+            "SELECT b.id,b.barber_user_id,u.display_name,b.starts_at_utc,b.ends_at_utc,b.reason,b.block_type
+             FROM availability_blocks b
+             JOIN users u ON u.business_id=b.business_id AND u.id=b.barber_user_id
+             WHERE b.business_id=?1 AND b.active=1
+               AND (?2 IS NULL OR b.ends_at_utc > ?2) AND (?3 IS NULL OR b.starts_at_utc < ?3)
+             ORDER BY b.starts_at_utc LIMIT 500",
+        )?;
+        let rows = statement.query_map(params![business_id,from,to], |row| Ok(json!({
+            "id": row.get::<_,String>(0)?, "barber_user_id": row.get::<_,String>(1)?, "barber_name": row.get::<_,String>(2)?,
+            "starts_at": row.get::<_,String>(3)?, "ends_at": row.get::<_,String>(4)?, "reason": row.get::<_,Option<String>>(5)?, "block_type": row.get::<_,String>(6)?
+        })))?.collect::<Result<Vec<_>,_>>()?;
         Ok(rows)
     }).await?;
     Ok(Json(blocks))
@@ -1579,6 +1623,7 @@ async fn create_block(
         "INVALID_BLOCK",
         "Block reason is invalid",
     )?;
+    let block_type = valid_block_type(request.block_type.as_deref().unwrap_or("other"))?;
     let business_id = context.user.business_id.clone();
     let actor_id = context.user.id.clone();
     let starts_text = utc_text(starts_at);
@@ -1602,9 +1647,9 @@ async fn create_block(
             if booked != 0 { return Err(AppError::conflict("APPOINTMENT_OVERLAP", "A pausa coincide com um atendimento confirmado.")); }
             let block_id = new_id();
             transaction.execute(
-                "INSERT INTO availability_blocks(id, business_id, barber_user_id, starts_at_utc, ends_at_utc, reason, created_by_user_id, created_at_utc)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                params![block_id, business_id, barber_id, starts_text, ends_text, reason, actor_id, utc_text(Utc::now())],
+                "INSERT INTO availability_blocks(id, business_id, barber_user_id, starts_at_utc, ends_at_utc, reason, block_type, created_by_user_id, created_at_utc)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![block_id, business_id, barber_id, starts_text, ends_text, reason, block_type, actor_id, utc_text(Utc::now())],
             )?;
             insert_audit(&transaction, &business_id, Some(&actor_id), "availability_block.created", "availability_block", &block_id, "{}")?;
             transaction.commit()?;
@@ -1617,6 +1662,113 @@ async fn create_block(
             message: "Block created",
         }),
     ))
+}
+
+async fn create_recurring_block(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(request): Json<RecurringBlockRequest>,
+) -> ApiResult<(StatusCode, Json<MessageResponse>)> {
+    let context = authenticate(&state, &headers).await?;
+    require_mutation(&state, &headers, &context)?;
+    require_admin(&context)?;
+    let barber_id = valid_id(&request.barber_user_id)?;
+    if !(0..=6).contains(&request.weekday)
+        || !(0..=1439).contains(&request.start_minute)
+        || !(1..=1440).contains(&request.end_minute)
+        || request.end_minute <= request.start_minute
+        || request.start_minute % 15 != 0
+        || request.end_minute % 15 != 0
+    {
+        return Err(AppError::bad_request("INVALID_RECURRING_BLOCK", "Recurring block interval is invalid"));
+    }
+    let reason = optional_text(request.reason.as_deref(), 500, "INVALID_RECURRING_BLOCK", "Block reason is invalid")?;
+    let block_type = valid_block_type(request.block_type.as_deref().unwrap_or("day_off"))?;
+    let business_id = context.user.business_id.clone();
+    let actor_id = context.user.id.clone();
+    state.db.with_conn(move |connection| -> Result<_, AppError> {
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        ensure_active_barber(&transaction, &business_id, &barber_id)?;
+        let overlap: i64 = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM recurring_availability_blocks WHERE business_id=?1 AND barber_user_id=?2 AND weekday=?3 AND active=1 AND start_minute < ?4 AND end_minute > ?5)",
+            params![business_id, barber_id, request.weekday, request.end_minute, request.start_minute],
+            |row| row.get(0),
+        )?;
+        if overlap != 0 { return Err(AppError::conflict("BLOCK_OVERLAP", "Recurring block overlaps an existing rule")); }
+        let id = Uuid::now_v7().to_string();
+        transaction.execute(
+            "INSERT INTO recurring_availability_blocks(id,business_id,barber_user_id,weekday,start_minute,end_minute,block_type,reason,created_by_user_id,created_at_utc) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+            params![id,business_id,barber_id,request.weekday,request.start_minute,request.end_minute,block_type,reason,actor_id,utc_text(Utc::now())],
+        )?;
+        insert_audit(&transaction, &business_id, Some(&actor_id), "recurring_availability_block.created", "recurring_availability_block", &id, "{}")?;
+        transaction.commit()?;
+        Ok(())
+    }).await?;
+    Ok((StatusCode::CREATED, Json(MessageResponse { message: "Recurring block created" })))
+}
+
+async fn list_recurring_blocks(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> ApiResult<Json<Vec<serde_json::Value>>> {
+    let context = authenticate(&state, &headers).await?;
+    require_admin(&context)?;
+    let business_id = context.user.business_id;
+    let blocks = state.db.with_conn(move |connection| -> Result<_, AppError> {
+        let mut statement = connection.prepare("SELECT b.id,b.barber_user_id,u.display_name,b.weekday,b.start_minute,b.end_minute,b.block_type,b.reason FROM recurring_availability_blocks b JOIN users u ON u.business_id=b.business_id AND u.id=b.barber_user_id WHERE b.business_id=?1 AND b.active=1 ORDER BY b.barber_user_id,b.weekday,b.start_minute")?;
+        let rows = statement.query_map(params![business_id], |row| Ok(json!({
+            "id": row.get::<_, String>(0)?, "barber_user_id": row.get::<_, String>(1)?, "barber_name": row.get::<_, String>(2)?,
+            "weekday": row.get::<_, i64>(3)?, "start_minute": row.get::<_, i64>(4)?, "end_minute": row.get::<_, i64>(5)?,
+            "block_type": row.get::<_, String>(6)?, "reason": row.get::<_, String>(7)?
+        })))?.collect::<Result<Vec<_>, _>>()?;
+        Ok(rows)
+    }).await?;
+    Ok(Json(blocks))
+}
+
+async fn list_own_recurring_blocks(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> ApiResult<Json<Vec<serde_json::Value>>> {
+    let context = authenticate(&state, &headers).await?;
+    require_role(&context, Role::Barber)?;
+    let business_id = context.user.business_id;
+    let barber_id = context.user.id;
+    let blocks = state.db.with_conn(move |connection| -> Result<_, AppError> {
+        let mut statement = connection.prepare(
+            "SELECT id,weekday,start_minute,end_minute,block_type,reason
+             FROM recurring_availability_blocks
+             WHERE business_id=?1 AND barber_user_id=?2 AND active=1
+             ORDER BY weekday,start_minute",
+        )?;
+        let rows = statement.query_map(params![business_id,barber_id], |row| Ok(json!({
+            "id": row.get::<_,String>(0)?, "weekday": row.get::<_,i64>(1)?,
+            "start_minute": row.get::<_,i64>(2)?, "end_minute": row.get::<_,i64>(3)?,
+            "block_type": row.get::<_,String>(4)?, "reason": row.get::<_,String>(5)?
+        })))?.collect::<Result<Vec<_>,_>>()?;
+        Ok(rows)
+    }).await?;
+    Ok(Json(blocks))
+}
+
+async fn delete_recurring_block(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> ApiResult<Json<MessageResponse>> {
+    let context = authenticate(&state, &headers).await?;
+    require_mutation(&state, &headers, &context)?;
+    require_admin(&context)?;
+    let id = valid_id(&id)?;
+    let business_id = context.user.business_id;
+    let actor_id = context.user.id;
+    state.db.with_conn(move |connection| -> Result<_, AppError> {
+        let changed = connection.execute("UPDATE recurring_availability_blocks SET active=0 WHERE business_id=?1 AND id=?2 AND active=1", params![business_id, id])?;
+        if changed == 0 { return Err(AppError::not_found("RECURRING_BLOCK_NOT_FOUND", "Recurring block was not found")); }
+        insert_audit(&connection, &business_id, Some(&actor_id), "recurring_availability_block.deleted", "recurring_availability_block", &id, "{}")?;
+        Ok(())
+    }).await?;
+    Ok(Json(MessageResponse { message: "Recurring block removed" }))
 }
 
 async fn create_commission_rule(
@@ -1746,7 +1898,7 @@ async fn public_availability(
                  SELECT barber_user_id, starts_at_utc, ends_at_utc FROM appointments
                  WHERE business_id = ?1 AND status = 'confirmed' AND starts_at_utc < ?2 AND ends_at_utc > ?3",
             )?;
-            let busy = busy_statement
+            let mut busy = busy_statement
                 .query_map(params![business_id, day_end_text, day_start_text], |row| {
                     Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
                 })?
@@ -1761,6 +1913,20 @@ async fn public_availability(
                     })
                 })
                 .collect::<Result<Vec<_>, AppError>>()?;
+            let tz = Tz::from_str(&timezone).map_err(|_| AppError::Internal)?;
+            let mut recurring_statement = connection.prepare(
+                "SELECT barber_user_id, start_minute, end_minute FROM recurring_availability_blocks
+                 WHERE business_id = ?1 AND weekday = ?2 AND active = 1",
+            )?;
+            for row in recurring_statement.query_map(params![business_id, weekday], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?))
+            })? {
+                let (barber_id, start_minute, end_minute) = row?;
+                if !barber_ids.contains(&barber_id) { continue; }
+                let starts_at = local_time(tz, date, start_minute)?.with_timezone(&Utc);
+                let ends_at = local_time(tz, date, end_minute)?.with_timezone(&Utc);
+                busy.push(BusyInterval { barber_id, starts_at, ends_at });
+            }
             Ok((timezone, duration_minutes, barbers, schedules, busy))
         })
         .await?;
@@ -1979,7 +2145,8 @@ async fn list_appointments(
                     (SELECT r.score FROM ratings r WHERE r.business_id = a.business_id AND r.appointment_id = a.id),
                     a.client_phone, a.payment_method, a.client_note,
                     EXISTS(SELECT 1 FROM service_executions e WHERE e.business_id=a.business_id AND e.appointment_id=a.id),
-                    (SELECT c.amount_cents FROM commission_snapshots c WHERE c.business_id=a.business_id AND c.appointment_id=a.id AND c.status='posted')
+                    (SELECT c.amount_cents FROM commission_snapshots c WHERE c.business_id=a.business_id AND c.appointment_id=a.id AND c.status='posted'),
+                    a.cancellation_source, a.cancellation_notice_ack_at_utc
                  FROM appointments a
                  JOIN users client ON client.business_id = a.business_id AND client.id = a.client_user_id
                  JOIN users barber ON barber.business_id = a.business_id AND barber.id = a.barber_user_id
@@ -2042,6 +2209,31 @@ async fn cancel_appointment(
     )?;
     let result = appointments::cancel(&state.db, context.user, appointment_id, reason).await?;
     Ok(Json(appointment_json(result, hide_financials)?))
+}
+
+async fn acknowledge_cancellation_notice(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> ApiResult<Json<MessageResponse>> {
+    let context = authenticate(&state, &headers).await?;
+    require_mutation(&state, &headers, &context)?;
+    let appointment_id = valid_id(&id)?;
+    if !context.user.roles.contains(&Role::Client) {
+        return Err(AppError::forbidden());
+    }
+    let business_id = context.user.business_id;
+    let client_id = context.user.id;
+    state.db.with_conn(move |connection| -> Result<_, AppError> {
+        let changed = connection.execute(
+            "UPDATE appointments SET cancellation_notice_ack_at_utc=?1
+             WHERE business_id=?2 AND id=?3 AND client_user_id=?4 AND status='cancelled' AND cancellation_source='schedule_block'",
+            params![utc_text(Utc::now()), business_id, appointment_id, client_id],
+        )?;
+        if changed == 0 { return Err(AppError::not_found("NOTICE_NOT_FOUND", "Cancellation notice was not found")); }
+        Ok(())
+    }).await?;
+    Ok(Json(MessageResponse { message: "Cancellation notice acknowledged" }))
 }
 
 async fn update_appointment_details(

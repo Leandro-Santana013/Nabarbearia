@@ -6,6 +6,8 @@ export interface ClientAppointment extends BookingReview {
   startsAt?: string
   rating?: number
   whatsappReminderEnabled?: boolean
+  cancellationSource?: "schedule_block" | "client" | "staff"
+  cancellationNoticeAckAt?: string
 }
 
 export interface MyAppointmentsProps {

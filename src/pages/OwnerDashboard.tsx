@@ -3,6 +3,7 @@ import "./owner-mobile.css";
 import {
   ArrowRightLeft,
   Calendar,
+  ChevronDown,
   DollarSign,
   LogOut,
   Plus,
@@ -75,6 +76,7 @@ export default function OwnerDashboard({
   const [services, setServices] = useState<Service[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [schedules, setSchedules] = useState<OwnerScheduleInterval[]>([]);
+  const [availabilityBlocks, setAvailabilityBlocks] = useState<Awaited<ReturnType<typeof api.listOwnerBlocks>>>([]);
   const [period, setPeriod] = useState<"day" | "month">("month");
   const [reportDate, setReportDate] = useState(shopDate);
   const [agendaDate, setAgendaDate] = useState(shopDate);
@@ -88,6 +90,13 @@ export default function OwnerDashboard({
   const [agendaError, setAgendaError] = useState("");
   const [notice, setNotice] = useState("");
   const [hybridPrompt, setHybridPrompt] = useState(false);
+  const [recurringBarberId, setRecurringBarberId] = useState("");
+  const [recurringWeekday, setRecurringWeekday] = useState("1");
+  const [recurringStart, setRecurringStart] = useState("09:00");
+  const [recurringEnd, setRecurringEnd] = useState("18:00");
+  const [recurringAllDay, setRecurringAllDay] = useState(true);
+  const [recurringOpen, setRecurringOpen] = useState(false);
+  const [recurringRules, setRecurringRules] = useState<Awaited<ReturnType<typeof api.listRecurringBlocks>>>([]);
   const sequence = useRef(0);
   const agendaSequence = useRef(0);
   const pending = useRef(false);
@@ -183,18 +192,23 @@ export default function OwnerDashboard({
     setAppointments([]);
     setSchedules([]);
     try {
-      const [data, daySchedules] = await Promise.all([
+      const [data, daySchedules, blocks, rules] = await Promise.all([
         api.listAppointments(ownerRange(agendaDate, "day")),
         api.listOwnerSchedules(agendaDate),
+        api.listOwnerBlocks(ownerRange(agendaDate, "day")),
+        api.listRecurringBlocks(),
       ]);
       if (request === agendaSequence.current) {
         setAppointments(data);
         setSchedules(daySchedules);
+        setAvailabilityBlocks(blocks);
+        setRecurringRules(rules);
       }
     } catch (failure) {
       if (request === agendaSequence.current) {
         setAppointments([]);
         setSchedules([]);
+        setAvailabilityBlocks([]);
         setAgendaError(
           failure instanceof Error
             ? failure.message
@@ -243,6 +257,14 @@ export default function OwnerDashboard({
       setBusy(false);
     }
   }
+  async function saveRecurringBlock() {
+    const startMinute = recurringAllDay ? 0 : Number(recurringStart.slice(0, 2)) * 60 + Number(recurringStart.slice(3))
+    const endMinute = recurringAllDay ? 1440 : Number(recurringEnd.slice(0, 2)) * 60 + Number(recurringEnd.slice(3))
+    await run(
+      () => api.createRecurringBlock({ barber_user_id: recurringBarberId, weekday: Number(recurringWeekday), start_minute: startMinute, end_minute: endMinute, block_type: "day_off", reason: "Folga recorrente" }),
+      "Folga recorrente cadastrada.",
+    )
+  }
   async function logout() {
     if (pending.current) return;
     pending.current = true;
@@ -290,9 +312,17 @@ export default function OwnerDashboard({
     .filter((item) => barberFilter === "all" || item.barberId === barberFilter)
     .sort((a, b) => (a.startsAt ?? a.date).localeCompare(b.startsAt ?? b.date));
   const agendaRows = useMemo(
-    () => ownerAgendaRows(appointments, schedules, agendaBarbers, agendaDate),
-    [appointments, schedules, agendaBarbers, agendaDate],
+    () => ownerAgendaRows(
+      appointments,
+      schedules,
+      agendaBarbers,
+      agendaDate,
+      recurringRules.map((rule) => ({ barberId: rule.barber_user_id, weekday: rule.weekday, startMinute: rule.start_minute, endMinute: rule.end_minute })),
+      availabilityBlocks.map((block) => ({ id: block.id, barberId: block.barber_user_id, barberName: block.barber_name, startsAt: block.starts_at, endsAt: block.ends_at, reason: block.reason, blockType: block.block_type })),
+    ),
+    [appointments, schedules, agendaBarbers, agendaDate, recurringRules, availabilityBlocks],
   );
+  const dayRecurringRules = recurringRules.filter((rule) => rule.weekday === new Date(`${agendaDate}T12:00:00`).getDay());
   const eligible = visible.filter(
     (item) => item.status === "confirmed" && !item.executionStarted,
   );
@@ -774,6 +804,27 @@ export default function OwnerDashboard({
                 </Card>
               </TabsContent>
               <TabsContent value="agenda-geral">
+                <Card className="mb-4 rounded-2xl bg-white shadow-sm">
+                  <CardHeader className="flex flex-row items-center justify-between gap-3 py-3">
+                    <div className="min-w-0">
+                      <CardTitle className="text-sm font-semibold">Folgas recorrentes</CardTitle>
+                      {!recurringOpen && <p className="mt-1 text-xs text-muted-foreground">{recurringRules.length ? `${recurringRules.length} horário(s) fechado(s) toda semana` : "Nenhuma folga recorrente cadastrada"}</p>}
+                    </div>
+                    <Button type="button" variant="outline" aria-expanded={recurringOpen} onClick={() => setRecurringOpen((open) => !open)} className="h-9 shrink-0 rounded-xl px-3 text-xs">
+                      {recurringOpen ? "Minimizar" : "Configurar"}<ChevronDown aria-hidden="true" className={`ml-1 size-4 transition-transform ${recurringOpen ? "rotate-180" : ""}`} />
+                    </Button>
+                  </CardHeader>
+                  {recurringOpen && <>
+                  <CardContent className="grid gap-3 border-t border-border/60 pt-3 sm:grid-cols-2 lg:grid-cols-5">
+                    <label className="space-y-1 text-xs font-semibold text-gray-600">Profissional<select value={recurringBarberId} onChange={(event) => setRecurringBarberId(event.target.value)} className="h-11 w-full rounded-xl border border-input bg-white px-3 text-sm"><option value="">Selecione</option>{team.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+                    <label className="space-y-1 text-xs font-semibold text-gray-600">Dia da semana<select value={recurringWeekday} onChange={(event) => setRecurringWeekday(event.target.value)} className="h-11 w-full rounded-xl border border-input bg-white px-3 text-sm">{["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"].map((label, index) => <option key={label} value={index}>{label}</option>)}</select></label>
+                    {!recurringAllDay && <label className="space-y-1 text-xs font-semibold text-gray-600">Início<Input type="time" step="900" value={recurringStart} onChange={(event) => setRecurringStart(event.target.value)} className="h-11 rounded-xl bg-white" /></label>}
+                    {!recurringAllDay && <label className="space-y-1 text-xs font-semibold text-gray-600">Fim<Input type="time" step="900" value={recurringEnd} onChange={(event) => setRecurringEnd(event.target.value)} className="h-11 rounded-xl bg-white" /></label>}
+                    <div className="flex flex-wrap items-end gap-2 sm:col-span-2 lg:col-span-1"><label className="flex min-h-11 items-center gap-2 text-xs font-semibold text-gray-600"><input type="checkbox" checked={recurringAllDay} onChange={(event) => setRecurringAllDay(event.target.checked)} />Dia inteiro</label><Button type="button" disabled={busy || !recurringBarberId} onClick={() => void saveRecurringBlock()} className={button}><Plus className="size-4" />Adicionar</Button></div>
+                  </CardContent>
+                  {!!recurringRules.length && <CardContent className="border-t border-border/60 pt-3"><ul className="space-y-2">{recurringRules.map((rule) => <li key={rule.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 p-3 text-xs"><span><strong>{rule.barber_name}</strong> · {["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"][rule.weekday]} · {rule.start_minute === 0 && rule.end_minute === 1440 ? "dia inteiro" : `${String(Math.floor(rule.start_minute / 60)).padStart(2, "0")}h–${String(Math.floor(rule.end_minute / 60)).padStart(2, "0")}h`}</span><Button type="button" variant="outline" disabled={busy} className={button} onClick={() => void run(() => api.deleteRecurringBlock(rule.id), "Folga recorrente removida.")}>Remover</Button></li>)}</ul></CardContent>}
+                  </>}
+                </Card>
                 <div className="owner-agenda-filters grid items-end gap-3 sm:grid-cols-[1fr_1fr_auto]">
                   <label className="space-y-1 text-xs font-semibold text-gray-600">
                     Data da agenda
@@ -814,6 +865,19 @@ export default function OwnerDashboard({
                     {agendaError}
                   </p>
                 )}
+                {(availabilityBlocks.length > 0 || dayRecurringRules.length > 0) && <details className="mb-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-3">
+                  <summary className="cursor-pointer text-xs font-semibold text-amber-950">Folgas, compromissos e férias ({availabilityBlocks.length + dayRecurringRules.length})</summary>
+                  <ul className="mt-2 space-y-1.5">
+                    {availabilityBlocks.map((block) => <li key={block.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl bg-white px-3 py-2 text-xs">
+                      <span><strong>{block.barber_name}</strong> · {block.block_type === "appointment" ? "Compromisso" : block.block_type === "vacation" ? "Férias" : block.block_type === "day_off" ? "Folga" : block.block_type === "break" ? "Pausa" : "Bloqueio"}{block.reason && !["Compromisso", "Folga", "Férias", "Pausa", "Outro"].includes(block.reason) ? ` · ${block.reason}` : ""}</span>
+                      <span className="text-muted-foreground">{shopDate(new Date(block.starts_at)) === agendaDate ? new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" }).format(new Date(block.starts_at)) : "00:00"}–{shopDate(new Date(block.ends_at)) === agendaDate ? new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" }).format(new Date(block.ends_at)) : "24:00"}</span>
+                    </li>)}
+                    {dayRecurringRules.map((rule) => <li key={rule.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl bg-white px-3 py-2 text-xs">
+                      <span><strong>{rule.barber_name}</strong> · {rule.block_type === "vacation" ? "Férias recorrentes" : rule.block_type === "appointment" ? "Compromisso recorrente" : "Folga recorrente"}{rule.reason && !["Folga recorrente", "Férias", "Compromisso"].includes(rule.reason) ? ` · ${rule.reason}` : ""}</span>
+                      <span className="text-muted-foreground">{rule.start_minute === 0 && rule.end_minute === 1440 ? "Dia inteiro" : `${String(Math.floor(rule.start_minute / 60)).padStart(2, "0")}:${String(rule.start_minute % 60).padStart(2, "0")}–${String(Math.floor(rule.end_minute / 60)).padStart(2, "0")}:${String(rule.end_minute % 60).padStart(2, "0")}`}</span>
+                    </li>)}
+                  </ul>
+                </details>}
                 <div className="owner-bulk-actions flex flex-wrap items-center gap-2">
                   <label className="owner-agenda-select-all flex items-center gap-2 text-xs">
                     <input
@@ -894,6 +958,8 @@ export default function OwnerDashboard({
                                 >
                                   {cell.appointments.length ? (
                                     <div className="space-y-1">
+                                      {cell.recurringBlocked && <Badge className="border-0 bg-amber-50 text-[10px] text-amber-800">Horário fechado</Badge>}
+                                      {cell.availabilityBlocks.map((block) => <Badge key={block.id} className="border-0 bg-amber-50 text-[10px] text-amber-800">{block.blockType === "appointment" ? "Compromisso" : block.blockType === "vacation" ? "Férias" : block.blockType === "day_off" ? "Folga" : block.blockType === "break" ? "Pausa" : "Bloqueado"}</Badge>)}
                                       {cell.appointments.map((item) => {
                                         const canSelect =
                                           item.status === "confirmed" &&
@@ -959,6 +1025,11 @@ export default function OwnerDashboard({
                                           </div>
                                         );
                                       })}
+                                    </div>
+                                  ) : cell.recurringBlocked || cell.availabilityBlocks.length ? (
+                                    <div className="flex flex-col items-center gap-1">
+                                      {cell.recurringBlocked && <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-800">Fechado</span>}
+                                      {cell.availabilityBlocks.map((block) => <span key={block.id} className="inline-flex items-center rounded-full bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-800">{block.blockType === "appointment" ? "Compromisso" : block.blockType === "vacation" ? "Férias" : block.blockType === "day_off" ? "Folga" : block.blockType === "break" ? "Pausa" : "Bloqueado"}</span>)}
                                     </div>
                                   ) : cell.inSchedule ? (
                                     <button

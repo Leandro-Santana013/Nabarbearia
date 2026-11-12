@@ -56,6 +56,8 @@ pub(crate) fn appointment_from_row(
         client_note: row.get(16)?,
         execution_started: row.get(17)?,
         commission_cents: row.get(18)?,
+        cancellation_source: row.get(19)?,
+        cancellation_notice_ack_at: row.get(20)?,
     })
 }
 
@@ -71,7 +73,8 @@ pub(crate) fn get_appointment(
                     (SELECT r.score FROM ratings r WHERE r.business_id = a.business_id AND r.appointment_id = a.id),
                     a.client_phone, a.payment_method, a.client_note,
                     EXISTS(SELECT 1 FROM service_executions e WHERE e.business_id=a.business_id AND e.appointment_id=a.id),
-                    (SELECT c.amount_cents FROM commission_snapshots c WHERE c.business_id=a.business_id AND c.appointment_id=a.id AND c.status='posted')
+                    (SELECT c.amount_cents FROM commission_snapshots c WHERE c.business_id=a.business_id AND c.appointment_id=a.id AND c.status='posted'),
+                    a.cancellation_source, a.cancellation_notice_ack_at_utc
              FROM appointments a
              JOIN users client ON client.business_id = a.business_id AND client.id = a.client_user_id
              JOIN users barber ON barber.business_id = a.business_id AND barber.id = a.barber_user_id
@@ -145,6 +148,16 @@ pub(super) fn ensure_slot_available(
             "SLOT_UNAVAILABLE",
             "Requested slot is blocked",
         ));
+    }
+    let recurring_blocked: i64 = connection.query_row(
+        "SELECT EXISTS(SELECT 1 FROM recurring_availability_blocks
+         WHERE business_id = ?1 AND barber_user_id = ?2 AND weekday = ?3 AND active = 1
+           AND start_minute < ?4 AND end_minute > ?5)",
+        params![business_id, barber_id, weekday, end_minute, start_minute],
+        |row| row.get(0),
+    )?;
+    if recurring_blocked != 0 {
+        return Err(Error::conflict("SLOT_UNAVAILABLE", "Requested slot is blocked"));
     }
     let conflict: i64 = connection.query_row(
         "SELECT EXISTS(SELECT 1 FROM appointments

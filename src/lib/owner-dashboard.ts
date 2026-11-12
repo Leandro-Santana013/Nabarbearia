@@ -24,9 +24,26 @@ export interface OwnerScheduleInterval {
   startMinute: number;
   endMinute: number;
 }
+export interface OwnerRecurringBlock {
+  barberId: string;
+  weekday: number;
+  startMinute: number;
+  endMinute: number;
+}
+export interface OwnerAvailabilityBlock {
+  id: string;
+  barberId: string;
+  barberName: string;
+  startsAt: string;
+  endsAt: string;
+  reason?: string;
+  blockType: string;
+}
 export interface OwnerAgendaCell {
   barberId: string;
   inSchedule: boolean;
+  recurringBlocked: boolean;
+  availabilityBlocks: OwnerAvailabilityBlock[];
   appointments: Appointment[];
 }
 export interface OwnerAgendaRow {
@@ -58,7 +75,10 @@ export function ownerAgendaRows(
   schedules: OwnerScheduleInterval[],
   barbers: readonly { id: string }[],
   date: string,
+  recurringBlocks: readonly OwnerRecurringBlock[] = [],
+  availabilityBlocks: readonly OwnerAvailabilityBlock[] = [],
 ): OwnerAgendaRow[] {
+  const weekday = new Date(`${date}T12:00:00`).getDay();
   const barberIds = new Set(barbers.map((barber) => barber.id));
   const intervals = schedules.filter(
     (item) =>
@@ -77,6 +97,7 @@ export function ownerAgendaRows(
       minutes.add(minute);
     }
   }
+  const blocks = recurringBlocks.filter((item) => barberIds.has(item.barberId) && item.weekday === weekday);
   for (const item of appointments) {
     if (
       item.status === "cancelled" ||
@@ -88,6 +109,7 @@ export function ownerAgendaRows(
     const time = scheduleTime(item.startsAt ?? item.date);
     const [hour, minute] = time.split(":").map(Number);
     const startsAtMinute = hour * 60 + minute;
+    if (!intervals.some((interval) => interval.barberId === item.barberId && interval.startMinute <= startsAtMinute && interval.endMinute > startsAtMinute)) continue;
     minutes.add(startsAtMinute);
     const key = `${item.barberId}:${startsAtMinute}`;
     bookings.set(key, [...(bookings.get(key) ?? []), item]);
@@ -107,6 +129,20 @@ export function ownerAgendaRows(
             item.startMinute <= minute &&
             item.endMinute > minute,
         ),
+        recurringBlocked: blocks.some(
+          (item) => item.barberId === id && item.startMinute <= minute && item.endMinute > minute,
+        ),
+        availabilityBlocks: availabilityBlocks.filter((block) => {
+          if (block.barberId !== id) return false;
+          const blockDate = shopDate(new Date(block.startsAt));
+          const endDate = shopDate(new Date(block.endsAt));
+          if (blockDate > date || endDate < date) return false;
+          const [startHour, startMinute] = scheduleTime(block.startsAt).split(":").map(Number);
+          const [endHour, endMinute] = scheduleTime(block.endsAt).split(":").map(Number);
+          const start = blockDate < date ? 0 : startHour * 60 + startMinute;
+          const end = endDate > date ? 1440 : endHour * 60 + endMinute;
+          return start < minute + 30 && end > minute;
+        }),
         appointments: bookings.get(`${id}:${minute}`) ?? [],
       })),
     }));

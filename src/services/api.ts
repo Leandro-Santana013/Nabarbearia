@@ -74,6 +74,8 @@ export interface AppointmentDto {
   execution_started?: boolean
   commission_cents?: number | null
   rating?: number | null
+  cancellation_source?: 'schedule_block' | 'client' | 'staff' | null
+  cancellation_notice_ack_at?: string | null
 }
 
 function mapAppointment(appointment: AppointmentDto): Appointment {
@@ -99,6 +101,8 @@ function mapAppointment(appointment: AppointmentDto): Appointment {
     clientNote: appointment.client_note ?? undefined,
     executionStarted: appointment.execution_started,
     commissionCents: appointment.commission_cents ?? undefined,
+    cancellationSource: appointment.cancellation_source ?? undefined,
+    cancellationNoticeAckAt: appointment.cancellation_notice_ack_at ?? undefined,
   }
 }
 
@@ -332,6 +336,10 @@ class ApiService {
     })
   }
 
+  async acknowledgeCancellationNotice(id: string): Promise<void> {
+    await this.request(`/appointments/${encodeURIComponent(id)}/cancellation-notice`, { method: 'PATCH', body: '{}' })
+  }
+
   async startAppointment(id: string): Promise<void> {
     await this.request(`/appointments/${encodeURIComponent(id)}/start`, { method: 'POST', body: '{}' })
   }
@@ -376,12 +384,32 @@ class ApiService {
     await this.request('/barber/walk-ins', { method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify(input) })
   }
 
-  async listOwnBlocks(range: { from: string; to: string }): Promise<{ id: string; starts_at: string; ends_at: string; reason?: string }[]> {
+  async listOwnBlocks(range: { from: string; to: string }): Promise<{ id: string; starts_at: string; ends_at: string; reason?: string; block_type?: string }[]> {
     return this.request(`/barber/blocks?${new URLSearchParams(range)}`)
   }
 
-  async createOwnBlock(input: { barber_user_id: string; starts_at_utc: string; ends_at_utc: string; reason: string }): Promise<void> {
+  async listOwnerBlocks(range: { from: string; to: string }): Promise<{ id: string; barber_user_id: string; barber_name: string; starts_at: string; ends_at: string; reason?: string; block_type: string }[]> {
+    return this.request(`/admin/blocks?${new URLSearchParams(range)}`)
+  }
+
+  async listOwnRecurringBlocks(): Promise<{ id: string; weekday: number; start_minute: number; end_minute: number; reason: string; block_type: string }[]> {
+    return this.request('/barber/recurring-blocks')
+  }
+
+  async createOwnBlock(input: { barber_user_id: string; starts_at_utc: string; ends_at_utc: string; reason: string; block_type?: string }): Promise<void> {
     await this.request('/barber/blocks', { method: 'POST', body: JSON.stringify(input) })
+  }
+
+  async createRecurringBlock(input: { barber_user_id: string; weekday: number; start_minute: number; end_minute: number; reason?: string; block_type?: string }): Promise<void> {
+    await this.request('/admin/recurring-blocks', { method: 'POST', body: JSON.stringify(input) })
+  }
+
+  async listRecurringBlocks(): Promise<{ id: string; barber_user_id: string; barber_name: string; weekday: number; start_minute: number; end_minute: number; reason: string; block_type: string }[]> {
+    return this.request('/admin/recurring-blocks')
+  }
+
+  async deleteRecurringBlock(id: string): Promise<void> {
+    await this.request(`/admin/recurring-blocks/${encodeURIComponent(id)}`, { method: 'DELETE' })
   }
 
   async updateAppointmentDetails(id: string, input: { client_phone?: string; payment_method?: string; client_note?: string }): Promise<void> {

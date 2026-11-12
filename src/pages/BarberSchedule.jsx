@@ -16,13 +16,17 @@ const STATUS = {
 }
 
 /** @param {import("./BarberDashboard.types").BarberScheduleProps} props */
-export default function BarberSchedule({ appointments, startedIds, date, barberName, busy, onStart, onComplete, onNoShow, onSaveDetails, loading = false, loadFailed = false }) {
+export default function BarberSchedule({ appointments, blocks = [], recurringBlocks = [], startedIds, date, barberName, busy, onStart, onComplete, onNoShow, onSaveDetails, loading = false, loadFailed = false }) {
   const id = useId()
   const [confirmNoShow, setConfirmNoShow] = useState(null)
   const sorted = sortBarberAppointments(appointments, startedIds)
   const pending = sorted.filter((item) => item.status === "confirmed")
   const inactive = sorted.filter((item) => item.status === "cancelled" || item.status === "no-show")
   const completed = sorted.filter((item) => item.status === "completed")
+  const weekday = new Date(`${date}T12:00:00`).getDay()
+  const dayRecurringBlocks = recurringBlocks.filter((block) => block.weekday === weekday)
+  const blockLabel = (type) => ({ appointment: "Compromisso", day_off: "Folga", vacation: "Férias", break: "Pausa", other: "Bloqueio" }[type] ?? "Bloqueio")
+  const minuteLabel = (minute) => minute === 1440 ? "24:00" : `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`
   const renderAppointment = (appointment) => {
     const inProgress = isAppointmentInProgress(appointment, startedIds)
     const status = STATUS[inProgress ? "started" : appointment.status]
@@ -67,6 +71,18 @@ export default function BarberSchedule({ appointments, startedIds, date, barberN
         <h2 id={`${id}-heading`} className="text-sm font-semibold">{date === shopDate() ? "Agenda de Hoje" : "Agenda do Dia"}</h2>
         <span className="text-xs text-muted-foreground">{appointments.length} agendamentos</span>
       </div>
+
+      {(blocks.length > 0 || dayRecurringBlocks.length > 0) && <section aria-label="Folgas, compromissos e férias" className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50/70 p-3">
+        <h3 className="text-xs font-semibold text-amber-950">Horários bloqueados</h3>
+        {blocks.map((block) => <div key={block.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl bg-white px-3 py-2 text-xs">
+          <span className="font-semibold text-amber-900">{blockLabel(block.block_type)}{block.reason && !["Compromisso", "Folga", "Férias", "Pausa"].includes(block.reason) ? ` · ${block.reason}` : ""}</span>
+          <time dateTime={block.starts_at} className="text-muted-foreground">{scheduleTime(block.starts_at)}–{scheduleTime(block.ends_at)}</time>
+        </div>)}
+        {dayRecurringBlocks.map((block) => <div key={block.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl bg-white px-3 py-2 text-xs">
+          <span className="font-semibold text-amber-900">{blockLabel(block.block_type)} recorrente{block.reason ? ` · ${block.reason}` : ""}</span>
+          <span className="text-muted-foreground">{block.start_minute === 0 && block.end_minute === 1440 ? "Dia inteiro" : `${minuteLabel(block.start_minute)}–${minuteLabel(block.end_minute)}`}</span>
+        </div>)}
+      </section>}
 
       {loading ? <p role="status" className="rounded-2xl bg-white p-5 text-center text-sm text-muted-foreground">Carregando agenda…</p> : !loadFailed && (pending.length > 0 ? renderAppointment(pending[0]) : (
         <Card className="gap-2 rounded-2xl bg-white p-4 text-center shadow-sm">

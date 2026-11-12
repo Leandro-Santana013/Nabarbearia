@@ -60,6 +60,11 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "google_identity",
         include_str!("../migrations/0011_google_identity.sql"),
     ),
+    (
+        12,
+        "agenda_blocks",
+        include_str!("../migrations/0012_agenda_blocks.sql"),
+    ),
 ];
 
 #[derive(Debug, Error)]
