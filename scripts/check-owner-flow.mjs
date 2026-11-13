@@ -41,7 +41,8 @@ try {
       owner,
     )
   ).body;
-  const day = new Date();
+  const shopToday = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  const day = new Date(`${shopToday}T12:00:00Z`);
   day.setUTCDate(day.getUTCDate() + 1);
   while (day.getUTCDay() === 0) day.setUTCDate(day.getUTCDate() + 1);
   const date = day.toISOString().slice(0, 10);
@@ -290,11 +291,11 @@ try {
   const targetBarber = teamSummary.team.find(
     (item) => item.name === "Barbeiro Atualizado",
   );
-  const agendaWeekday = new Date(`${date}T12:00:00-03:00`).getDay();
+  const agendaWeekday = new Date(`${date}T12:00:00Z`).getUTCDay();
   for (let weekday = 1; weekday <= 6; weekday++) {
     const offset = (weekday - agendaWeekday + 7) % 7;
-    const scheduleDate = new Date(`${date}T12:00:00-03:00`);
-    scheduleDate.setDate(scheduleDate.getDate() + offset);
+    const scheduleDate = new Date(`${date}T12:00:00Z`);
+    scheduleDate.setUTCDate(scheduleDate.getUTCDate() + offset);
     const scheduleDateText = scheduleDate.toISOString().slice(0, 10);
     const daySchedules = (
       await request(`/admin/schedules?date=${scheduleDateText}`, null, owner)

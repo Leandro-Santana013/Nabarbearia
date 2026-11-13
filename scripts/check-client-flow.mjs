@@ -173,12 +173,23 @@ try {
   await evaluate(`[...document.querySelectorAll('summary')].find(el => el.textContent.includes('Atendimentos Concluídos')).click()`)
   await walkIn('Falta Teste', '11:00'); await click('Falta'); await click('Registrar falta'); await waitText('Falta registrada.')
   assert.equal((await appointments()).find(item => item.client_display_name === 'Falta Teste').status, 'no_show')
-  await click('Almoço 1h'); await formField('Horário de início · Brasília', '12:00'); await click('Confirmar pausa')
-  await waitText('Pausa bloqueada na agenda.'); await waitText('Almoço · 12:00–13:00')
+  // 12:00 may already have passed when CI runs in the afternoon. Choose a
+  // future hour so the UI's real-world validation accepts the test block.
+  const lunchStart = await evaluate(`(() => {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(now);
+    const hour = Number(parts.find(part => part.type === 'hour').value);
+    return hour < 12 ? '12:00' : String(Math.min(hour + 1, 22)).padStart(2, '0') + ':00';
+  })()`)
+  const lunchEnd = `${String(Number(lunchStart.slice(0, 2)) + 1).padStart(2, '0')}:00`
+  const lunchLabel = `${lunchStart}–${lunchEnd}`
+  await click('Almoço 1h'); await formField('Horário de início · Brasília', lunchStart); await click('Confirmar pausa')
+  await waitText('Pausa bloqueada na agenda.'); await waitText(`Almoço · ${lunchLabel}`)
   const selectedDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' }).format(day)
   const slots = (await request(`/public/availability?${new URLSearchParams({ date: selectedDate, service_id: service.id, barber_id: barber.id })}`)).body
-  assert(!slots.some(slot => slot.starts_at === `${selectedDate}T15:00:00Z`))
-  await send('Page.reload'); await waitText('Olá, Sorriso!'); await selectProfessionalDate(); await waitText('Almoço · 12:00–13:00')
+  const blockedStartUtc = new Date(`${selectedDate}T${lunchStart}:00-03:00`).toISOString()
+  assert(!slots.some(slot => slot.starts_at === blockedStartUtc))
+  await send('Page.reload'); await waitText('Olá, Sorriso!'); await selectProfessionalDate(); await waitText(`Almoço · ${lunchLabel}`)
   const beforeConflict = (await appointments()).length
   await click('Novo encaixe'); await waitText('Novo atendimento presencial')
   await formField('Nome do cliente', 'Recuperação Teste')
@@ -186,7 +197,7 @@ try {
   await formField('Serviço', service.id, true)
   await formField('Pagamento previsto', 'Pix', true)
   await formField('Observação (opcional)', 'Manter os detalhes após conflito')
-  await formField('Horário de início · Brasília', '12:00')
+  await formField('Horário de início · Brasília', lunchStart)
   await click('Adicionar à agenda')
   await waitText('Este horário está indisponível ou bloqueado. Escolha outro horário.')
   assert(!(await text()).includes('Requested slot'))
