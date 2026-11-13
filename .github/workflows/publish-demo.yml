@@ -22,9 +22,10 @@ jobs:
     env:
       CHROME_BIN: /usr/bin/google-chrome
       NABARBEARIA_TEST_BACKEND: ${{ github.workspace }}/backend/target/debug/nabarbearia-backend
+      TZ: America/Sao_Paulo
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: npm
@@ -67,8 +68,8 @@ jobs:
       DEPLOY_DOMAIN: ${{ vars.DEPLOY_DOMAIN }}
       RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '24'
           cache: npm
@@ -88,7 +89,7 @@ jobs:
           npm run build
           cargo build --release --locked --manifest-path backend/Cargo.toml
           python3 deploy/operations.py package-web --backend backend/target/release/nabarbearia-backend --dist dist --revision "$RELEASE_ID" --output release.tar.gz
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: linux-amd64-${{ github.sha }}
           path: |
@@ -110,8 +111,8 @@ jobs:
       DEPLOY_DOMAIN: ${{ vars.DEPLOY_DOMAIN }}
       RELEASE_ID: ${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
         with:
           name: linux-amd64-${{ github.sha }}
       - name: Validar configurações

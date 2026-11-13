@@ -157,7 +157,10 @@ pub(super) fn ensure_slot_available(
         |row| row.get(0),
     )?;
     if recurring_blocked != 0 {
-        return Err(Error::conflict("SLOT_UNAVAILABLE", "Requested slot is blocked"));
+        return Err(Error::conflict(
+            "SLOT_UNAVAILABLE",
+            "Requested slot is blocked",
+        ));
     }
     let conflict: i64 = connection.query_row(
         "SELECT EXISTS(SELECT 1 FROM appointments

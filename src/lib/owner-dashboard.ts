@@ -109,7 +109,6 @@ export function ownerAgendaRows(
     const time = scheduleTime(item.startsAt ?? item.date);
     const [hour, minute] = time.split(":").map(Number);
     const startsAtMinute = hour * 60 + minute;
-    if (!intervals.some((interval) => interval.barberId === item.barberId && interval.startMinute <= startsAtMinute && interval.endMinute > startsAtMinute)) continue;
     minutes.add(startsAtMinute);
     const key = `${item.barberId}:${startsAtMinute}`;
     bookings.set(key, [...(bookings.get(key) ?? []), item]);

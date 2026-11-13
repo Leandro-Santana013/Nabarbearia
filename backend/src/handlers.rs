@@ -35,9 +35,9 @@ use crate::{
         AuthContext, AuthResponse, AuthUser, AvailabilityQuery, AvailableSlot, BarberRequest,
         BarberResponse, BlockRequest, CancelRequest, CommissionRuleRequest, CompleteRequest,
         ConsentRequest, DateRangeQuery, GoogleLoginRequest, LoginRequest, MessageResponse,
-        OwnerScheduleIntervalResponse, PublicBarberResponse, RatingRequest, RegisterRequest,
-        RecurringBlockRequest, RescheduleRequest, RevenueReport, Role, ScheduleDateQuery, ScheduleRequest, ServiceRequest,
-        ServiceResponse, SetupOwnerRequest, SetupStatusResponse,
+        OwnerScheduleIntervalResponse, PublicBarberResponse, RatingRequest, RecurringBlockRequest,
+        RegisterRequest, RescheduleRequest, RevenueReport, Role, ScheduleDateQuery,
+        ScheduleRequest, ServiceRequest, ServiceResponse, SetupOwnerRequest, SetupStatusResponse,
     },
     security::{
         check_origin, constant_time_eq, csrf_token, hash_token, random_token, removal_cookie,
@@ -133,7 +133,10 @@ pub fn router(state: AppState) -> Router {
             patch(reschedule_appointment),
         )
         .route("/api/v1/appointments/{id}/cancel", post(cancel_appointment))
-        .route("/api/v1/appointments/{id}/cancellation-notice", patch(acknowledge_cancellation_notice))
+        .route(
+            "/api/v1/appointments/{id}/cancellation-notice",
+            patch(acknowledge_cancellation_notice),
+        )
         .route("/api/v1/appointments/{id}/start", post(start_execution))
         .route(
             "/api/v1/appointments/{id}/details",
@@ -177,10 +180,22 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/admin/schedules",
             get(list_owner_schedules).post(create_schedule),
         )
-        .route("/api/v1/admin/blocks", get(list_owner_blocks).post(create_block))
-        .route("/api/v1/admin/recurring-blocks", get(list_recurring_blocks).post(create_recurring_block))
-        .route("/api/v1/admin/recurring-blocks/{id}", delete(delete_recurring_block))
-        .route("/api/v1/barber/recurring-blocks", get(list_own_recurring_blocks))
+        .route(
+            "/api/v1/admin/blocks",
+            get(list_owner_blocks).post(create_block),
+        )
+        .route(
+            "/api/v1/admin/recurring-blocks",
+            get(list_recurring_blocks).post(create_recurring_block),
+        )
+        .route(
+            "/api/v1/admin/recurring-blocks/{id}",
+            delete(delete_recurring_block),
+        )
+        .route(
+            "/api/v1/barber/recurring-blocks",
+            get(list_own_recurring_blocks),
+        )
         .route(
             "/api/v1/admin/commission-rules",
             post(create_commission_rule),
@@ -1121,7 +1136,10 @@ fn valid_id(value: &str) -> Result<String, AppError> {
 fn valid_block_type(value: &str) -> Result<String, AppError> {
     match value {
         "break" | "appointment" | "day_off" | "vacation" | "other" => Ok(value.to_string()),
-        _ => Err(AppError::bad_request("INVALID_BLOCK_TYPE", "Block type is invalid")),
+        _ => Err(AppError::bad_request(
+            "INVALID_BLOCK_TYPE",
+            "Block type is invalid",
+        )),
     }
 }
 
@@ -1569,8 +1587,14 @@ async fn list_owner_blocks(
     require_admin(&context)?;
     let from = query.from.as_deref().map(parse_input_utc).transpose()?;
     let to = query.to.as_deref().map(parse_input_utc).transpose()?;
-    if to.is_some_and(|end| from.as_ref().is_some_and(|start| end <= *start || end - *start > ChronoDuration::days(366))) {
-        return Err(AppError::bad_request("INVALID_RANGE", "Date range is invalid"));
+    if to.is_some_and(|end| {
+        from.as_ref()
+            .is_some_and(|start| end <= *start || end - *start > ChronoDuration::days(366))
+    }) {
+        return Err(AppError::bad_request(
+            "INVALID_RANGE",
+            "Date range is invalid",
+        ));
     }
     let from = from.map(utc_text);
     let to = to.map(utc_text);
@@ -1680,9 +1704,17 @@ async fn create_recurring_block(
         || request.start_minute % 15 != 0
         || request.end_minute % 15 != 0
     {
-        return Err(AppError::bad_request("INVALID_RECURRING_BLOCK", "Recurring block interval is invalid"));
+        return Err(AppError::bad_request(
+            "INVALID_RECURRING_BLOCK",
+            "Recurring block interval is invalid",
+        ));
     }
-    let reason = optional_text(request.reason.as_deref(), 500, "INVALID_RECURRING_BLOCK", "Block reason is invalid")?;
+    let reason = optional_text(
+        request.reason.as_deref(),
+        500,
+        "INVALID_RECURRING_BLOCK",
+        "Block reason is invalid",
+    )?;
     let block_type = valid_block_type(request.block_type.as_deref().unwrap_or("day_off"))?;
     let business_id = context.user.business_id.clone();
     let actor_id = context.user.id.clone();
@@ -1704,7 +1736,12 @@ async fn create_recurring_block(
         transaction.commit()?;
         Ok(())
     }).await?;
-    Ok((StatusCode::CREATED, Json(MessageResponse { message: "Recurring block created" })))
+    Ok((
+        StatusCode::CREATED,
+        Json(MessageResponse {
+            message: "Recurring block created",
+        }),
+    ))
 }
 
 async fn list_recurring_blocks(
@@ -1734,20 +1771,24 @@ async fn list_own_recurring_blocks(
     require_role(&context, Role::Barber)?;
     let business_id = context.user.business_id;
     let barber_id = context.user.id;
-    let blocks = state.db.with_conn(move |connection| -> Result<_, AppError> {
-        let mut statement = connection.prepare(
-            "SELECT id,weekday,start_minute,end_minute,block_type,reason
+    let blocks =
+        state
+            .db
+            .with_conn(move |connection| -> Result<_, AppError> {
+                let mut statement = connection.prepare(
+                    "SELECT id,weekday,start_minute,end_minute,block_type,reason
              FROM recurring_availability_blocks
              WHERE business_id=?1 AND barber_user_id=?2 AND active=1
              ORDER BY weekday,start_minute",
-        )?;
-        let rows = statement.query_map(params![business_id,barber_id], |row| Ok(json!({
+                )?;
+                let rows = statement.query_map(params![business_id,barber_id], |row| Ok(json!({
             "id": row.get::<_,String>(0)?, "weekday": row.get::<_,i64>(1)?,
             "start_minute": row.get::<_,i64>(2)?, "end_minute": row.get::<_,i64>(3)?,
             "block_type": row.get::<_,String>(4)?, "reason": row.get::<_,String>(5)?
         })))?.collect::<Result<Vec<_>,_>>()?;
-        Ok(rows)
-    }).await?;
+                Ok(rows)
+            })
+            .await?;
     Ok(Json(blocks))
 }
 
@@ -1765,10 +1806,12 @@ async fn delete_recurring_block(
     state.db.with_conn(move |connection| -> Result<_, AppError> {
         let changed = connection.execute("UPDATE recurring_availability_blocks SET active=0 WHERE business_id=?1 AND id=?2 AND active=1", params![business_id, id])?;
         if changed == 0 { return Err(AppError::not_found("RECURRING_BLOCK_NOT_FOUND", "Recurring block was not found")); }
-        insert_audit(&connection, &business_id, Some(&actor_id), "recurring_availability_block.deleted", "recurring_availability_block", &id, "{}")?;
+        insert_audit(connection, &business_id, Some(&actor_id), "recurring_availability_block.deleted", "recurring_availability_block", &id, "{}")?;
         Ok(())
     }).await?;
-    Ok(Json(MessageResponse { message: "Recurring block removed" }))
+    Ok(Json(MessageResponse {
+        message: "Recurring block removed",
+    }))
 }
 
 async fn create_commission_rule(
@@ -2233,7 +2276,9 @@ async fn acknowledge_cancellation_notice(
         if changed == 0 { return Err(AppError::not_found("NOTICE_NOT_FOUND", "Cancellation notice was not found")); }
         Ok(())
     }).await?;
-    Ok(Json(MessageResponse { message: "Cancellation notice acknowledged" }))
+    Ok(Json(MessageResponse {
+        message: "Cancellation notice acknowledged",
+    }))
 }
 
 async fn update_appointment_details(
