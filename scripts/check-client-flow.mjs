@@ -173,23 +173,21 @@ try {
   await evaluate(`[...document.querySelectorAll('summary')].find(el => el.textContent.includes('Atendimentos Concluídos')).click()`)
   await walkIn('Falta Teste', '11:00'); await click('Falta'); await click('Registrar falta'); await waitText('Falta registrada.')
   assert.equal((await appointments()).find(item => item.client_display_name === 'Falta Teste').status, 'no_show')
-  // 12:00 may already have passed when CI runs in the afternoon. Choose a
-  // future hour so the UI's real-world validation accepts the test block.
-  const lunchStart = await evaluate(`(() => {
-    const now = new Date();
-    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' }).formatToParts(now);
-    const hour = Number(parts.find(part => part.type === 'hour').value);
-    return hour < 12 ? '12:00' : String(Math.min(hour + 1, 22)).padStart(2, '0') + ':00';
-  })()`)
-  const lunchEnd = `${String(Number(lunchStart.slice(0, 2)) + 1).padStart(2, '0')}:00`
+  // The flow is scheduled for the next shop day, so noon remains in the
+  // future even when CI runs in the afternoon.
+  const lunchStart = '12:00'
+  const lunchEnd = '13:00'
   const lunchLabel = `${lunchStart}–${lunchEnd}`
   await click('Almoço 1h'); await formField('Horário de início · Brasília', lunchStart); await click('Confirmar pausa')
-  await waitText('Pausa bloqueada na agenda.'); await waitText(`Almoço · ${lunchLabel}`)
+  await waitText('Pausa bloqueada na agenda.')
+  await waitText('Pausa · Almoço')
+  await waitText(lunchLabel)
   const selectedDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' }).format(day)
   const slots = (await request(`/public/availability?${new URLSearchParams({ date: selectedDate, service_id: service.id, barber_id: barber.id })}`)).body
   const blockedStartUtc = new Date(`${selectedDate}T${lunchStart}:00-03:00`).toISOString()
   assert(!slots.some(slot => slot.starts_at === blockedStartUtc))
-  await send('Page.reload'); await waitText('Olá, Sorriso!'); await selectProfessionalDate(); await waitText(`Almoço · ${lunchLabel}`)
+  await send('Page.reload'); await waitText('Olá, Sorriso!'); await selectProfessionalDate()
+  await waitText('Pausa · Almoço'); await waitText(lunchLabel)
   const beforeConflict = (await appointments()).length
   await click('Novo encaixe'); await waitText('Novo atendimento presencial')
   await formField('Nome do cliente', 'Recuperação Teste')
