@@ -131,7 +131,11 @@ try {
   await navigate('/barbeiro'); await waitText('Bem-vindo de volta!')
   await fill('input[name="email"]', 'barber@client-flow.test'); await fill('input[name="password"]', password)
   await click('Entrar'); await waitText('Olá, Sorriso!')
-  const selectProfessionalDate = () => clickSelector(`button[aria-label=${JSON.stringify(dateLabel)}]`)
+  const selectProfessionalDate = async () => {
+    const selector = `button[aria-label=${JSON.stringify(dateLabel)}]`
+    await clickSelector(selector)
+    await until(() => evaluate(`document.querySelector(${JSON.stringify(selector)})?.getAttribute('aria-pressed') === 'true'`), `selecionar ${dateLabel}`)
+  }
   await selectProfessionalDate(); await waitText('Agenda do Dia')
   const formField = async (label, value, select = false) => evaluate(`(() => {
     const label = [...document.querySelectorAll('label')].find(el => el.firstChild?.textContent.trim() === ${JSON.stringify(label)});

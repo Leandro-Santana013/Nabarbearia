@@ -257,8 +257,13 @@ try {
   await waitText("Equipe (2 profissionais)");
   const selectOption = async (label, option) => {
     const normalizedOption = option.replace(/\s+/g, " ").trim();
+    const triggerReady = () =>
+      evaluate(
+        `(()=>{const element=[...document.querySelectorAll('button[aria-labelledby]')].find(el=>document.getElementById(el.getAttribute('aria-labelledby'))?.textContent?.trim()===${JSON.stringify(label)});return Boolean(element&&!element.disabled)})()`,
+      );
+    await until(triggerReady, `controle habilitado ${label}`);
     await evaluate(
-      `(()=>{const trigger=[...document.querySelectorAll('button[aria-labelledby]')].find(el=>document.getElementById(el.getAttribute('aria-labelledby'))?.textContent===${JSON.stringify(label)});trigger.click();})()`,
+      `(()=>{const element=[...document.querySelectorAll('button[aria-labelledby]')].find(el=>document.getElementById(el.getAttribute('aria-labelledby'))?.textContent?.trim()===${JSON.stringify(label)});if(!element) throw new Error(${JSON.stringify(`Controle não encontrado: ${label}`)});element.click();})()`,
     );
     await until(
       () =>
@@ -401,14 +406,14 @@ try {
   await setSelected(selectAll, false);
   await waitText("0 selecionado(s)");
   await setSelected(
-    'button[aria-label$="agendamento de Cliente Integração às 11:00"]',
+    'button[aria-label*="agendamento de Cliente Integração às 11:00"]',
     true,
   );
   await waitText("1 selecionado(s)");
   await click("Editar agendamento");
   await waitText("Barbeiro responsável");
-  await selectOption("Atendimento", "Barba Express · 45 min · R$ 75,00");
-  await formField("Nova data", date);
+  await selectOption("Serviço agendado", "Barba Express · 45 min · R$ 75,00");
+  await formField("Data", date);
   await formField("Horário", "13:30");
   await selectOption("Barbeiro responsável", "Barbeiro Atualizado");
   await click("Salvar alterações");

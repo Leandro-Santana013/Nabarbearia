@@ -175,7 +175,6 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/admin/appointments/{id}/corrections",
             post(owner::correct_appointment),
         )
-
         .route("/api/v1/admin/agenda/bulk", post(owner::bulk_agenda))
         .route("/api/v1/admin/appointments", post(create_admin_appointment))
         .route("/api/v1/barber/walk-ins", post(create_admin_appointment))
@@ -2423,7 +2422,9 @@ async fn appointment_services(
     let context = authenticate(&state, &headers).await?;
     let appointment_id = valid_id(&id)?;
     let summary = appointments::checkout_summary(&state.db, context.user, appointment_id).await?;
-    Ok(Json(serde_json::to_value(summary).map_err(|_| AppError::Internal)?))
+    Ok(Json(
+        serde_json::to_value(summary).map_err(|_| AppError::Internal)?,
+    ))
 }
 
 async fn no_show_appointment(

@@ -307,5 +307,7 @@ pub(super) async fn correct_appointment(
     )
     .await?;
     let summary = appointments::checkout_summary(&state.db, context.user, appointment_id).await?;
-    Ok(Json(serde_json::to_value(summary).map_err(|_| AppError::Internal)?))
+    Ok(Json(
+        serde_json::to_value(summary).map_err(|_| AppError::Internal)?,
+    ))
 }

@@ -94,21 +94,36 @@ pub(super) fn history(
 fn validate(correction: &Correction) -> Result<String, Error> {
     let reason = correction.reason.trim().to_string();
     if !(5..=500).contains(&reason.chars().count()) {
-        return Err(Error::bad_request("INVALID_REASON", "A correction reason is required"));
+        return Err(Error::bad_request(
+            "INVALID_REASON",
+            "A correction reason is required",
+        ));
     }
     if !PAYMENT_METHODS.contains(&correction.payment_method.as_str()) {
-        return Err(Error::bad_request("INVALID_PAYMENT", "Payment method is invalid"));
+        return Err(Error::bad_request(
+            "INVALID_PAYMENT",
+            "Payment method is invalid",
+        ));
     }
     if correction.lines.is_empty() || correction.lines.len() > MAX_LINES {
-        return Err(Error::bad_request("INVALID_SERVICES", "Inform between one and 21 services"));
+        return Err(Error::bad_request(
+            "INVALID_SERVICES",
+            "Inform between one and 21 services",
+        ));
     }
     let mut seen = HashSet::new();
     for line in &correction.lines {
         if !seen.insert(line.service_id.as_str()) {
-            return Err(Error::bad_request("DUPLICATE_SERVICE", "A service was added more than once"));
+            return Err(Error::bad_request(
+                "DUPLICATE_SERVICE",
+                "A service was added more than once",
+            ));
         }
         if !(0..=100_000_000).contains(&line.price_cents) {
-            return Err(Error::bad_request("INVALID_PRICE", "Service price is invalid"));
+            return Err(Error::bad_request(
+                "INVALID_PRICE",
+                "Service price is invalid",
+            ));
         }
     }
     Ok(reason)

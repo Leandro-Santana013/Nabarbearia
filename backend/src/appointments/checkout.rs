@@ -59,9 +59,11 @@ pub struct CheckoutSummary {
 /// Mesma regra de negócio para todos os canais; muda apenas quem pode agir:
 /// o superadministrador gerencia qualquer atendimento da barbearia e o
 /// barbeiro (inclusive o dono no modo híbrido) apenas os da própria agenda.
-pub(super) fn require_manager(actor: &AuthUser, appointment: &AppointmentResponse) -> Result<(), Error> {
-    let own_agenda =
-        actor.roles.contains(&Role::Barber) && appointment.barber_user_id == actor.id;
+pub(super) fn require_manager(
+    actor: &AuthUser,
+    appointment: &AppointmentResponse,
+) -> Result<(), Error> {
+    let own_agenda = actor.roles.contains(&Role::Barber) && appointment.barber_user_id == actor.id;
     if actor.is_super_admin() || own_agenda {
         Ok(())
     } else {
@@ -209,7 +211,7 @@ pub async fn complete_with_checkout(
                 return Err(Error::conflict("APPOINTMENT_NO_SHOW", "A no-show appointment cannot be completed"));
             }
         }
-        if extra_service_ids.iter().any(|id| *id == current.service_id) {
+        if extra_service_ids.contains(&current.service_id) {
             return Err(Error::bad_request(
                 "DUPLICATE_SERVICE",
                 "The booked service is already included",

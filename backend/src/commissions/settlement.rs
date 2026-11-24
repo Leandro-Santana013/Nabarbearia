@@ -107,7 +107,11 @@ pub(crate) fn settle_commission(
                 post(
                     transaction,
                     current,
-                    (Some(rule_id.as_str()), Some(rule_type.as_str()), Some(rule_amount)),
+                    (
+                        Some(rule_id.as_str()),
+                        Some(rule_type.as_str()),
+                        Some(rule_amount),
+                    ),
                     commission_cents,
                     now,
                 )
@@ -186,7 +190,11 @@ fn write_line_commissions(
 fn shared_rule(matched: &[MatchedLine]) -> (Option<&str>, Option<&str>, Option<i64>) {
     let first = &matched[0].1;
     if matched.iter().all(|(_, rule, _)| rule.0 == first.0) {
-        (Some(first.0.as_str()), Some(first.1.as_str()), Some(first.2))
+        (
+            Some(first.0.as_str()),
+            Some(first.1.as_str()),
+            Some(first.2),
+        )
     } else {
         (None, None, None)
     }
@@ -196,12 +204,22 @@ fn shared_rule(matched: &[MatchedLine]) -> (Option<&str>, Option<&str>, Option<i
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CorrectionCommission {
     /// Ainda não repassada: snapshot e lançamento atualizados.
-    Recalculated { previous: Option<i64>, new: i64 },
+    Recalculated {
+        previous: Option<i64>,
+        new: i64,
+    },
     /// Já repassada: o registro pago fica intacto e a diferença vira um ajuste.
-    Adjusted { previous: i64, new: i64 },
+    Adjusted {
+        previous: i64,
+        new: i64,
+    },
     /// Algum serviço sem regra: comissão não repassada volta a aguardar configuração.
-    Pending { previous: Option<i64> },
-    Unchanged { amount: Option<i64> },
+    Pending {
+        previous: Option<i64>,
+    },
+    Unchanged {
+        amount: Option<i64>,
+    },
 }
 
 impl CorrectionCommission {
@@ -248,7 +266,9 @@ pub(crate) fn recalculate_after_correction(
     let lines = load_lines(transaction, current)?;
     let matched = match_lines(transaction, current, &lines)?;
     if paid {
-        let Some(matched) = matched else { return Ok(None) };
+        let Some(matched) = matched else {
+            return Ok(None);
+        };
         let adjustments: i64 = transaction.query_row(
             "SELECT COALESCE(SUM(amount_cents), 0) FROM commission_adjustments WHERE business_id = ?1 AND appointment_id = ?2",
             params![current.business_id, current.id],
@@ -258,7 +278,9 @@ pub(crate) fn recalculate_after_correction(
         let new = write_line_commissions(transaction, current, &matched)?;
         let delta = new - previous;
         if delta == 0 {
-            return Ok(Some(CorrectionCommission::Unchanged { amount: Some(previous) }));
+            return Ok(Some(CorrectionCommission::Unchanged {
+                amount: Some(previous),
+            }));
         }
         transaction.execute(
             "INSERT INTO commission_adjustments(id, business_id, appointment_id, barber_user_id, correction_id, amount_cents, created_at_utc)

@@ -103,21 +103,30 @@ pub async fn complete(
     let actor_id = actor.id.clone();
     let actor_is_owner = actor.is_admin();
     let actor_is_barber = actor.roles.contains(&Role::Barber);
-    db
-        .with_conn(move |connection| -> Result<_, Error> {
-            let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-            let current = get_appointment(&transaction, &business_id, &appointment_id)?;
-            if !(actor_is_owner || (actor_is_barber && current.barber_user_id == actor_id)) {
-                return Err(Error::forbidden());
-            }
-            if current.status != AppointmentStatus::Confirmed {
-                return Err(Error::conflict("INVALID_TRANSITION", "Only a confirmed appointment can be completed"));
-            }
-            let completed = finish_completion(&transaction, &business_id, &appointment_id, &actor_id, &notes, "{}")?;
-            transaction.commit()?;
-            Ok(completed)
-        })
-        .await
+    db.with_conn(move |connection| -> Result<_, Error> {
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let current = get_appointment(&transaction, &business_id, &appointment_id)?;
+        if !(actor_is_owner || (actor_is_barber && current.barber_user_id == actor_id)) {
+            return Err(Error::forbidden());
+        }
+        if current.status != AppointmentStatus::Confirmed {
+            return Err(Error::conflict(
+                "INVALID_TRANSITION",
+                "Only a confirmed appointment can be completed",
+            ));
+        }
+        let completed = finish_completion(
+            &transaction,
+            &business_id,
+            &appointment_id,
+            &actor_id,
+            &notes,
+            "{}",
+        )?;
+        transaction.commit()?;
+        Ok(completed)
+    })
+    .await
 }
 
 /// Completion effects shared by every channel. The caller owns the transaction,
@@ -150,7 +159,10 @@ pub(super) fn finish_completion(
         params![now, business_id, appointment_id],
     )?;
     if changed != 1 {
-        return Err(Error::conflict("INVALID_TRANSITION", "Only a confirmed appointment can be completed"));
+        return Err(Error::conflict(
+            "INVALID_TRANSITION",
+            "Only a confirmed appointment can be completed",
+        ));
     }
     insert_history(
         transaction,
@@ -170,7 +182,15 @@ pub(super) fn finish_completion(
         params![new_id(), business_id, appointment_id, current.price_cents, now],
     )?;
     crate::commissions::settle_commission(transaction, &(&current).into(), &now)?;
-    insert_audit(transaction, business_id, Some(actor_id), "appointment.completed", "appointment", appointment_id, audit_metadata)?;
+    insert_audit(
+        transaction,
+        business_id,
+        Some(actor_id),
+        "appointment.completed",
+        "appointment",
+        appointment_id,
+        audit_metadata,
+    )?;
     get_appointment(transaction, business_id, appointment_id)
 }
 
