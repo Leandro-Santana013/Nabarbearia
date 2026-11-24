@@ -150,7 +150,7 @@ try {
   await click("Entrar");
   await waitText("Painel de Gestão — NA Barbearia");
   assert.equal(await evaluate("location.pathname"), "/gestao/financeiro");
-  await waitText("Resumo por forma de pagamento prevista");
+  await waitText("Resumo por forma de pagamento");
   assert.equal(
     await evaluate("document.documentElement.scrollWidth <= innerWidth"),
     true,
@@ -696,7 +696,7 @@ try {
   // O retorno ao painel de gestão fica no perfil da agenda híbrida.
   await click("Perfil");
   await click("Painel de gestão");
-  await waitText("Resumo por forma de pagamento prevista");
+  await waitText("Resumo por forma de pagamento");
   assert.deepEqual(runtimeErrors, []);
   console.log(
     "OK: modo híbrido habilita agenda própria; nenhuma exceção de runtime.",

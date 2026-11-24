@@ -1,5 +1,5 @@
 import { useId, useState } from "react"
-import { CalendarX, Check, ChevronDown, Clock, MessageSquare, Play, Scissors } from "lucide-react"
+import { CalendarX, Check, ChevronDown, Clock, MessageSquare, Play, Receipt, Scissors } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -16,7 +16,7 @@ const STATUS = {
 }
 
 /** @param {import("./BarberDashboard.types").BarberScheduleProps} props */
-export default function BarberSchedule({ appointments, blocks = [], recurringBlocks = [], startedIds, date, barberName, busy, onStart, onComplete, onNoShow, onSaveDetails, loading = false, loadFailed = false }) {
+export default function BarberSchedule({ appointments, blocks = [], recurringBlocks = [], startedIds, date, barberName, busy, onStart, onComplete, onViewClosing, onNoShow, onSaveDetails, loading = false, loadFailed = false }) {
   const id = useId()
   const [confirmNoShow, setConfirmNoShow] = useState(null)
   const sorted = sortBarberAppointments(appointments, startedIds)
@@ -58,6 +58,7 @@ export default function BarberSchedule({ appointments, blocks = [], recurringBlo
               </Button>
             )}
             {appointment.status === "confirmed" && !inProgress && <Button disabled={busy} variant="outline" onClick={() => setConfirmNoShow(appointment.id)} className="min-h-10 rounded-xl px-3 text-xs! text-red-600">Falta</Button>}
+            {appointment.status === "completed" && onViewClosing && <Button type="button" disabled={busy} variant="outline" onClick={() => onViewClosing(appointment)} className="min-h-10 min-w-0 flex-1 gap-1.5 rounded-xl px-3 text-xs! font-medium! text-emerald-700"><Receipt aria-hidden="true" className="size-4" />Ver serviços e pagamento</Button>}
             <Button variant="outline" nativeButton={false} render={<a href={contactUrl} target="_blank" rel="noopener noreferrer" />} aria-label={`${directPhone ? "Falar com" : "Falar com a recepção sobre"} ${appointment.clientName} pelo WhatsApp (nova aba)`} className="min-h-10 gap-1.5 rounded-xl border-gray-200 bg-gray-50 px-3 py-2 text-xs! font-medium! text-gray-600 transition-colors"><MessageSquare aria-hidden="true" className="size-4" />{directPhone ? "WhatsApp" : "Recepção"}</Button>
           </div>
         </CardContent>

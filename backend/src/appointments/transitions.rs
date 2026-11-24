@@ -113,46 +113,65 @@ pub async fn complete(
             if current.status != AppointmentStatus::Confirmed {
                 return Err(Error::conflict("INVALID_TRANSITION", "Only a confirmed appointment can be completed"));
             }
-            let now = utc_text(Utc::now());
-            transaction.execute(
-                "INSERT INTO service_executions(business_id, appointment_id, started_at_utc, notes)
-                 VALUES (?1, ?2, ?3, '') ON CONFLICT(business_id, appointment_id) DO NOTHING",
-                params![business_id, appointment_id, now],
-            )?;
-            transaction.execute(
-                "UPDATE service_executions SET completed_at_utc = ?1, notes = ?2, completed_by_user_id = ?3
-                 WHERE business_id = ?4 AND appointment_id = ?5 AND completed_at_utc IS NULL",
-                params![now, notes, actor_id, business_id, appointment_id],
-            )?;
-            transaction.execute(
-                "UPDATE appointments SET status = 'completed', completed_at_utc = ?1, updated_at_utc = ?1, version = version + 1
-                 WHERE business_id = ?2 AND id = ?3 AND status = 'confirmed'",
-                params![now, business_id, appointment_id],
-            )?;
-            insert_history(
-                &transaction,
-                &business_id,
-                &appointment_id,
-                Some(&actor_id),
-                "completed",
-                Some("confirmed"),
-                Some("completed"),
-                None,
-                None,
-                "",
-            )?;
-            transaction.execute(
-                "INSERT INTO financial_entries(id, business_id, appointment_id, kind, amount_cents, status, created_at_utc)
-                 VALUES (?1, ?2, ?3, 'revenue', ?4, 'posted', ?5)",
-                params![new_id(), business_id, appointment_id, current.price_cents, now],
-            )?;
-            crate::commissions::settle_commission(&transaction, &(&current).into(), &now)?;
-            insert_audit(&transaction, &business_id, Some(&actor_id), "appointment.completed", "appointment", &appointment_id, "{}")?;
-            let completed = get_appointment(&transaction, &business_id, &appointment_id)?;
+            let completed = finish_completion(&transaction, &business_id, &appointment_id, &actor_id, &notes, "{}")?;
             transaction.commit()?;
             Ok(completed)
         })
         .await
+}
+
+/// Completion effects shared by every channel. The caller owns the transaction,
+/// has checked permissions and the confirmed status, and has already stored the
+/// final price. Revenue and commission are unique per appointment, so a repeated
+/// completion can never post them twice.
+pub(super) fn finish_completion(
+    transaction: &rusqlite::Transaction<'_>,
+    business_id: &str,
+    appointment_id: &str,
+    actor_id: &str,
+    notes: &str,
+    audit_metadata: &str,
+) -> Result<AppointmentResponse, Error> {
+    let current = get_appointment(transaction, business_id, appointment_id)?;
+    let now = utc_text(Utc::now());
+    transaction.execute(
+        "INSERT INTO service_executions(business_id, appointment_id, started_at_utc, notes)
+         VALUES (?1, ?2, ?3, '') ON CONFLICT(business_id, appointment_id) DO NOTHING",
+        params![business_id, appointment_id, now],
+    )?;
+    transaction.execute(
+        "UPDATE service_executions SET completed_at_utc = ?1, notes = ?2, completed_by_user_id = ?3
+         WHERE business_id = ?4 AND appointment_id = ?5 AND completed_at_utc IS NULL",
+        params![now, notes, actor_id, business_id, appointment_id],
+    )?;
+    let changed = transaction.execute(
+        "UPDATE appointments SET status = 'completed', completed_at_utc = ?1, updated_at_utc = ?1, version = version + 1
+         WHERE business_id = ?2 AND id = ?3 AND status = 'confirmed'",
+        params![now, business_id, appointment_id],
+    )?;
+    if changed != 1 {
+        return Err(Error::conflict("INVALID_TRANSITION", "Only a confirmed appointment can be completed"));
+    }
+    insert_history(
+        transaction,
+        business_id,
+        appointment_id,
+        Some(actor_id),
+        "completed",
+        Some("confirmed"),
+        Some("completed"),
+        None,
+        None,
+        "",
+    )?;
+    transaction.execute(
+        "INSERT INTO financial_entries(id, business_id, appointment_id, kind, amount_cents, status, created_at_utc)
+         VALUES (?1, ?2, ?3, 'revenue', ?4, 'posted', ?5)",
+        params![new_id(), business_id, appointment_id, current.price_cents, now],
+    )?;
+    crate::commissions::settle_commission(transaction, &(&current).into(), &now)?;
+    insert_audit(transaction, business_id, Some(actor_id), "appointment.completed", "appointment", appointment_id, audit_metadata)?;
+    get_appointment(transaction, business_id, appointment_id)
 }
 
 pub async fn no_show(

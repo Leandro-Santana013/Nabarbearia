@@ -237,3 +237,152 @@ it('compartilha restaurações de sessão concorrentes para preservar o CSRF atu
 
   expect(fetch).toHaveBeenCalledOnce()
 })
+
+it('carrega os serviços realizados sem gravar nada e converte o pagamento registrado', async () => {
+  const fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => Response.json({
+    appointment_id: 'appointment-1',
+    status: 'completed',
+    execution_started: true,
+    recorded: true,
+    lines: [
+      { service_id: 'corte', service_name: 'Corte masculino', price_cents: 4000, is_original: true },
+      { service_id: 'barba', service_name: 'Barba', price_cents: 3000, is_original: false },
+    ],
+    total_cents: 7000,
+    paid_payment_method: 'debit_card',
+    paid_at: '2026-11-09T17:00:00Z',
+    completed_at: '2026-11-09T17:00:00Z',
+  }))
+  vi.stubGlobal('fetch', fetch)
+
+  await expect(api.getAppointmentCheckout('appointment-1')).resolves.toEqual({
+    appointmentId: 'appointment-1',
+    status: 'completed',
+    executionStarted: true,
+    recorded: true,
+    lines: [
+      { serviceId: 'corte', serviceName: 'Corte masculino', priceCents: 4000, isOriginal: true },
+      { serviceId: 'barba', serviceName: 'Barba', priceCents: 3000, isOriginal: false },
+    ],
+    totalCents: 7000,
+    paidPaymentMethod: 'debit_card',
+    paidAt: '2026-11-09T17:00:00Z',
+    completedAt: '2026-11-09T17:00:00Z',
+    closedByName: undefined,
+    version: 0,
+    canCorrect: false,
+    corrections: [],
+  })
+  expect(fetch.mock.calls[0][0]).toBe('/api/v1/appointments/appointment-1/services')
+  expect(fetch.mock.calls[0][1]?.method).toBeUndefined()
+})
+
+it('conclui pelo endpoint de conclusão existente enviando extras, pagamento e total confirmado', async () => {
+  const fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => Response.json({
+    id: 'appointment-1',
+    business_id: 'shop',
+    client_user_id: 'client-1',
+    barber_user_id: 'barber-1',
+    service_id: 'corte',
+    starts_at: '2026-11-09T16:30:00Z',
+    ends_at: '2026-11-09T17:00:00Z',
+    status: 'completed',
+    price_cents: 8500,
+    duration_minutes: 30,
+    execution_started: true,
+    commission_cents: 4250,
+  }))
+  vi.stubGlobal('fetch', fetch)
+
+  await expect(api.completeAppointmentCheckout('appointment-1', {
+    extraServiceIds: ['barba', 'sobrancelha'],
+    paymentMethod: 'pix',
+    expectedTotalCents: 8500,
+  })).resolves.toMatchObject({ status: 'completed', amountCents: 8500, commissionCents: 4250 })
+  expect(fetch.mock.calls[0][0]).toBe('/api/v1/appointments/appointment-1/complete')
+  expect(fetch.mock.calls[0][1]?.method).toBe('POST')
+  expect(JSON.parse(String(fetch.mock.calls[0][1]?.body))).toEqual({
+    extra_service_ids: ['barba', 'sobrancelha'],
+    payment_method: 'pix',
+    expected_total_cents: 8500,
+  })
+})
+
+it('traduz a recusa de conclusão duplicada em mensagem para a gestão', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json({ code: 'ALREADY_COMPLETED', message: 'Appointment is already completed' }, { status: 409 })))
+  await expect(api.completeAppointmentCheckout('appointment-1', {
+    extraServiceIds: [],
+    paymentMethod: 'cash',
+    expectedTotalCents: 4000,
+  })).rejects.toMatchObject({ code: 'ALREADY_COMPLETED', message: 'Este atendimento já foi concluído. Atualize a agenda.' })
+})
+
+it('envia a correção com versão e motivo e converte o histórico devolvido', async () => {
+  const fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => Response.json({
+    appointment_id: 'appointment-1',
+    status: 'completed',
+    execution_started: true,
+    recorded: true,
+    lines: [{ service_id: 'corte', service_name: 'Corte masculino', price_cents: 4000, is_original: true }, { service_id: 'barba', service_name: 'Barba', price_cents: 3000, is_original: false }],
+    total_cents: 7000,
+    paid_payment_method: 'cash',
+    paid_at: '2026-11-09T17:00:00Z',
+    completed_at: '2026-11-09T17:00:00Z',
+    closed_by_name: 'Sorriso',
+    version: 5,
+    can_correct: true,
+    corrections: [{
+      id: 'correction-1',
+      actor_name: 'Nailton',
+      created_at: '2026-11-10T12:00:00Z',
+      reason: 'Sobrancelha registrada por engano',
+      previous_total_cents: 8500,
+      new_total_cents: 7000,
+      previous_payment_method: 'pix',
+      new_payment_method: 'cash',
+      previous_services: [],
+      new_services: [],
+      added_services: [],
+      removed_services: [{ service_id: 'sobrancelha', service_name: 'Sobrancelha', price_cents: 1500 }],
+      previous_commission_cents: 4250,
+      new_commission_cents: 3500,
+      commission_treatment: 'recalculated',
+    }],
+  }))
+  vi.stubGlobal('fetch', fetch)
+
+  const result = await api.correctAppointmentClosing('appointment-1', {
+    lines: [{ serviceId: 'corte', priceCents: 4000 }, { serviceId: 'barba', priceCents: 3000 }],
+    paymentMethod: 'cash',
+    reason: 'Sobrancelha registrada por engano',
+    expectedVersion: 4,
+  })
+  expect(fetch.mock.calls[0][0]).toBe('/api/v1/admin/appointments/appointment-1/corrections')
+  expect(fetch.mock.calls[0][1]?.method).toBe('POST')
+  expect(JSON.parse(String(fetch.mock.calls[0][1]?.body))).toEqual({
+    lines: [{ service_id: 'corte', price_cents: 4000 }, { service_id: 'barba', price_cents: 3000 }],
+    payment_method: 'cash',
+    reason: 'Sobrancelha registrada por engano',
+    expected_version: 4,
+  })
+  expect(result).toMatchObject({ totalCents: 7000, version: 5, canCorrect: true, closedByName: 'Sorriso', paidPaymentMethod: 'cash' })
+  expect(result.corrections[0]).toMatchObject({
+    actorName: 'Nailton',
+    previousTotalCents: 8500,
+    newTotalCents: 7000,
+    previousPaymentMethod: 'pix',
+    newPaymentMethod: 'cash',
+    removedServices: [{ serviceId: 'sobrancelha', serviceName: 'Sobrancelha', priceCents: 1500 }],
+    commissionTreatment: 'recalculated',
+  })
+})
+
+it('explica o conflito de versão quando outra pessoa corrigiu antes', async () => {
+  vi.stubGlobal('fetch', vi.fn(async () => Response.json({ code: 'APPOINTMENT_CHANGED', message: 'changed' }, { status: 409 })))
+  await expect(api.correctAppointmentClosing('appointment-1', {
+    lines: [{ serviceId: 'corte', priceCents: 4000 }],
+    paymentMethod: 'pix',
+    reason: 'Ajuste de valor',
+    expectedVersion: 1,
+  })).rejects.toMatchObject({ code: 'APPOINTMENT_CHANGED', message: 'Este atendimento foi alterado por outra pessoa. Os dados foram recarregados; revise antes de corrigir.' })
+})

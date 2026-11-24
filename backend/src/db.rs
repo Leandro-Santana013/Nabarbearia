@@ -65,6 +65,16 @@ const MIGRATIONS: &[(i64, &str, &str)] = &[
         "agenda_blocks",
         include_str!("../migrations/0012_agenda_blocks.sql"),
     ),
+    (
+        13,
+        "appointment_checkout",
+        include_str!("../migrations/0013_appointment_checkout.sql"),
+    ),
+    (
+        14,
+        "appointment_corrections",
+        include_str!("../migrations/0014_appointment_corrections.sql"),
+    ),
 ];
 
 #[derive(Debug, Error)]

@@ -119,6 +119,18 @@
 .barber-day-actions .barber-day-action:hover, .barber-day-actions .barber-day-action[aria-expanded="true"] { border-color: #b8e3ef; color: #062d40; background: #eef8fc; }
 .barber-day-actions .barber-day-walkin { border-color: #006487; color: #fff; background: #006487; }
 .barber-day-actions .barber-day-walkin:hover, .barber-day-actions .barber-day-walkin[aria-expanded="true"] { border-color: #062d40; background: #062d40; }
+/* "Novo encaixe": texto e ícone sempre brancos e centralizados sobre o azul-escuro.
+   A regra genérica de :hover/[aria-expanded] acima define color: #062d40, a mesma cor
+   do fundo do encaixe aberto; por isso a cor é fixada aqui em todos os estados. */
+.barber-day-actions .barber-day-walkin,
+.barber-day-actions .barber-day-walkin:hover,
+.barber-day-actions .barber-day-walkin:focus-visible,
+.barber-day-actions .barber-day-walkin:active,
+.barber-day-actions .barber-day-walkin[aria-expanded="true"] { display: inline-flex; align-items: center; justify-content: center; text-align: center; color: #fff; }
+.barber-day-actions .barber-day-walkin svg { flex-shrink: 0; color: #fff; stroke: currentColor; }
+.barber-day-actions .barber-day-walkin:focus-visible { outline: 2px solid #062d40; outline-offset: 2px; box-shadow: 0 0 0 2px #fff inset; }
+.barber-day-actions .barber-day-walkin:active { background: #062d40; border-color: #062d40; }
+.barber-day-actions .barber-day-walkin:disabled { border-color: #4f8ea3; background: #4f8ea3; color: #fff; opacity: 1; cursor: not-allowed; }
 
 @media (max-width: 767.98px) {
   .barber-agenda-header .barber-agenda-day { min-height: 66px; }

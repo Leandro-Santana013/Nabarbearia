@@ -36,9 +36,13 @@ fn require_future(starts_at: DateTime<Utc>) -> Result<(), Error> {
 }
 
 mod bulk;
+mod checkout;
+mod correction;
 mod creation;
 mod transitions;
 pub use bulk::{AgendaChange, BatchAction, change_agenda};
+pub use checkout::{Checkout, complete_with_checkout, summary as checkout_summary};
+pub use correction::{Correction, CorrectionLine, correct as correct_closing};
 pub use creation::{create, create_reception};
 pub use transitions::{
     AppointmentEdit, Details, cancel, complete, edit_appointment, no_show, reschedule, start,
