@@ -1,5 +1,7 @@
 import type { HtmlTagDescriptor } from 'vite'
 import { BARBERSHOP_INFO } from '../data/barbershopData'
+import publicMediaManifest from './publicMedia.generated.json'
+import { publicImageSizes } from '../lib/public-media'
 
 // Confirmed deployment origin, shared by the public website and the team app.
 export const PUBLIC_SITE_ORIGIN = 'https://na-barbearia.duckdns.org'
@@ -84,6 +86,8 @@ function escapeTitle(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!)
 }
 
+const heroMedia = publicMediaManifest['/brand/na-logo-cutout.png']
+
 export function publicMetadataTags(business: BusinessMetadataInput = BARBERSHOP_INFO): HtmlTagDescriptor[] {
   const metadata = createPublicMetadata(business)
   const named = (name: string, content: string): HtmlTagDescriptor => ({ tag: 'meta', attrs: { name, content }, injectTo: 'head' })
@@ -94,6 +98,18 @@ export function publicMetadataTags(business: BusinessMetadataInput = BARBERSHOP_
     named('description', metadata.description),
     { tag: 'link', attrs: { rel: 'canonical', href: metadata.url }, injectTo: 'head' },
     { tag: 'link', attrs: { rel: 'icon', type: 'image/png', sizes: '64x64', href: '/favicon.png' }, injectTo: 'head' },
+    {
+      tag: 'link',
+      attrs: {
+        rel: 'preload',
+        as: 'image',
+        href: heroMedia.src,
+        imagesrcset: heroMedia.srcSet,
+        imagesizes: publicImageSizes.hero,
+        fetchpriority: 'high',
+      },
+      injectTo: 'head',
+    },
     property('og:type', 'website'),
     property('og:locale', 'pt_BR'),
     property('og:site_name', business.name),

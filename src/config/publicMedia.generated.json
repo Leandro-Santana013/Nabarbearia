@@ -11,6 +11,18 @@
     "width": 1024,
     "height": 1024
   },
+  "/brand/na-carousel-intro.jpg": {
+    "src": "/brand/optimized/carousel-intro-640.webp",
+    "srcSet": "/brand/optimized/carousel-intro-384.webp 384w, /brand/optimized/carousel-intro-640.webp 640w, /brand/optimized/carousel-intro-768.webp 768w",
+    "width": 768,
+    "height": 960
+  },
+  "/brand/na-gallery-shop.jpg": {
+    "src": "/brand/optimized/gallery-shop-640.webp",
+    "srcSet": "/brand/optimized/gallery-shop-384.webp 384w, /brand/optimized/gallery-shop-640.webp 640w, /brand/optimized/gallery-shop-768.webp 768w",
+    "width": 768,
+    "height": 960
+  },
   "/brand/illustrative/acabamento.png": {
     "src": "/brand/optimized/illustrative-acabamento-640.webp",
     "srcSet": "/brand/optimized/illustrative-acabamento-384.webp 384w, /brand/optimized/illustrative-acabamento-640.webp 640w, /brand/optimized/illustrative-acabamento-1024.webp 1024w",

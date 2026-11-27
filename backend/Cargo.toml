@@ -29,3 +29,6 @@ uuid = { version = "1.26.1", features = ["serde", "v7"] }
 
 [dev-dependencies]
 http-body-util = "0.1"
+
+[profile.dev]
+debug = "line-tables-only"

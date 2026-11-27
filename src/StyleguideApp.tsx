@@ -1,3 +1,4 @@
+import './styles.css'
 import StyleguideLayout from '../app/styleguide/layout'
 import StyleguidePage from '../app/styleguide/page'
 

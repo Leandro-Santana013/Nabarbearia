@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, MessageCircle } from 'lucide-react'
-import { motion, useMotionValueEvent, useReducedMotion, useScroll, useSpring, useTransform } from 'motion/react'
-import type { FocusEvent, PointerEvent } from 'react'
+import type { FocusEvent, KeyboardEvent, PointerEvent } from 'react'
 import type { LandingContent, LandingFaq, LandingGalleryPhoto, LandingPhoto, LandingTestimonial } from '../config/landingContent'
 import { publicImageProps, publicImageSizes } from '../lib/public-media'
 
@@ -30,7 +29,26 @@ function validPhoto(photo: LandingPhoto): boolean {
     && Number.isSafeInteger(photo.height) && photo.height > 0)
 }
 
-function ContentImage({ photo, sizes = publicImageSizes.gallery, displayRatio }: { photo: LandingPhoto; sizes?: string; displayRatio?: string }) {
+function usePrefersReducedMotion(): boolean {
+  const [reducedMotion, setReducedMotion] = useState(() => (
+    typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ))
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+    setReducedMotion(mediaQuery.matches)
+    const handleChange = (event: MediaQueryListEvent) => setReducedMotion(event.matches)
+    mediaQuery.addEventListener('change', handleChange)
+    return () => mediaQuery.removeEventListener('change', handleChange)
+  }, [])
+
+  return reducedMotion
+}
+
+function ContentImage({ photo, sizes = publicImageSizes.gallery, displayRatio, shouldLoad = true }: { photo: LandingPhoto; sizes?: string; displayRatio?: string; shouldLoad?: boolean }) {
   const [failed, setFailed] = useState(false)
   const [nearViewport, setNearViewport] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -45,16 +63,17 @@ function ContentImage({ photo, sizes = publicImageSizes.gallery, displayRatio }:
     if (containerRef.current) observer.observe(containerRef.current)
     return () => observer.disconnect()
   }, [])
+  const shouldMountImage = nearViewport && shouldLoad
   return <div className="public-content-image" ref={containerRef} style={{ aspectRatio: displayRatio ?? `${photo.width} / ${photo.height}` }}>
     {failed ? <div className="public-content-image-fallback" role="img" aria-label={photo.alt}>Imagem indisponível</div>
-      : nearViewport ? <img {...publicImageProps(photoSource(photo.src), sizes)} alt={photo.alt} width={photo.width} height={photo.height} loading="lazy" decoding="async" onError={() => setFailed(true)} />
+      : shouldMountImage ? <img {...publicImageProps(photoSource(photo.src), sizes)} alt={photo.alt} width={photo.width} height={photo.height} loading="lazy" decoding="async" onError={() => setFailed(true)} />
         : <div className="public-content-image-placeholder" role="img" aria-label={photo.alt} />}
   </div>
 }
 
 export function PublicGallery({ photos }: { photos: readonly LandingGalleryPhoto[] }) {
   const visiblePhotos = photos.filter(validPhoto).slice(0, 8)
-  const reducedMotion = useReducedMotion()
+  const reducedMotion = usePrefersReducedMotion()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [hovered, setHovered] = useState(false)
   const [focusWithin, setFocusWithin] = useState(false)
@@ -72,6 +91,16 @@ export function PublicGallery({ photos }: { photos: readonly LandingGalleryPhoto
   const moveTo = (index: number) => setCurrentIndex(index % visiblePhotos.length)
   const nextSlide = () => setCurrentIndex((index) => (index + 1) % visiblePhotos.length)
   const previousSlide = () => setCurrentIndex((index) => (index - 1 + visiblePhotos.length) % visiblePhotos.length)
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || visiblePhotos.length <= 1) return
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault()
+      previousSlide()
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault()
+      nextSlide()
+    }
+  }
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
     if (event.pointerType !== 'touch') return
     touchStart.current = { x: event.clientX, y: event.clientY }
@@ -91,6 +120,7 @@ export function PublicGallery({ photos }: { photos: readonly LandingGalleryPhoto
   }
 
   if (!visiblePhotos.length) return null
+  const currentPhoto = visiblePhotos[currentIndex] ?? visiblePhotos[0]
   return <section className="public-section public-gallery" id="trabalhos" aria-labelledby="gallery-title">
     <div className="public-container">
       <div className="public-gallery-carousel-heading">
@@ -101,6 +131,8 @@ export function PublicGallery({ photos }: { photos: readonly LandingGalleryPhoto
         role="region"
         aria-label="Galeria de fotos"
         aria-roledescription="carrossel"
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
         onPointerEnter={() => setHovered(true)}
         onPointerLeave={() => setHovered(false)}
         onPointerDown={handlePointerDown}
@@ -109,6 +141,7 @@ export function PublicGallery({ photos }: { photos: readonly LandingGalleryPhoto
         onFocusCapture={() => setFocusWithin(true)}
         onBlurCapture={handleBlur}
       >
+        <p className="sr-only" aria-live="polite">{`Foto ${currentIndex + 1} de ${visiblePhotos.length}: ${currentPhoto.caption}`}</p>
         <div className="public-gallery-carousel-window">
           <div className="public-gallery-grid">
             {visiblePhotos.map((photo, index) => {
@@ -117,7 +150,7 @@ export function PublicGallery({ photos }: { photos: readonly LandingGalleryPhoto
               const isNext = index === (currentIndex + 1) % visiblePhotos.length
               const position = isCurrent ? 'current' : isPrevious ? 'previous' : isNext ? 'next' : 'hidden'
               return <figure key={photo.id} className={`public-gallery-slide is-${position}`} role="group" aria-roledescription="slide" aria-label={`${index + 1} de ${visiblePhotos.length}`} aria-hidden={!isCurrent} aria-current={isCurrent ? 'true' : undefined} data-current={isCurrent}>
-                <ContentImage key={photo.src} photo={photo} />
+                <ContentImage key={photo.src} photo={photo} shouldLoad={isCurrent || isPrevious || isNext} />
                 <figcaption>{photo.caption}{photo.illustrative && <span className="public-content-label">Imagem ilustrativa</span>}</figcaption>
               </figure>
             })}
@@ -139,59 +172,6 @@ export function PublicGallery({ photos }: { photos: readonly LandingGalleryPhoto
           <button type="button" className="public-gallery-arrow" onClick={nextSlide} aria-label="Próxima foto"><ArrowRight size={20} /></button>
         </div>
       </div>
-    </div>
-  </section>
-}
-
-export function PublicShopReel() {
-  const sectionRef = useRef<HTMLElement>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const { scrollYProgress } = useScroll({ target: sectionRef, offset: ['start end', 'end start'] })
-  const reducedMotion = useReducedMotion()
-  const reelOpacity = useTransform(scrollYProgress, [0, 0.16, 0.5, 0.7], [0, 1, 1, 0])
-  const reelY = useSpring(useTransform(scrollYProgress, [0, 0.16, 0.7, 1], [56, 0, 0, -56]), { stiffness: 150, damping: 28, mass: 0.35 })
-
-  const syncVideoPlayback = useCallback((progress: number) => {
-    const video = videoRef.current
-    if (!video) return
-    if (reducedMotion || progress <= 0.01 || progress >= 0.7) {
-      video.pause()
-    } else if (video.paused) {
-      void video.play().catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return
-        console.error('Não foi possível reproduzir o vídeo da NA Barbearia.', error)
-      })
-    }
-  }, [reducedMotion])
-
-  useEffect(() => {
-    syncVideoPlayback(scrollYProgress.get())
-    return () => videoRef.current?.pause()
-  }, [scrollYProgress, syncVideoPlayback])
-
-  useMotionValueEvent(scrollYProgress, 'change', syncVideoPlayback)
-
-  return <section ref={sectionRef} className="public-section public-reel" aria-labelledby="reel-title">
-    <div className="public-container">
-      <div className="public-section-heading">
-        <span className="public-eyebrow">Por dentro da NA</span>
-        <h2 id="reel-title">Trabalho sério. Resenha boa.</h2>
-        <p>Um pouco do ritmo e da personalidade da barbearia.</p>
-      </div>
-      <motion.div
-        className="public-reel-stage"
-        initial={false}
-        style={{
-          opacity: reducedMotion ? 1 : reelOpacity,
-          y: reducedMotion ? 0 : reelY,
-        }}
-      >
-        <video ref={videoRef} className="public-reel-video" muted loop playsInline preload="none" aria-label="Vídeo da NA Barbearia">
-          <source src="/brand/na-barbearia-showreel.mp4" type="video/mp4" />
-          Seu navegador não consegue reproduzir este vídeo.
-        </video>
-        <span className="public-reel-caption">NA BARBEARIA <span>·</span> SANTOS, SP</span>
-      </motion.div>
     </div>
   </section>
 }

@@ -124,9 +124,10 @@ try {
     await send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 })
   }
   const waitContentImages = async (selector) => {
-    const count = await evaluate(`document.querySelector(${JSON.stringify(selector)})?.querySelectorAll('.public-content-image').length ?? 0`)
+    const itemSelector = `${selector} .public-content-image`
+    const count = await evaluate(`Array.from(document.querySelectorAll(${JSON.stringify(itemSelector)})).filter((el) => !el.closest('.is-hidden')).length`)
     for (let index = 0; index < count; index++) {
-      const container = `document.querySelector(${JSON.stringify(selector)}).querySelectorAll('.public-content-image')[${index}]`
+      const container = `Array.from(document.querySelectorAll(${JSON.stringify(itemSelector)})).filter((el) => !el.closest('.is-hidden'))[${index}]`
       await evaluate(`${container}.scrollIntoView({ behavior: 'instant', block: 'center' })`)
       await until(`(() => { const image = ${container}.querySelector('img'); return Boolean(image && image.complete && image.naturalWidth > 0) })()`, `imagem carregada: ${selector}, item ${index + 1}`)
     }
@@ -329,7 +330,7 @@ try {
     assert.equal(await evaluate(`Boolean(document.querySelector('.public-hero h1'))`), true, 'Abertura permanece disponível')
     assert.equal(await evaluate(`document.querySelectorAll('.public-service-card').length`), 3, 'Três categorias continuam disponíveis')
     assert.equal(await evaluate(`Boolean(document.querySelector('.public-hero-actions a[href="/painel"]'))`), true, 'Agendamento permanece acessível')
-    assert.equal(await evaluate(`Boolean(document.querySelector('#localizacao a[href^="tel:"]'))`), true, 'Telefone permanece acessível')
+    assert.equal(await evaluate(`Boolean(document.querySelector('#localizacao .location-actions a[href^="https://"]'))`), true, 'Link de localização permanece acessível')
   }
   const assertCatalog = async () => {
     await until(`document.querySelector('.public-catalog-note')?.dataset.state === 'success'`, 'catálogo disponível')
@@ -368,7 +369,7 @@ try {
   await waitContentImages('.public-shop-photo')
   await evaluate(`document.querySelector('.public-gallery-controls button').focus({ preventScroll: true })`)
   await evaluate(`window.scrollTo({ top: 0, behavior: 'instant' })`)
-  await sleep(100)
+  await sleep(300)
   assert.notEqual(await evaluate(`getComputedStyle(document.querySelector('.public-gallery')).display`), 'none', 'Carrossel deve permanecer disponível em telas de celular')
   assert.equal(await evaluate(`getComputedStyle(document.querySelector('.public-reel-stage')).borderWidth`), '0px', 'Vídeo mobile não deve ter bordas')
   assert.ok(await evaluate(`document.querySelector('.public-reel').getBoundingClientRect().height >= innerHeight * 2`), 'Seção do vídeo deve prolongar o scroll por mais de uma tela')
@@ -425,7 +426,7 @@ try {
   })()`)
   assert.equal(carouselState.role, 'carrossel', 'Galeria identifica seu comportamento de carrossel')
   assert.ok(carouselState.slides >= 6, 'Carrossel inclui as fotos existentes')
-  assert.equal(carouselState.firstPhoto, '/brand/na-carousel-intro.jpg', 'Foto promocional anterior deve ser a primeira do carrossel')
+  assert.match(carouselState.firstPhoto, /^\/brand\/optimized\/carousel-intro-\d+\.webp$/, 'Foto promocional anterior deve ser a primeira do carrossel')
   assert.match(carouselState.firstCaption, /Corte seu cabelo com a gente/i)
   assert.equal(await evaluate(`document.querySelector('.public-gallery-grid .public-gallery-brand-emblem')`), null, 'Slide de logo deve ser removido')
   assert.equal(carouselState.visibleSlides, 1, 'Slide principal é o único exposto a leitores de tela')
@@ -485,19 +486,19 @@ try {
   })()`)
   assert.deepEqual(optionalContent, [], 'Conteúdo opcional existente deve ter material e identificação')
 
-  if (await evaluate(`Boolean(document.querySelector('.public-gallery-grid figure img'))`)) {
+  if (await evaluate(`Boolean(document.querySelector('.public-gallery-grid figure[data-current="true"] img'))`)) {
     const beforeImageFailure = await evaluate(`(() => {
-      const figure = document.querySelector('.public-gallery-grid figure');
+      const figure = document.querySelector('.public-gallery-grid figure[data-current="true"]');
       figure.scrollIntoView({ behavior: 'instant', block: 'center' });
       document.querySelector('#duvidas summary').focus({ preventScroll: true });
       return { alt: figure.querySelector('img').alt, caption: figure.querySelector('figcaption').textContent, height: figure.querySelector('.public-content-image').offsetHeight };
     })()`)
-    await evaluate(`(() => { const image = document.querySelector('.public-gallery-grid figure img'); image.removeAttribute('srcset'); image.removeAttribute('sizes'); image.src = '/__landing-test-missing.png' })()`)
-    await until(`Boolean(document.querySelector('.public-gallery-grid figure .public-content-image-fallback'))`, 'erro real da imagem mostra fallback')
-    assert.equal(await evaluate(`document.querySelector('.public-gallery-grid figure .public-content-image-fallback').getAttribute('aria-label')`), beforeImageFailure.alt, 'Fallback preserva a identificação da imagem')
-    assert.equal(await evaluate(`document.querySelector('.public-gallery-grid figure figcaption').textContent`), beforeImageFailure.caption, 'Legenda permanece quando a imagem falha')
+    await evaluate(`(() => { const image = document.querySelector('.public-gallery-grid figure[data-current="true"] img'); image.removeAttribute('srcset'); image.removeAttribute('sizes'); image.src = '/__landing-test-missing.png' })()`)
+    await until(`Boolean(document.querySelector('.public-gallery-grid figure[data-current="true"] .public-content-image-fallback'))`, 'erro real da imagem mostra fallback')
+    assert.equal(await evaluate(`document.querySelector('.public-gallery-grid figure[data-current="true"] .public-content-image-fallback').getAttribute('aria-label')`), beforeImageFailure.alt, 'Fallback preserva a identificação da imagem')
+    assert.equal(await evaluate(`document.querySelector('.public-gallery-grid figure[data-current="true"] figcaption').textContent`), beforeImageFailure.caption, 'Legenda permanece quando a imagem falha')
     assert.equal(await evaluate(`document.activeElement.matches('#duvidas summary')`), true, 'Falha da imagem não rouba o foco')
-    assert.ok(Math.abs((await evaluate(`document.querySelector('.public-gallery-grid figure .public-content-image').offsetHeight`)) - beforeImageFailure.height) < 1, 'Fallback preserva o espaço reservado')
+    assert.ok(Math.abs((await evaluate(`document.querySelector('.public-gallery-grid figure[data-current="true"] .public-content-image').offsetHeight`)) - beforeImageFailure.height) < 1, 'Fallback preserva o espaço reservado')
     await navigateToLanding()
     await assertCatalog()
     console.log('OK: imagens entram perto da tela; erro real preserva fallback, legenda, foco e dimensões.')

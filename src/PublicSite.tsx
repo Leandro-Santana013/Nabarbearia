@@ -6,11 +6,12 @@ import {
   Check,
   Instagram,
   Layers,
+  LoaderCircle,
   Menu,
   Scissors,
   X,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { siteConfig } from './config/siteConfig'
 import { BarberPhoto } from './components/BarberPhoto'
@@ -19,8 +20,12 @@ import { groupLandingServices } from './lib/landing-services'
 import type { Barber, Service } from './types'
 import { clearLandingIntent, saveLandingIntent, type LandingSelection } from './lib/booking/landing-intent'
 import { landingContent } from './config/landingContent'
-import { PublicFaq, PublicGallery, PublicShopReel, PublicTestimonials } from './components/PublicContent'
+import { PublicFaq, PublicGallery, PublicTestimonials } from './components/PublicContent'
 import { publicImageProps, publicImageSizes } from './lib/public-media'
+
+const PublicShopReel = lazy(() => import('./components/PublicShopReel'))
+
+const staticTeamNames = new Set(siteConfig.team.map((member) => member.name))
 
 const serviceHighlights = [
   { id: 'cabelo', name: 'Cabelo', icon: Scissors, description: 'Um corte que acompanha seu estilo, do clássico ao visual que você quer experimentar.' },
@@ -41,23 +46,54 @@ function PlatformLink({ className = '', children, onNavigate }: { className?: st
 }
 
 function BrandSymbol({ loading = 'eager' }: { loading?: 'eager' | 'lazy' }) {
-  return <span className="public-brand-symbol"><img {...publicImageProps('/brand/na-logo-cutout.png', publicImageSizes.symbol)} alt="Símbolo da NA Barbearia" width="1280" height="1280" loading={loading} decoding="async" /></span>
+  return <span className="public-brand-symbol"><img {...publicImageProps('/brand/na-logo-cutout.png', publicImageSizes.symbol)} alt="Símbolo da NA Barbearia" width="1254" height="1254" loading={loading} decoding="async" /></span>
+}
+
+function ShopReelFallback() {
+  return (
+    <section className="public-section public-reel" aria-labelledby="reel-title">
+      <div className="public-container">
+        <div className="public-section-heading">
+          <span className="public-eyebrow">Por dentro da NA</span>
+          <h2 id="reel-title">Trabalho sério. Resenha boa.</h2>
+          <p>Um pouco do ritmo e da personalidade da barbearia.</p>
+        </div>
+        <div className="public-reel-stage" aria-hidden="true">
+          <div
+            className="public-reel-poster"
+            style={{
+              width: '100%',
+              height: '100%',
+              background: "#031a25 url('/brand/optimized/showreel-poster.webp') center / cover no-repeat",
+            }}
+          />
+          <span className="public-reel-caption">NA BARBEARIA <span>·</span> SANTOS, SP</span>
+        </div>
+      </div>
+    </section>
+  )
 }
 
 export default function PublicSite({ onNavigate }: PublicSiteProps) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [catalog, setCatalog] = useState<{ status: 'loading' | 'ready' | 'unavailable'; services: Service[] }>({ status: 'loading', services: [] })
   const [professionals, setProfessionals] = useState<{ status: 'loading' | 'ready' | 'unavailable'; barbers: Barber[] }>({ status: 'loading', barbers: [] })
-  const [starting, setStarting] = useState(false)
+  const [startingTarget, setStartingTarget] = useState<string | null>(null)
   const startingRef = useRef(false)
   const mounted = useRef(true)
   const [choiceError, setChoiceError] = useState<{ message: string; source: 'service' | 'professional' } | null>(null)
   const headerRef = useRef<HTMLElement>(null)
   const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const menuOpenRef = useRef(menuOpen)
+  const revealObserverRef = useRef<IntersectionObserver | null>(null)
   const [headerHidden, setHeaderHidden] = useState(false)
   const closeMenu = () => setMenuOpen(false)
   const serviceGroups = groupLandingServices(catalog.services)
   const catalogState = catalog.status === 'loading' ? 'loading' : catalog.status === 'ready' && Object.values(serviceGroups).some((services) => services.length > 0) ? 'success' : 'degraded'
+
+  useEffect(() => {
+    menuOpenRef.current = menuOpen
+  }, [menuOpen])
 
   useEffect(() => {
     let current = true
@@ -81,7 +117,7 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
     if (!main || !('IntersectionObserver' in window) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
     const targets = Array.from(main.querySelectorAll<HTMLElement>(
-      '.public-hero-copy, .public-hero-art, .public-section-heading, .public-service-card, .public-team-story, .public-team-list-heading, .public-team-card, .public-how-grid > *, .public-testimonial-grid > figure, .public-location, .public-faq',
+      '.public-section-heading, .public-service-card, .public-team-story, .public-team-list-heading, .public-team-card, .public-how-grid > *, .public-testimonial-grid > figure, .public-location, .public-faq',
     ))
     targets.forEach((target, index) => {
       target.dataset.scrollReveal = 'hidden'
@@ -94,22 +130,47 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
         entry.target.dataset.scrollReveal = 'visible'
         observer.unobserve(entry.target)
       })
-    }, { threshold: 0.08, rootMargin: '0px 0px -12% 0px' })
+    }, { threshold: 0.08, rootMargin: '0px 0px -6% 0px' })
 
+    revealObserverRef.current = observer
     targets.forEach((target) => observer.observe(target))
     return () => {
       observer.disconnect()
-      targets.forEach((target) => {
+      revealObserverRef.current = null
+      main.querySelectorAll<HTMLElement>('[data-scroll-reveal]').forEach((target) => {
         delete target.dataset.scrollReveal
         target.style.removeProperty('--scroll-reveal-delay')
       })
     }
   }, [])
 
+  useEffect(() => {
+    const observer = revealObserverRef.current
+    const main = document.querySelector('.public-site main')
+    if (!observer || !main) return
+
+    const cards = Array.from(main.querySelectorAll<HTMLElement>('.public-team-card'))
+    cards.forEach((card, index) => {
+      if (card.dataset.scrollReveal) return
+      if (card.getBoundingClientRect().top < window.innerHeight * 0.94) {
+        card.dataset.scrollReveal = 'visible'
+        return
+      }
+      card.dataset.scrollReveal = 'hidden'
+      card.style.setProperty('--scroll-reveal-delay', `${(index % 4) * 65}ms`)
+      observer.observe(card)
+    })
+  }, [professionals.status])
+
   async function beginChoice(selection: LandingSelection) {
-    if (startingRef.current) return
+    const target = selection.serviceId
+      ? `service:${selection.serviceId}`
+      : selection.barberId
+        ? `barber:${selection.barberId}`
+        : null
+    if (startingRef.current || !target) return
     startingRef.current = true
-    setStarting(true)
+    setStartingTarget(target)
     setChoiceError(null)
     clearLandingIntent()
     try {
@@ -123,11 +184,15 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
       if (mounted.current) setChoiceError({ message: 'Não foi possível iniciar sua escolha. Confira a conexão e tente novamente.', source: selection.serviceId ? 'service' : 'professional' })
     } finally {
       startingRef.current = false
-      if (mounted.current) setStarting(false)
+      if (mounted.current) setStartingTarget(null)
     }
   }
 
   const team = professionals.barbers.length ? professionals.barbers.map((barber) => ({ ...barber, role: 'Barbeiro(a)', specialty: barber.specialty === 'Barbeiro(a)' ? undefined : barber.specialty })) : siteConfig.team.map((member) => ({ ...member, id: undefined }))
+  const teamNameCounts = new Map<string, number>()
+  team.forEach((member) => {
+    teamNameCounts.set(member.name, (teamNameCounts.get(member.name) ?? 0) + 1)
+  })
 
   useEffect(() => {
     const mobileViewport = window.matchMedia('(max-width: 1100px)')
@@ -167,7 +232,10 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
 
     let previousScrollY = window.scrollY
     let accumulatedScroll = 0
-    const handleScroll = () => {
+    let rafId = 0
+
+    const updateHeader = () => {
+      rafId = 0
       const currentScrollY = window.scrollY
       const scrollDelta = currentScrollY - previousScrollY
       previousScrollY = currentScrollY
@@ -178,7 +246,7 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
         return
       }
 
-      if (menuOpen || headerRef.current?.contains(document.activeElement)) {
+      if (menuOpenRef.current || headerRef.current?.contains(document.activeElement)) {
         accumulatedScroll = 0
         setHeaderHidden(false)
         return
@@ -197,14 +265,22 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
       }
     }
 
+    const handleScroll = () => {
+      if (rafId !== 0) return
+      rafId = window.requestAnimationFrame(updateHeader)
+    }
+
     window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [menuOpen])
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      if (rafId !== 0) window.cancelAnimationFrame(rafId)
+    }
+  }, [])
 
   return (
     <div className={`public-site${headerHidden && !menuOpen ? ' public-header-hidden' : ''}`}>
       <a className="public-skip-link" href="#conteudo-principal" onClick={closeMenu}>Pular para o conteúdo</a>
-      <header ref={headerRef} className={`public-header${headerHidden && !menuOpen ? ' is-hidden' : ''}${menuOpen ? ' is-menu-open' : ''}`} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) closeMenu() }}>
+      <header ref={headerRef} className={`public-header${headerHidden && !menuOpen ? ' is-hidden' : ''}${menuOpen ? ' is-menu-open' : ''}`}>
         <div className="public-header-inner">
         <a className="public-brand" href="#inicio" onClick={closeMenu} aria-label="NA Barbearia, início"><BrandSymbol /></a>
         <button ref={menuButtonRef} className="public-menu-button" type="button" aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'} aria-controls="public-navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>{menuOpen ? <X size={23} strokeWidth={1.8} /> : <Menu size={23} strokeWidth={1.8} />}</button>
@@ -223,7 +299,7 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
       <div className={`public-menu-backdrop${menuOpen ? ' is-visible' : ''}`} aria-hidden="true" onClick={closeMenu} />
 
       <main id="conteudo-principal" tabIndex={-1}>
-        <p className="sr-only" role="status">{starting ? 'Abrindo a agenda com sua escolha…' : ''}</p>
+        <p className="sr-only" role="status">{startingTarget ? 'Abrindo a agenda com sua escolha…' : ''}</p>
         <section className="public-hero" id="inicio" aria-labelledby="hero-title">
           <div className="public-container public-hero-grid">
             <div className="public-hero-copy">
@@ -233,7 +309,7 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
               <div className="public-hero-actions"><PlatformLink onNavigate={onNavigate} className="public-button public-button-dark">Agendar horário <ArrowRight size={17} /></PlatformLink><a className="public-text-link" href="#localizacao">Ver localização <ArrowRight size={16} /></a></div>
               <p className="public-hero-note"><Check size={15} /> Entre ou crie sua conta para agendar.</p>
             </div>
-            <div className="public-hero-art"><div className="public-hero-emblem"><img {...publicImageProps('/brand/na-logo-cutout.png', publicImageSizes.hero)} alt="Símbolo oficial da NA Barbearia" width="1280" height="1280" fetchPriority="high" decoding="async" /></div><a className="public-art-booking" href="#como-funciona"><CalendarCheck size={24} /><span>Seu próximo horário.<br /><strong>Veja como agendar</strong></span><ArrowUpRight size={20} /></a><span className="public-art-label">DO MACUCO, COM IDENTIDADE.</span></div>
+            <div className="public-hero-art"><div className="public-hero-emblem"><img {...publicImageProps('/brand/na-logo-cutout.png', publicImageSizes.hero)} alt="Símbolo oficial da NA Barbearia" width="1254" height="1254" fetchPriority="high" decoding="async" /></div><a className="public-art-booking" href="#como-funciona"><CalendarCheck size={24} /><span>Seu próximo horário.<br /><strong>Veja como agendar</strong></span><ArrowUpRight size={20} /></a><span className="public-art-label">DO MACUCO, COM IDENTIDADE.</span></div>
           </div>
         </section>
 
@@ -249,12 +325,20 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
                 <div className="public-service-icon"><Icon size={24} aria-hidden="true" /></div>
                 <h3>{name}</h3>
                 <p>{description}</p>
-                {serviceGroups[id].length > 0 ? <ul className="public-service-list">
-                  {serviceGroups[id].map((service) => <li className="public-service-item" key={service.id}>
-                    <div><strong>{service.name}</strong><span>{service.durationMinutes} min</span></div>
-                    <span className="public-service-price">{servicePrice.format(service.priceCents / 100)}</span>
-                    <button type="button" className="public-service-choice" data-service-id={service.id} disabled={starting} onClick={() => { void beginChoice({ serviceId: service.id }) }} aria-label={`Escolher serviço: ${service.name}`}>Escolher serviço <ArrowUpRight size={15} aria-hidden="true" /></button>
-                  </li>)}
+                {catalog.status === 'loading' ? <ul className="public-service-list public-service-skeleton" aria-hidden="true">
+                  <li className="public-service-skeleton-item" aria-hidden="true" />
+                  <li className="public-service-skeleton-item" aria-hidden="true" />
+                </ul> : serviceGroups[id].length > 0 ? <ul className="public-service-list">
+                  {serviceGroups[id].map((service) => {
+                    const isStartingService = startingTarget === `service:${service.id}`
+                    return <li className="public-service-item" key={service.id}>
+                      <div><strong>{service.name}</strong><span>{service.durationMinutes} min</span></div>
+                      <span className="public-service-price">{servicePrice.format(service.priceCents / 100)}</span>
+                      <button type="button" className="public-service-choice" data-service-id={service.id} disabled={startingTarget !== null} onClick={() => { void beginChoice({ serviceId: service.id }) }} aria-label={`Escolher serviço: ${service.name}`}>
+                        {isStartingService ? <>Abrindo… <LoaderCircle size={15} className="public-choice-spinner" aria-hidden="true" /></> : <>Escolher serviço <ArrowUpRight size={15} aria-hidden="true" /></>}
+                      </button>
+                    </li>
+                  })}
                 </ul> : <p className="public-service-empty">Consulte as opções e os valores ao agendar.</p>}
                 <PlatformLink onNavigate={onNavigate} className="public-card-link">Agendar horário <ArrowRight size={16} /></PlatformLink>
               </article>)}
@@ -266,7 +350,9 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
           </div>
         </section>
         <PublicGallery photos={landingContent.gallery} />
-        <PublicShopReel />
+        <Suspense fallback={<ShopReelFallback />}>
+          <PublicShopReel />
+        </Suspense>
 
         <section className="public-section public-team" id="equipe" aria-labelledby="team-title">
           <div className="public-container">
@@ -286,11 +372,19 @@ export default function PublicSite({ onNavigate }: PublicSiteProps) {
             </div>
             <div className="public-team-list-heading"><h3>Encontre seu barbeiro.</h3><p>Conheça o time e escolha com quem agendar.</p></div>
             <div className="public-team-grid">
-              {team.map((member) => <article className="public-team-card" key={member.id ?? member.name}>
-                <div className="public-team-photo"><BarberPhoto {...publicImageProps(member.photoUrl, publicImageSizes.portrait)} alt={`Foto de ${member.name}`} initials={member.name.slice(0, 2).toUpperCase()} loading="lazy" decoding="async" className="public-team-photo-image" fallbackClassName="public-team-photo-fallback" /></div>
-                <div className="public-team-copy"><strong>{member.name}</strong><span>{member.role}</span>{member.specialty && <small>{member.specialty}</small>}</div>
-                {member.id && <button type="button" className="public-professional-choice" data-barber-id={member.id} disabled={starting} onClick={() => { void beginChoice({ barberId: member.id }) }} aria-label={`Escolher este profissional: ${member.name}`}>Escolher este profissional <ArrowUpRight size={16} aria-hidden="true" /></button>}
-              </article>)}
+              {team.map((member, index) => {
+                const cardKey = staticTeamNames.has(member.name) && teamNameCounts.get(member.name) === 1
+                  ? member.name
+                  : (member.id ?? `${member.name}-${index}`)
+                const isStartingBarber = Boolean(member.id && startingTarget === `barber:${member.id}`)
+                return <article className="public-team-card" key={cardKey}>
+                  <div className="public-team-photo"><BarberPhoto key={member.photoUrl ?? 'no-photo'} {...publicImageProps(member.photoUrl, publicImageSizes.portrait)} alt={`Foto de ${member.name}`} initials={member.name.slice(0, 2).toUpperCase()} loading="lazy" decoding="async" className="public-team-photo-image" fallbackClassName="public-team-photo-fallback" /></div>
+                  <div className="public-team-copy"><strong>{member.name}</strong><span>{member.role}</span>{member.specialty && <small>{member.specialty}</small>}</div>
+                  {member.id ? <button type="button" className="public-professional-choice" data-barber-id={member.id} disabled={startingTarget !== null} onClick={() => { void beginChoice({ barberId: member.id }) }} aria-label={`Escolher este profissional: ${member.name}`}>
+                    {isStartingBarber ? <>Abrindo… <LoaderCircle size={16} className="public-choice-spinner" aria-hidden="true" /></> : <>Escolher este profissional <ArrowUpRight size={16} aria-hidden="true" /></>}
+                  </button> : professionals.status === 'loading' ? <div className="public-professional-choice-placeholder" aria-hidden="true" /> : null}
+                </article>
+              })}
             </div>
             <p className="public-catalog-note" role="status">{professionals.status === 'loading' ? 'Consultando os profissionais disponíveis para agendar…' : professionals.barbers.length ? 'Sua escolha continua após entrar na conta. Os horários serão consultados na agenda.' : 'A escolha de profissional está disponível na agenda. Conheça nossa equipe acima.'}</p>
             {choiceError?.source === 'professional' && <p className="public-choice-error" role="alert">{choiceError.message}</p>}

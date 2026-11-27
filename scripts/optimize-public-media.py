@@ -20,6 +20,11 @@ from urllib.request import Request, urlopen
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps, features
 
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+
 
 ROOT = Path(__file__).resolve().parent.parent
 OUTPUT = ROOT / "public/brand/optimized"
@@ -27,6 +32,10 @@ CACHE = ROOT / "artifacts/stage4-portrait-originals"
 MANIFEST = ROOT / "src/config/publicMedia.generated.json"
 REPORT = ROOT / "artifacts/stage4-media-report.json"
 QUALITY = 84
+SHOWREEL_VIDEO = ROOT / "public/brand/na-barbearia-showreel.mp4"
+SHOWREEL_POSTER = OUTPUT / "showreel-poster.webp"
+SHOWREEL_MIN_LUMA = 16.0
+SHOWREEL_MAX_SCAN_FRAMES = 60
 
 
 def portrait_sources() -> list[tuple[str, str]]:
@@ -40,7 +49,172 @@ def portrait_sources() -> list[tuple[str, str]]:
 def checked_image(path: Path) -> Image.Image:
     with Image.open(path) as source:
         source.load()
-        return ImageOps.exif_transpose(source).convert("RGBA" if "A" in source.getbands() else "RGB")
+        transposed = ImageOps.exif_transpose(source)
+        try:
+            if "A" in transposed.getbands():
+                rgba = transposed.convert("RGBA")
+                if rgba.getchannel("A").getextrema() == (255, 255):
+                    rgb = rgba.convert("RGB")
+                    rgba.close()
+                    return rgb
+                return rgba
+            return transposed.convert("RGB")
+        finally:
+            if transposed is not source:
+                transposed.close()
+
+
+def load_existing_manifest() -> dict[str, dict]:
+    if not MANIFEST.is_file():
+        return {}
+    try:
+        data = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _public_asset_path(url: object) -> Path | None:
+    if not isinstance(url, str) or not url.startswith("/"):
+        return None
+    public_root = (ROOT / "public").resolve()
+    candidate = (public_root / url.lstrip("/")).resolve()
+    try:
+        candidate.relative_to(public_root)
+    except ValueError:
+        return None
+    return candidate
+
+
+def valid_manifest_entry(entry: object) -> bool:
+    if not isinstance(entry, dict):
+        return False
+    width = entry.get("width")
+    height = entry.get("height")
+    if isinstance(width, bool) or not isinstance(width, int) or width <= 0:
+        return False
+    if isinstance(height, bool) or not isinstance(height, int) or height <= 0:
+        return False
+    src_path = _public_asset_path(entry.get("src"))
+    if src_path is None or not src_path.is_file():
+        return False
+    try:
+        with Image.open(src_path) as image:
+            image.verify()
+    except Exception:
+        return False
+    src_set = entry.get("srcSet")
+    if not isinstance(src_set, str) or not src_set.strip():
+        return False
+    candidates = [part.strip() for part in src_set.split(",") if part.strip()]
+    if not candidates:
+        return False
+    for candidate in candidates:
+        tokens = candidate.split()
+        if len(tokens) != 2 or not tokens[1].endswith("w"):
+            return False
+        variant_path = _public_asset_path(tokens[0])
+        if variant_path is None or not variant_path.is_file():
+            return False
+        try:
+            with Image.open(variant_path) as image:
+                image.verify()
+        except Exception:
+            return False
+    return True
+
+
+def _validate_existing_webp(path: Path) -> tuple[int, int]:
+    with Image.open(path) as image:
+        image.load()
+        if image.format != "WEBP":
+            raise RuntimeError(f"Expected WEBP image at {path}, got {image.format}.")
+        width, height = image.size
+    if width <= 0 or height <= 0:
+        raise RuntimeError(f"Invalid WEBP dimensions at {path}: {width}x{height}")
+    return width, height
+
+
+def showreel_poster(offline: bool) -> dict:
+    if cv2 is None:
+        if SHOWREEL_POSTER.is_file():
+            width, height = _validate_existing_webp(SHOWREEL_POSTER)
+            return {
+                "path": "/brand/optimized/showreel-poster.webp",
+                "width": width,
+                "height": height,
+                "bytes": SHOWREEL_POSTER.stat().st_size,
+                "preserved": True,
+            }
+        raise RuntimeError("OpenCV (cv2) is required to generate public/brand/optimized/showreel-poster.webp.")
+
+    if not SHOWREEL_VIDEO.is_file():
+        if offline and SHOWREEL_POSTER.is_file():
+            width, height = _validate_existing_webp(SHOWREEL_POSTER)
+            return {
+                "path": "/brand/optimized/showreel-poster.webp",
+                "width": width,
+                "height": height,
+                "bytes": SHOWREEL_POSTER.stat().st_size,
+                "preserved": True,
+            }
+        raise FileNotFoundError(f"Missing showreel video: {SHOWREEL_VIDEO}")
+
+    cap = cv2.VideoCapture(str(SHOWREEL_VIDEO))
+    if not cap.isOpened():
+        cap.release()
+        raise RuntimeError(f"Could not open showreel video: {SHOWREEL_VIDEO}")
+
+    selected_frame = None
+    selected_index = 0
+    selected_luma = -1.0
+    brightest_frame = None
+    brightest_index = 0
+    brightest_luma = -1.0
+
+    try:
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        scan_limit = min(frame_count, SHOWREEL_MAX_SCAN_FRAMES) if frame_count > 0 else SHOWREEL_MAX_SCAN_FRAMES
+        for index in range(scan_limit):
+            ok, frame = cap.read()
+            if not ok or frame is None:
+                break
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            luma = float(cv2.mean(gray)[0])
+            if luma > brightest_luma:
+                brightest_frame = frame
+                brightest_index = index
+                brightest_luma = luma
+            if luma >= SHOWREEL_MIN_LUMA:
+                selected_frame = frame
+                selected_index = index
+                selected_luma = luma
+                break
+        if selected_frame is None:
+            selected_frame = brightest_frame
+            selected_index = brightest_index
+            selected_luma = brightest_luma
+        if selected_frame is None:
+            raise RuntimeError(f"Could not decode any frame from showreel video: {SHOWREEL_VIDEO}")
+        rgb = cv2.cvtColor(selected_frame, cv2.COLOR_BGR2RGB)
+    finally:
+        cap.release()
+
+    poster_image = Image.fromarray(rgb)
+    try:
+        poster_image.save(SHOWREEL_POSTER, "WEBP", quality=QUALITY, method=6)
+    finally:
+        poster_image.close()
+
+    width, height = _validate_existing_webp(SHOWREEL_POSTER)
+    return {
+        "path": "/brand/optimized/showreel-poster.webp",
+        "width": width,
+        "height": height,
+        "bytes": SHOWREEL_POSTER.stat().st_size,
+        "frameIndex": selected_index,
+        "meanLuma": round(selected_luma, 2),
+    }
 
 
 def portrait_source(item: tuple[str, str], offline: bool) -> tuple[str, str, Path | None, str | None]:
@@ -123,18 +297,43 @@ def font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
     raise RuntimeError("A local Segoe UI or DejaVu Sans font is required for the social card.")
 
 
-def brand_artifacts() -> dict:
-    logo = checked_image(ROOT / "media-sources/brand/na-logo-cutout.png")
+def brand_artifacts(offline: bool = False) -> dict:
+    logo_source = ROOT / "media-sources/brand/na-logo-cutout.png"
+    team_source = ROOT / "media-sources/brand/na-team.webp"
+    favicon_target = ROOT / "public/favicon.png"
+    og_target = ROOT / "public/brand/og-cover.jpg"
+
+    if not (logo_source.is_file() and team_source.is_file()):
+        if offline and favicon_target.is_file() and og_target.is_file():
+            with Image.open(favicon_target) as fav_image:
+                fav_image.load()
+                if fav_image.format != "PNG":
+                    raise RuntimeError(f"Expected PNG favicon at {favicon_target}, got {fav_image.format}.")
+                fav_width, fav_height = fav_image.size
+            with Image.open(og_target) as og_image:
+                og_image.load()
+                if og_image.format != "JPEG":
+                    raise RuntimeError(f"Expected JPEG social card at {og_target}, got {og_image.format}.")
+                og_width, og_height = og_image.size
+            if fav_width <= 0 or fav_height <= 0 or og_width <= 0 or og_height <= 0:
+                raise RuntimeError("Existing brand artifacts have invalid dimensions.")
+            return {
+                "favicon": {"path": "/favicon.png", "bytes": favicon_target.stat().st_size, "width": fav_width, "height": fav_height, "preserved": True},
+                "socialImage": {"path": "/brand/og-cover.jpg", "bytes": og_target.stat().st_size, "width": og_width, "height": og_height, "preserved": True},
+            }
+        raise FileNotFoundError(f"Missing brand source files ({logo_source}, {team_source}) and required existing artifacts.")
+
+    logo = checked_image(logo_source)
     # Only the favicon/social-card packaging trims transparent margins. Logo
     # derivatives above retain the original extent used by the site layout.
     symbol = logo.crop(logo.getchannel("A").getbbox())
     favicon = Image.new("RGBA", (64, 64), "#00749C")
     icon = ImageOps.contain(symbol, (60, 60), Image.Resampling.LANCZOS)
     favicon.alpha_composite(icon, ((64 - icon.width) // 2, (64 - icon.height) // 2))
-    favicon.save(ROOT / "public/favicon.png", "PNG", optimize=True)
+    favicon.save(favicon_target, "PNG", optimize=True)
 
     card = Image.new("RGB", (1200, 630), "#062D40")
-    team = checked_image(ROOT / "media-sources/brand/na-team.webp")
+    team = checked_image(team_source)
     # The full square photograph is preserved: no faces are removed by a crop.
     team = team.resize((630, 630), Image.Resampling.LANCZOS).convert("RGB")
     card.paste(team, (570, 0))
@@ -146,9 +345,11 @@ def brand_artifacts() -> dict:
     draw.text((48, 314), "Barbearia", font=font(64, True), fill="#FFFFFF")
     draw.text((50, 429), "Macuco · Santos/SP", font=font(26), fill="#6ED9FF")
     draw.text((50, 528), "Seu visual. A nossa história.", font=font(23), fill="#D0E9F3")
-    target = ROOT / "public/brand/og-cover.jpg"
-    card.save(target, "JPEG", quality=88, optimize=True, progressive=True, subsampling=0)
-    return {"favicon": {"path": "/favicon.png", "bytes": (ROOT / "public/favicon.png").stat().st_size, "width": 64, "height": 64}, "socialImage": {"path": "/brand/og-cover.jpg", "bytes": target.stat().st_size, "width": 1200, "height": 630}}
+    card.save(og_target, "JPEG", quality=88, optimize=True, progressive=True, subsampling=0)
+    return {
+        "favicon": {"path": "/favicon.png", "bytes": favicon_target.stat().st_size, "width": 64, "height": 64},
+        "socialImage": {"path": "/brand/og-cover.jpg", "bytes": og_target.stat().st_size, "width": 1200, "height": 630},
+    }
 
 
 def main() -> None:
@@ -158,36 +359,92 @@ def main() -> None:
     if not features.check("webp"):
         raise RuntimeError("This Pillow installation does not provide the WebP encoder.")
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    CACHE.mkdir(parents=True, exist_ok=True)
+    if not args.offline:
+        CACHE.mkdir(parents=True, exist_ok=True)
+    existing_manifest = load_existing_manifest()
     manifest = {}
-    report = {"quality": QUALITY, "sources": [], "portraitFailures": []}
+    report = {"quality": QUALITY, "sources": [], "preservedSources": [], "portraitFailures": []}
     originals = [
         ("logo", "/brand/na-logo-cutout.png", ROOT / "media-sources/brand/na-logo-cutout.png", (256, 512, 960), 512),
         ("team", "/brand/na-team.webp", ROOT / "media-sources/brand/na-team.webp", (384, 640, 1024), 640),
+        ("carousel-intro", "/brand/na-carousel-intro.jpg", ROOT / "public/brand/na-carousel-intro.jpg", (384, 640, 1024), 640),
+        ("gallery-shop", "/brand/na-gallery-shop.jpg", ROOT / "public/brand/na-gallery-shop.jpg", (384, 640, 1024), 640),
     ]
-    for source in sorted((ROOT / "media-sources/brand/illustrative").glob("*.png")):
+    illustrative_dir = ROOT / "media-sources/brand/illustrative"
+    illustrative_sources = sorted(illustrative_dir.glob("*.png")) if illustrative_dir.is_dir() else []
+    for source in illustrative_sources:
         originals.append((f"illustrative-{source.stem}", f"/brand/illustrative/{source.name}", source, (384, 640, 1024), 640))
+
     for name, url, source, widths, fallback in originals:
-        manifest[url], entry = derivatives(name, url, source, widths, fallback)
-        report["sources"].append(entry)
+        if source.is_file():
+            manifest[url], entry = derivatives(name, url, source, widths, fallback)
+            report["sources"].append(entry)
+        elif args.offline and valid_manifest_entry(existing_manifest.get(url)):
+            manifest[url] = existing_manifest[url]
+            report["preservedSources"].append(url)
+        else:
+            raise FileNotFoundError(f"Missing media source for {url}: {source}")
+
+    if not illustrative_sources:
+        if not args.offline:
+            raise FileNotFoundError(f"Missing illustrative media sources under {illustrative_dir}")
+        preserved_illustrative = [
+            (url, entry)
+            for url, entry in existing_manifest.items()
+            if url.startswith("/brand/illustrative/")
+        ]
+        if not preserved_illustrative:
+            raise RuntimeError("Offline mode requires existing /brand/illustrative/ entries in publicMedia.generated.json.")
+        for url, entry in preserved_illustrative:
+            if not valid_manifest_entry(entry):
+                raise FileNotFoundError(f"Invalid or missing files for manifest entry {url}")
+            manifest[url] = entry
+            report["preservedSources"].append(url)
+
     with ThreadPoolExecutor(max_workers=3) as pool:
         portraits = list(pool.map(lambda item: portrait_source(item, args.offline), portrait_sources()))
     for name, url, source, error in portraits:
         if error:
+            if args.offline and valid_manifest_entry(existing_manifest.get(url)):
+                manifest[url] = existing_manifest[url]
+                report["preservedSources"].append(url)
+                continue
+            if args.offline:
+                raise RuntimeError(f"Offline portrait missing from cache and manifest for {name} ({url}): {error}")
             report["portraitFailures"].append({"name": name, "url": url, "error": error})
             continue
         manifest[url], entry = derivatives(f"portrait-{name}", url, source, (256, 512, 768), 512)
         report["sources"].append(entry)
-    report.update(brand_artifacts())
+
+    report["showreelPoster"] = showreel_poster(args.offline)
+    report.update(brand_artifacts(args.offline))
+    original_bytes = sum(entry["originalBytes"] for entry in report["sources"])
+    fallback_bytes = sum(entry["fallbackBytes"] for entry in report["sources"])
+    all_variant_bytes = sum(variant["bytes"] for entry in report["sources"] for variant in entry["variants"])
     report["totals"] = {
         "sourceCount": len(report["sources"]),
-        "originalBytes": sum(entry["originalBytes"] for entry in report["sources"]),
-        "fallbackBytes": sum(entry["fallbackBytes"] for entry in report["sources"]),
-        "allVariantBytes": sum(variant["bytes"] for entry in report["sources"] for variant in entry["variants"]),
+        "originalBytes": original_bytes,
+        "fallbackBytes": fallback_bytes,
+        "allVariantBytes": all_variant_bytes,
     }
+    REPORT.parent.mkdir(parents=True, exist_ok=True)
     MANIFEST.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     REPORT.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps({"manifest": str(MANIFEST.relative_to(ROOT)), "report": str(REPORT.relative_to(ROOT)), **report["totals"], "portraitFailures": report["portraitFailures"], "favicon": report["favicon"], "socialImage": report["socialImage"]}, ensure_ascii=True))
+    print(
+        json.dumps(
+            {
+                "manifest": str(MANIFEST.relative_to(ROOT)),
+                "report": str(REPORT.relative_to(ROOT)),
+                **report["totals"],
+                "preservedSourceCount": len(report["preservedSources"]),
+                "portraitFailures": report["portraitFailures"],
+                "showreelPoster": report["showreelPoster"],
+                "favicon": report["favicon"],
+                "socialImage": report["socialImage"],
+            },
+            ensure_ascii=True,
+        )
+    )
 
 
 if __name__ == "__main__":

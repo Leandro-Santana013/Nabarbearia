@@ -1,3 +1,4 @@
+import './styles.css'
 import { lazy } from 'react'
 import PlatformApp from './PlatformApp'
 import LoginScreen from './pages/LoginScreen'

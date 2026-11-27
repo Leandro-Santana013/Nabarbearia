@@ -20,6 +20,6 @@ export const publicImageSizes = {
   hero: '(max-width: 380px) 229px, (max-width: 700px) 265px, (max-width: 900px) 330px, 423px',
   team: '(max-width: 620px) calc(100vw - 32px), (max-width: 700px) 580px, (max-width: 900px) calc(100vw - 48px), 580px',
   portrait: '(max-width: 380px) calc(100vw - 32px), (max-width: 620px) calc((100vw - 44px) / 2), (max-width: 700px) 284px, (max-width: 900px) calc((100vw - 88px) / 3), 275px',
-  gallery: '(max-width: 620px) calc((100vw - 48px) / 2), (max-width: 700px) 282px, (max-width: 900px) calc((100vw - 64px) / 2), 371px',
+  gallery: '(max-width: 700px) min(76vw, 340px), (max-width: 900px) min(44vw, 390px), min(38vw, 420px)',
   shop: '(max-width: 620px) calc(100vw - 32px), (max-width: 700px) 580px, (max-width: 900px) calc(100vw - 48px), 552px',
 } as const

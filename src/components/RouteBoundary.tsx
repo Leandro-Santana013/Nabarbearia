@@ -8,21 +8,94 @@ interface RouteBoundaryProps {
 
 function RouteLoading() {
   // Match the native launch surface without declaring the destination ready.
-  return <main aria-busy="true" aria-label="Carregando" className="min-h-dvh" style={{ backgroundColor: '#F4F4F6' }} />
+  return <main aria-busy="true" aria-label="Carregando" style={{ backgroundColor: '#F4F4F6', minHeight: '100dvh' }} />
 }
 
 function RouteLoadFailure() {
   const headingRef = useRef<HTMLHeadingElement>(null)
   useAndroidReady(true)
   useEffect(() => { headingRef.current?.focus({ preventScroll: true }) }, [])
-  return <main className="flex min-h-dvh items-center justify-center bg-background p-6">
-    <div role="alert" className="w-full max-w-md space-y-5">
-      <h1 ref={headingRef} tabIndex={-1} className="text-2xl font-semibold">Não foi possível abrir esta página</h1>
-      <p>Confira sua conexão e recarregue para tentar novamente.</p>
-      <button type="button" onClick={() => window.location.reload()} className="min-h-11 rounded-xl bg-[#062d40] px-5 py-3 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-4">Recarregar página</button>
-      <a href="/" className="block w-fit py-3 text-[#006487] underline focus-visible:outline-2 focus-visible:outline-offset-4">Voltar ao início</a>
-    </div>
-  </main>
+  const fontFamily = "'Plus Jakarta Sans Variable', 'Geist Variable', Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+  return (
+    <main
+      style={{
+        boxSizing: 'border-box',
+        display: 'flex',
+        minHeight: '100dvh',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#F7FBFC',
+        color: '#173746',
+        fontFamily,
+        padding: '24px',
+      }}
+    >
+      <style>{'.na-route-retry:focus-visible{outline:2px solid #062d40;outline-offset:4px}.na-route-home:focus-visible{outline:2px solid #006487;outline-offset:4px}'}</style>
+      <div
+        role="alert"
+        style={{
+          boxSizing: 'border-box',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: '20px',
+          width: '100%',
+          maxWidth: '28rem',
+        }}
+      >
+        <h1
+          ref={headingRef}
+          tabIndex={-1}
+          style={{
+            margin: 0,
+            fontSize: '1.5rem',
+            lineHeight: '2rem',
+            fontWeight: 600,
+          }}
+        >
+          Não foi possível abrir esta página
+        </h1>
+        <p style={{ margin: 0, fontSize: '1rem', lineHeight: 1.5 }}>
+          Confira sua conexão e recarregue para tentar novamente.
+        </p>
+        <button
+          type="button"
+          className="na-route-retry"
+          onClick={() => window.location.reload()}
+          style={{
+            boxSizing: 'border-box',
+            minHeight: '44px',
+            border: 0,
+            borderRadius: '1.25rem',
+            backgroundColor: '#062d40',
+            padding: '12px 20px',
+            font: 'inherit',
+            lineHeight: 1.5,
+            fontWeight: 600,
+            color: '#FFFFFF',
+            cursor: 'pointer',
+            touchAction: 'manipulation',
+          }}
+        >
+          Recarregar página
+        </button>
+        <a
+          href="/"
+          className="na-route-home"
+          style={{
+            display: 'block',
+            width: 'fit-content',
+            paddingBlock: '12px',
+            lineHeight: 1.5,
+            color: '#006487',
+            textDecoration: 'underline',
+          }}
+        >
+          Voltar ao início
+        </a>
+      </div>
+    </main>
+  )
 }
 
 export class RouteBoundary extends Component<RouteBoundaryProps, { failed: boolean; routeKey: string }> {

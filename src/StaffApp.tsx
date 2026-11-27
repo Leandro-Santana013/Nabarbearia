@@ -1,3 +1,4 @@
+import './styles.css'
 import { lazy, useEffect, useState } from 'react'
 import { isManagement, staffDestination, staffHome, staffPath } from './lib/access/routing'
 import { AccessProvider, useAccess } from './lib/access/AccessProvider'

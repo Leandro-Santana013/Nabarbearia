@@ -88,7 +88,7 @@ const server = createServer((request, response) => {
     return authenticatedBarber ? json(response, 200, barberSession) : json(response, 401, { code: 'UNAUTHORIZED', message: 'Sessão de teste ausente.' })
   }
   if (pathname === '/api/v1/public/services' || pathname === '/api/v1/public/barbers') return json(response, 200, [])
-  if (pathname === '/api/v1/appointments' || pathname === '/api/v1/barber/blocks') {
+  if (pathname === '/api/v1/appointments' || pathname === '/api/v1/barber/blocks' || pathname === '/api/v1/barber/recurring-blocks') {
     if (holdDashboardData) return holdResponse(pathname, response, '[]', 'application/json')
     return json(response, 200, [])
   }

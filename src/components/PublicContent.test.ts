@@ -2,6 +2,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { PublicGallery, PublicPracticalInfo, PublicShopPhoto, PublicTestimonials } from './PublicContent'
+import { PublicShopReel } from './PublicShopReel'
 
 const photo = { src: '/brand/photo-approved.webp', alt: 'Descrição da foto', caption: 'Legenda confirmada', width: 800, height: 1000 }
 const testimonial = { id: 'review', kind: 'verified' as const, author: 'Cliente de teste', quote: 'Relato de teste <script>alert(1)</script>', sourceLabel: 'Fonte de teste', sourceUrl: 'https://example.com/review' }
@@ -60,5 +61,21 @@ describe('conteúdo público opcional', () => {
     expect(html).not.toContain('Cartão')
     expect(html).not.toContain('reserva confirmada')
     expect(renderToStaticMarkup(createElement(PublicPracticalInfo, { content: { paymentMethods: [], amenities: [], whatsappNumber: 'javascript:alert(1)' } }))).toBe('')
+  })
+
+  it('expõe navegação por teclado, região aria-live na galeria e poster no showreel', () => {
+    const galleryHtml = renderToStaticMarkup(createElement(PublicGallery, {
+      photos: [
+        { ...photo, id: 'p1', caption: 'Foto um' },
+        { ...photo, id: 'p2', caption: 'Foto dois' },
+      ],
+    }))
+    expect(galleryHtml).toContain('tabindex="0"')
+    expect(galleryHtml).toContain('aria-live="polite"')
+    expect(galleryHtml).toContain('Foto 1 de 2: Foto um')
+
+    const reelHtml = renderToStaticMarkup(createElement(PublicShopReel))
+    expect(reelHtml).toContain('poster="/brand/optimized/showreel-poster.webp"')
+    expect(reelHtml).toContain('src="/brand/na-barbearia-showreel.mp4"')
   })
 })
