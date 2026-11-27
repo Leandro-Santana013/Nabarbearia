@@ -39,10 +39,21 @@ pub async fn record_payout(db: &Db, actor: AuthUser, command: Payout) -> Result<
             params![id, business, barber, amount, key, actor, now],
         )?;
         for item in items {
-            tx.execute(
-                "INSERT INTO commission_payout_items(business_id,appointment_id,payout_id) VALUES (?1,?2,?3)",
-                params![business, item.appointment_id, id],
-            )?;
+            match item.adjustment_id {
+                // Ajustes de correção são quitados no mesmo repasse, sem tocar no item já pago.
+                Some(adjustment_id) => {
+                    tx.execute(
+                        "UPDATE commission_adjustments SET payout_id=?1 WHERE business_id=?2 AND id=?3 AND payout_id IS NULL",
+                        params![id, business, adjustment_id],
+                    )?;
+                }
+                None => {
+                    tx.execute(
+                        "INSERT INTO commission_payout_items(business_id,appointment_id,payout_id) VALUES (?1,?2,?3)",
+                        params![business, item.appointment_id, id],
+                    )?;
+                }
+            }
         }
         insert_audit(&tx, &business, Some(&actor), "commission.payout_recorded", "commission_payout", &id, "{}")?;
         tx.commit()?;

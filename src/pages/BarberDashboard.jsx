@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAccess } from "@/lib/access/AccessProvider"
 import { isManagement } from "@/lib/access/routing"
 import BarberSchedule from "./BarberSchedule"
+import FinishAppointmentDialog from "@/components/checkout/FinishAppointmentDialog"
 import { ApiError, api } from "@/services/api"
 import { dailySchedule, isAppointmentInProgress, money, shopDate, scheduleTime } from "@/lib/barber-schedule"
 import { useAndroidReady } from "@/lib/android-startup"
@@ -43,6 +44,8 @@ export default function BarberDashboard({ session, onManage }) {
   useAndroidReady(!loading)
   const [busy, setBusy] = useState(false)
   const [startedIds, setStartedIds] = useState(() => new Set())
+  /** Atendimento aberto no modal "Finalizar atendimento" (ou concluído, em consulta). */
+  const [closing, setClosing] = useState(null)
   const [error, setError] = useState("")
   const [notice, setNotice] = useState("")
   const [remindersEnabled, setRemindersEnabled] = useState(() => {
@@ -155,14 +158,38 @@ export default function BarberDashboard({ session, onManage }) {
       } else if (action === "no-show") {
         await api.noShowAppointment(appointment.id)
         setNotice("Falta registrada.")
-      } else {
-        await api.completeAppointment(appointment.id)
-        setStartedIds((previous) => { const next = new Set(previous); next.delete(appointment.id); return next })
-        setNotice("Serviço concluído com sucesso.")
       }
+      // A conclusão passa sempre pelo modal "Finalizar atendimento" (finishAppointment).
       await load()
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Não foi possível atualizar o atendimento.")
+    } finally {
+      actionPending.current = false
+      setBusy(false)
+    }
+  }
+
+  /** Mesmo endpoint, validações e cálculo financeiro da Agenda Geral; o backend valida a permissão. */
+  async function finishAppointment(appointment, input) {
+    if (actionPending.current) return { ok: false, message: "Aguarde a ação em andamento terminar." }
+    actionPending.current = true
+    setBusy(true)
+    setError("")
+    setNotice("")
+    try {
+      await api.completeAppointmentCheckout(appointment.id, input)
+      setStartedIds((previous) => { const next = new Set(previous); next.delete(appointment.id); return next })
+      setClosing(null)
+      // Sucesso só depois da resposta do backend.
+      setNotice("Serviço concluído com sucesso.")
+      await load()
+      return { ok: true }
+    } catch (failure) {
+      return {
+        ok: false,
+        code: failure instanceof ApiError ? failure.code : undefined,
+        message: failure instanceof Error ? failure.message : "Não foi possível concluir o atendimento.",
+      }
     } finally {
       actionPending.current = false
       setBusy(false)
@@ -247,7 +274,16 @@ export default function BarberDashboard({ session, onManage }) {
           onNoShow={(appointment) => updateAppointment(appointment, "no-show")}
           onSaveDetails={(appointment, details) => runAction(() => api.updateAppointmentDetails(appointment.id, details), "Detalhes atualizados.")}
           busy={busy || loading} onStart={(appointment) => updateAppointment(appointment, "start")}
-          onComplete={(appointment) => updateAppointment(appointment, "complete")}
+          onComplete={(appointment) => { setNotice(""); setClosing(appointment) }}
+          onViewClosing={(appointment) => setClosing(appointment)}
+        />}
+        {closing && <FinishAppointmentDialog
+          key={closing.id}
+          appointment={closing}
+          barberName={name}
+          busy={busy}
+          onConfirm={(input) => finishAppointment(closing, input)}
+          onClose={() => setClosing(null)}
         />}
         {activeTab === "ganhos" && <section aria-labelledby="barber-earnings" className="space-y-4">
           <h1 id="barber-earnings" className="text-lg font-semibold">Meus Ganhos & Métricas</h1>

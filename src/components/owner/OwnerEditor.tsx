@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import CommissionRuleForm from "@/components/CommissionRuleForm";
 import OwnerSelect from "./OwnerSelect";
+import AppointmentEditor from "./AppointmentEditor";
+import ClosingDetails from "./ClosingDetails";
 import { api } from "@/services/api";
 import type { Appointment, Service } from "@/types";
 import type { OwnerBarber } from "@/lib/owner-dashboard";
@@ -25,6 +27,8 @@ export type Editor =
   | { kind: "schedule"; item: OwnerBarber }
   | { kind: "payout"; item: OwnerBarber }
   | { kind: "appointment"; item: Appointment }
+  /** Atendimento concluído: detalhes do fechamento, histórico e correção administrativa. */
+  | { kind: "closing"; item: Appointment }
   | { kind: "new-appointment"; date: string; time: string; barberId: string }
   | { kind: "bulk"; items: Appointment[] };
 export default function OwnerEditor({
@@ -36,6 +40,7 @@ export default function OwnerEditor({
   team,
   refresh,
   error,
+  canCheckout = false,
 }: {
   editor: Editor;
   onClose: () => void;
@@ -45,6 +50,8 @@ export default function OwnerEditor({
   team: OwnerBarber[];
   refresh: () => Promise<void>;
   error: string;
+  /** Superadministrador: serviços realizados, pagamento e conclusão no modal de agendamento. */
+  canCheckout?: boolean;
 }) {
   const service = editor.kind === "service" ? editor.item : undefined;
   const barber = editor.kind === "barber" ? editor.item : undefined;
@@ -97,6 +104,7 @@ export default function OwnerEditor({
     schedule: "Configurar escala",
     payout: "Registrar repasse",
     appointment: "Editar agendamento",
+    closing: "Detalhes do atendimento",
     "new-appointment": "Novo agendamento",
     bulk: "Cancelar agendamentos",
   };
@@ -160,13 +168,7 @@ export default function OwnerEditor({
           editor.item.outstanding_cents,
           key.current,
         );
-      } else if (editor.kind === "appointment")
-        await api.editOwnerAppointment(editor.item.id, {
-          service_id: serviceId,
-          barber_user_id: barberId,
-          starts_at: moveToDateTime(date, time),
-        });
-      else if (editor.kind === "new-appointment") {
+      } else if (editor.kind === "new-appointment") {
         if (!clientName.trim()) throw new Error("Informe o nome do cliente.");
         if (!serviceId) throw new Error("Selecione um atendimento.");
         if (!barberId) throw new Error("Selecione um barbeiro.");
@@ -196,35 +198,6 @@ export default function OwnerEditor({
     )
       onClose();
   }
-  const appointmentServices = services.filter(
-    (item) => item.active !== false,
-  );
-  if (
-    appointment &&
-    !appointmentServices.some((item) => item.id === appointment.serviceId)
-  ) {
-    appointmentServices.push({
-      id: appointment.serviceId,
-      name: appointment.serviceName ?? "Serviço atual",
-      description: "",
-      category: "",
-      priceCents: appointment.amountCents,
-      durationMinutes: appointment.durationMinutes ?? 30,
-      active: false,
-    });
-  }
-  const appointmentBarbers = team
-    .filter((item) => item.active)
-    .map((item) => ({ value: item.id, label: item.name }));
-  if (
-    appointment &&
-    !appointmentBarbers.some((item) => item.value === appointment.barberId)
-  ) {
-    appointmentBarbers.push({
-      value: appointment.barberId,
-      label: appointment.barberName ?? "Profissional atual",
-    });
-  }
   const createServices = services.filter((item) => item.active !== false);
   const createBarbers = team
     .filter((item) => item.active)
@@ -236,7 +209,7 @@ export default function OwnerEditor({
         if (!open && !busy) onClose();
       }}
     >
-      <DialogContent className="owner-dialog">
+      <DialogContent className={editor.kind === "appointment" || editor.kind === "closing" ? "owner-dialog sm:max-w-2xl" : "owner-dialog"}>
         <DialogTitle className="pr-8 text-lg font-semibold">
           {labels[editor.kind]}
         </DialogTitle>
@@ -245,8 +218,12 @@ export default function OwnerEditor({
             ? `Confirme apenas um pagamento já realizado a ${editor.item.name}. O registro quita o saldo acumulado e não transfere dinheiro.`
             : editor.kind === "bulk"
               ? `${editor.items.length} agendamento(s) selecionado(s). O lote será salvo somente se todas as alterações forem válidas.`
+              : editor.kind === "closing"
+                ? "Fechamento registrado do atendimento. Correções são exclusivas do superadministrador e ficam no histórico."
               : editor.kind === "appointment"
-                ? "Altere o serviço, a data, o horário e o profissional responsável. O novo horário precisa estar disponível na escala."
+                ? canCheckout
+                  ? "Confira os dados, os serviços realizados e o pagamento. A conclusão só é gravada depois da confirmação."
+                  : "Altere o serviço, a data, o horário e o profissional responsável. O novo horário precisa estar disponível na escala."
               : editor.kind === "new-appointment"
                 ? "Preencha os dados necessários do cliente e do atendimento. Telefone, pagamento e observação são opcionais."
               : "As alterações são salvas na plataforma da NA Barbearia."}
@@ -259,7 +236,28 @@ export default function OwnerEditor({
             {error}
           </p>
         )}
-        {editor.kind === "commission" ? (
+        {editor.kind === "closing" ? (
+          <ClosingDetails
+            appointment={editor.item}
+            services={services}
+            team={team}
+            busy={busy}
+            run={run}
+            onClose={onClose}
+          />
+        ) : editor.kind === "appointment" ? (
+          <AppointmentEditor
+            appointment={editor.item}
+            services={services}
+            team={team}
+            busy={busy}
+            run={run}
+            refresh={refresh}
+            onClose={onClose}
+            canCheckout={canCheckout}
+            field={field}
+          />
+        ) : editor.kind === "commission" ? (
           <CommissionRuleForm
             initialBarberId={editor.item.id}
             barbers={team
@@ -438,46 +436,6 @@ export default function OwnerEditor({
                     : money(editor.item.outstanding_cents)}
                 </p>
               )}
-              {editor.kind === "appointment" && (
-                <>
-                  <OwnerSelect
-                    label="Atendimento"
-                    value={serviceId}
-                    onChange={setServiceId}
-                    options={appointmentServices.map((item) => ({
-                      value: item.id,
-                      label: `${item.name} · ${item.durationMinutes} min · ${money(item.priceCents)}`,
-                    }))}
-                  />
-                  <label className="block space-y-1 text-xs font-semibold">
-                    Nova data
-                    <Input
-                      required
-                      type="date"
-                      min={today()}
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                      className={field}
-                    />
-                  </label>
-                  <label className="block space-y-1 text-xs font-semibold">
-                    Horário
-                    <Input
-                      required
-                      type="time"
-                      value={time}
-                      onChange={(e) => setTime(e.target.value)}
-                      className={field}
-                    />
-                  </label>
-                  <OwnerSelect
-                    label="Barbeiro responsável"
-                    value={barberId}
-                    onChange={setBarberId}
-                    options={appointmentBarbers}
-                  />
-                </>
-              )}
               {editor.kind === "new-appointment" && (
                 <>
                   <label className="block space-y-1 text-xs font-semibold">
@@ -574,9 +532,7 @@ export default function OwnerEditor({
                       ? "Confirmar repasse realizado"
                       : editor.kind === "bulk"
                         ? "Confirmar alterações"
-                        : editor.kind === "appointment"
-                          ? "Salvar alterações"
-                          : editor.kind === "new-appointment"
+                        : editor.kind === "new-appointment"
                             ? "Confirmar agendamento"
                           : "Salvar"}
                 </Button>

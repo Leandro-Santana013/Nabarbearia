@@ -73,7 +73,7 @@ pub(crate) fn get_appointment(
                     (SELECT r.score FROM ratings r WHERE r.business_id = a.business_id AND r.appointment_id = a.id),
                     a.client_phone, a.payment_method, a.client_note,
                     EXISTS(SELECT 1 FROM service_executions e WHERE e.business_id=a.business_id AND e.appointment_id=a.id),
-                    (SELECT c.amount_cents FROM commission_snapshots c WHERE c.business_id=a.business_id AND c.appointment_id=a.id AND c.status='posted'),
+                    (SELECT c.amount_cents + COALESCE((SELECT SUM(j.amount_cents) FROM commission_adjustments j WHERE j.business_id=a.business_id AND j.appointment_id=a.id),0) FROM commission_snapshots c WHERE c.business_id=a.business_id AND c.appointment_id=a.id AND c.status='posted'),
                     a.cancellation_source, a.cancellation_notice_ack_at_utc
              FROM appointments a
              JOIN users client ON client.business_id = a.business_id AND client.id = a.client_user_id

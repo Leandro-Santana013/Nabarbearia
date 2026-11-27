@@ -150,6 +150,10 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/appointments/{id}/no-show",
             post(no_show_appointment),
         )
+        .route(
+            "/api/v1/appointments/{id}/services",
+            get(appointment_services),
+        )
         .route("/api/v1/appointments/{id}/rating", post(create_rating))
         .route("/api/v1/consents", post(record_consent))
         .route(
@@ -166,6 +170,10 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/v1/admin/appointments/{id}",
             patch(owner::edit_appointment),
+        )
+        .route(
+            "/api/v1/admin/appointments/{id}/corrections",
+            post(owner::correct_appointment),
         )
         .route("/api/v1/admin/agenda/bulk", post(owner::bulk_agenda))
         .route("/api/v1/admin/appointments", post(create_admin_appointment))
@@ -2188,7 +2196,7 @@ async fn list_appointments(
                     (SELECT r.score FROM ratings r WHERE r.business_id = a.business_id AND r.appointment_id = a.id),
                     a.client_phone, a.payment_method, a.client_note,
                     EXISTS(SELECT 1 FROM service_executions e WHERE e.business_id=a.business_id AND e.appointment_id=a.id),
-                    (SELECT c.amount_cents FROM commission_snapshots c WHERE c.business_id=a.business_id AND c.appointment_id=a.id AND c.status='posted'),
+                    (SELECT c.amount_cents + COALESCE((SELECT SUM(j.amount_cents) FROM commission_adjustments j WHERE j.business_id=a.business_id AND j.appointment_id=a.id),0) FROM commission_snapshots c WHERE c.business_id=a.business_id AND c.appointment_id=a.id AND c.status='posted'),
                     a.cancellation_source, a.cancellation_notice_ack_at_utc
                  FROM appointments a
                  JOIN users client ON client.business_id = a.business_id AND client.id = a.client_user_id
@@ -2367,8 +2375,56 @@ async fn complete_appointment(
         "INVALID_EXECUTION",
         "Execution notes are invalid",
     )?;
-    let result = appointments::complete(&state.db, context.user, appointment_id, notes).await?;
+    let result = match request.payment_method {
+        // Fechamento com serviços realizados e pagamento: superadministrador ou o
+        // barbeiro do atendimento (a permissão é validada no domínio).
+        Some(payment_method) => {
+            let extra_service_ids = request
+                .extra_service_ids
+                .unwrap_or_default()
+                .iter()
+                .map(|value| valid_id(value))
+                .collect::<Result<Vec<_>, _>>()?;
+            let expected_total_cents = request.expected_total_cents.ok_or_else(|| {
+                AppError::bad_request("INVALID_SERVICES", "Expected total is required")
+            })?;
+            appointments::complete_with_checkout(
+                &state.db,
+                context.user,
+                appointment_id,
+                appointments::Checkout {
+                    extra_service_ids,
+                    payment_method,
+                    expected_total_cents,
+                    notes,
+                },
+            )
+            .await?
+        }
+        None if request.extra_service_ids.is_some() || request.expected_total_cents.is_some() => {
+            return Err(AppError::bad_request(
+                "PAYMENT_REQUIRED",
+                "Payment method is required to close the appointment",
+            ));
+        }
+        None => appointments::complete(&state.db, context.user, appointment_id, notes).await?,
+    };
     Ok(Json(appointment_json(result, hide_financials)?))
+}
+
+/// Serviços realizados, total e pagamento de um atendimento. Somente leitura:
+/// superadministrador ou o barbeiro do atendimento.
+async fn appointment_services(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let context = authenticate(&state, &headers).await?;
+    let appointment_id = valid_id(&id)?;
+    let summary = appointments::checkout_summary(&state.db, context.user, appointment_id).await?;
+    Ok(Json(
+        serde_json::to_value(summary).map_err(|_| AppError::Internal)?,
+    ))
 }
 
 async fn no_show_appointment(

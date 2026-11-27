@@ -104,7 +104,7 @@ fn read_owner_summary(
     to: &str,
 ) -> Result<Value, Error> {
     let totals: (i64,i64,i64,i64,i64,i64) = connection.query_row(
-            "SELECT COALESCE(SUM(CASE WHEN a.status='completed' THEN a.price_cents ELSE 0 END),0), COUNT(*), COALESCE(SUM(a.status='completed'),0), COALESCE(SUM(a.status='no_show'),0), COALESCE(SUM(CASE WHEN a.status='completed' AND c.status='posted' THEN c.amount_cents ELSE 0 END),0), COALESCE(SUM(a.status='completed' AND (c.status IS NULL OR c.status <> 'posted')),0) FROM appointments a LEFT JOIN commission_snapshots c ON c.business_id=a.business_id AND c.appointment_id=a.id WHERE a.business_id=?1 AND a.starts_at_utc>=?2 AND a.starts_at_utc<?3 AND a.status<>'cancelled'",
+            "SELECT COALESCE(SUM(CASE WHEN a.status='completed' THEN a.price_cents ELSE 0 END),0), COUNT(*), COALESCE(SUM(a.status='completed'),0), COALESCE(SUM(a.status='no_show'),0), COALESCE(SUM(CASE WHEN a.status='completed' AND c.status='posted' THEN c.amount_cents + COALESCE((SELECT SUM(j.amount_cents) FROM commission_adjustments j WHERE j.business_id=a.business_id AND j.appointment_id=a.id),0) ELSE 0 END),0), COALESCE(SUM(a.status='completed' AND (c.status IS NULL OR c.status <> 'posted')),0) FROM appointments a LEFT JOIN commission_snapshots c ON c.business_id=a.business_id AND c.appointment_id=a.id WHERE a.business_id=?1 AND a.starts_at_utc>=?2 AND a.starts_at_utc<?3 AND a.status<>'cancelled'",
             params![business,from,to], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?)))?;
     let payable = super::storage::payable_commissions(connection, business, None)?;
     let outstanding: i64 = payable.iter().map(|item| item.amount_cents).sum();
@@ -132,12 +132,29 @@ fn read_owner_summary(
     }
     let mut rules_query=connection.prepare("SELECT id,barber_user_id,service_id,rule_type,amount,valid_from_utc,valid_until_utc FROM commission_rules WHERE business_id=?1 AND active=1 ORDER BY priority DESC,created_at_utc DESC")?;
     let rules=rules_query.query_map(params![business],|r|Ok(json!({"id":r.get::<_,String>(0)?,"barber_id":r.get::<_,Option<String>>(1)?,"service_id":r.get::<_,Option<String>>(2)?,"rule_type":r.get::<_,String>(3)?,"amount":r.get::<_,i64>(4)?,"valid_from":r.get::<_,Option<String>>(5)?,"valid_until":r.get::<_,Option<String>>(6)?})))?.collect::<Result<Vec<_>,_>>()?;
-    let mut payments_query=connection.prepare("SELECT COALESCE(NULLIF(payment_method,''),'Não informado'),COUNT(*),SUM(price_cents) FROM appointments WHERE business_id=?1 AND status='completed' AND starts_at_utc>=?2 AND starts_at_utc<?3 GROUP BY payment_method")?;
+    // Pagamento efetivamente registrado no fechamento (pix, cash, debit_card, credit_card);
+    // atendimentos concluídos sem registro aparecem como "not_recorded".
+    let mut payments_query=connection.prepare("SELECT COALESCE(paid_payment_method,'not_recorded'),COUNT(*),SUM(price_cents) FROM appointments WHERE business_id=?1 AND status='completed' AND starts_at_utc>=?2 AND starts_at_utc<?3 GROUP BY 1 ORDER BY 1")?;
     let payments=payments_query.query_map(params![business,from,to],|r|Ok(json!({"method":r.get::<_,String>(0)?,"count":r.get::<_,i64>(1)?,"amount_cents":r.get::<_,i64>(2)?})))?.collect::<Result<Vec<_>,_>>()?;
+    // Pagamento previsto, mantido à parte, somente para concluídos sem pagamento registrado.
+    let mut planned_query=connection.prepare("SELECT COALESCE(NULLIF(payment_method,''),'Não informado'),COUNT(*),SUM(price_cents) FROM appointments WHERE business_id=?1 AND status='completed' AND paid_payment_method IS NULL AND starts_at_utc>=?2 AND starts_at_utc<?3 GROUP BY 1 ORDER BY 1")?;
+    let planned_payments=planned_query.query_map(params![business,from,to],|r|Ok(json!({"method":r.get::<_,String>(0)?,"count":r.get::<_,i64>(1)?,"amount_cents":r.get::<_,i64>(2)?})))?.collect::<Result<Vec<_>,_>>()?;
+    // Comissões geradas no período que já foram repassadas (itens pagos + ajustes quitados).
+    let commission_paid: i64 = connection.query_row(
+        "SELECT COALESCE((SELECT SUM(c.amount_cents) FROM commission_snapshots c
+                 JOIN appointments a ON a.business_id=c.business_id AND a.id=c.appointment_id
+                 WHERE c.business_id=?1 AND c.status='posted' AND a.status='completed' AND a.starts_at_utc>=?2 AND a.starts_at_utc<?3
+                   AND EXISTS(SELECT 1 FROM commission_payout_items p WHERE p.business_id=c.business_id AND p.appointment_id=c.appointment_id)),0)
+              + COALESCE((SELECT SUM(j.amount_cents) FROM commission_adjustments j
+                 JOIN appointments a ON a.business_id=j.business_id AND a.id=j.appointment_id
+                 WHERE j.business_id=?1 AND j.payout_id IS NOT NULL AND a.status='completed' AND a.starts_at_utc>=?2 AND a.starts_at_utc<?3),0)",
+        params![business, from, to],
+        |r| r.get(0),
+    )?;
     let mut payouts_query=connection.prepare("SELECT p.id,u.display_name,p.amount_cents,p.created_at_utc FROM commission_payouts p JOIN users u ON u.business_id=p.business_id AND u.id=p.barber_user_id WHERE p.business_id=?1 AND p.created_at_utc>=?2 AND p.created_at_utc<?3 ORDER BY p.created_at_utc DESC LIMIT 100")?;
     let payouts=payouts_query.query_map(params![business,from,to],|r|Ok(json!({"id":r.get::<_,String>(0)?,"barber_name":r.get::<_,String>(1)?,"amount_cents":r.get::<_,i64>(2)?,"created_at":r.get::<_,String>(3)?})))?.collect::<Result<Vec<_>,_>>()?;
     Ok(
-        json!({"revenue_cents":totals.0,"total_count":totals.1,"completed_count":totals.2,"no_show_count":totals.3,"commission_cents":totals.4,"commission_pending_count":totals.5,"outstanding_cents":outstanding,"retained_cents":totals.0-totals.4,"team":team,"rules":rules,"payments":payments,"payouts":payouts}),
+        json!({"revenue_cents":totals.0,"total_count":totals.1,"completed_count":totals.2,"no_show_count":totals.3,"commission_cents":totals.4,"commission_pending_count":totals.5,"outstanding_cents":outstanding,"retained_cents":totals.0-totals.4,"commission_paid_cents":commission_paid,"commission_unpaid_cents":totals.4-commission_paid,"team":team,"rules":rules,"payments":payments,"planned_payments":planned_payments,"payouts":payouts}),
     )
 }
 
@@ -200,6 +217,17 @@ fn read_earnings(
                 params![business_id, from, to, barber_user_id],
                 |row| row.get(0),
             )?;
+    // Ajustes de correção de comissões já repassadas fazem parte da comissão do atendimento.
+    let adjustment_cents: i64 = connection.query_row(
+                "SELECT COALESCE(SUM(j.amount_cents), 0) FROM commission_adjustments j
+                 JOIN appointments a ON a.id = j.appointment_id AND a.business_id = j.business_id
+                 WHERE j.business_id = ?1 AND a.status = 'completed'
+                   AND (?2 IS NULL OR a.completed_at_utc >= ?2) AND (?3 IS NULL OR a.completed_at_utc < ?3)
+                   AND (?4 IS NULL OR a.barber_user_id = ?4)",
+                params![business_id, from, to, barber_user_id],
+                |row| row.get(0),
+            )?;
+    let commission_cents = commission_cents + adjustment_cents;
     let commission_pending_count: i64 = connection.query_row(
                 "SELECT COUNT(*) FROM commission_snapshots c
                  JOIN appointments a ON a.id = c.appointment_id AND a.business_id = c.business_id

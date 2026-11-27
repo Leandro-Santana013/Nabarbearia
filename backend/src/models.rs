@@ -295,6 +295,32 @@ pub struct CancelRequest {
 #[serde(deny_unknown_fields)]
 pub struct CompleteRequest {
     pub notes: Option<String>,
+    /// Fechamento pela gestão: serviços extras do catálogo, além do agendado.
+    #[serde(default)]
+    pub extra_service_ids: Option<Vec<String>>,
+    /// Pagamento efetivamente recebido: pix, cash, debit_card ou credit_card.
+    #[serde(default)]
+    pub payment_method: Option<String>,
+    /// Total exibido na confirmação; o servidor recalcula e recusa divergências.
+    #[serde(default)]
+    pub expected_total_cents: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CorrectionLineRequest {
+    pub service_id: String,
+    pub price_cents: i64,
+}
+
+/// Correção administrativa de um atendimento concluído (somente superadministrador).
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CorrectionRequest {
+    pub lines: Vec<CorrectionLineRequest>,
+    pub payment_method: String,
+    pub reason: String,
+    pub expected_version: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

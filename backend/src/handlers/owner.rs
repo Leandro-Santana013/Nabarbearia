@@ -6,7 +6,7 @@ use crate::{
     AppState, appointments,
     db::insert_audit,
     error::{ApiResult, AppError},
-    models::{DateRangeQuery, MessageResponse, ServiceResponse},
+    models::{CorrectionRequest, DateRangeQuery, MessageResponse, ServiceResponse},
 };
 use axum::{
     Json,
@@ -32,6 +32,10 @@ pub(super) async fn services(
     Ok(Json(result))
 }
 
+/// Limite do intervalo financeiro (10 anos), o bastante para qualquer consulta
+/// histórica sem permitir varreduras sem fim.
+const MAX_SUMMARY_DAYS: i64 = 3660;
+
 pub(super) async fn summary(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -44,11 +48,13 @@ pub(super) async fn summary(
     if from.is_none()
         || to.is_none()
         || to <= from
-        || to.unwrap() - from.unwrap() > ChronoDuration::days(366)
+        || to.unwrap() - from.unwrap() > ChronoDuration::days(MAX_SUMMARY_DAYS)
     {
+        // Dia, mês, período personalizado e filtros rápidos usam o mesmo intervalo
+        // [from, to): o último dia é incluído inteiro porque `to` é o início do dia seguinte.
         return Err(AppError::bad_request(
             "INVALID_RANGE",
-            "Selecione um período de até 366 dias.",
+            "Selecione um período válido de até 10 anos.",
         ));
     }
     let result = if context.user.is_super_admin() {
@@ -264,4 +270,44 @@ pub(super) async fn edit_appointment(
     )
     .await?;
     Ok(Json(appointment_json(updated, hide_financials)?))
+}
+
+/// Corrige serviços, valores e pagamento de um atendimento concluído e devolve
+/// o fechamento atualizado com o histórico. Não conclui de novo nem cria atendimento.
+pub(super) async fn correct_appointment(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(request): Json<CorrectionRequest>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let context = authenticate(&state, &headers).await?;
+    require_mutation(&state, &headers, &context)?;
+    require_super_admin(&context)?;
+    let appointment_id = valid_id(&id)?;
+    let lines = request
+        .lines
+        .into_iter()
+        .map(|line| {
+            Ok(appointments::CorrectionLine {
+                service_id: valid_id(&line.service_id)?,
+                price_cents: line.price_cents,
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+    appointments::correct_closing(
+        &state.db,
+        context.user.clone(),
+        appointment_id.clone(),
+        appointments::Correction {
+            lines,
+            payment_method: request.payment_method,
+            reason: request.reason,
+            expected_version: request.expected_version,
+        },
+    )
+    .await?;
+    let summary = appointments::checkout_summary(&state.db, context.user, appointment_id).await?;
+    Ok(Json(
+        serde_json::to_value(summary).map_err(|_| AppError::Internal)?,
+    ))
 }

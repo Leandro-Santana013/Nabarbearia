@@ -11,7 +11,9 @@ pub use error::{Error, Rejection};
 pub use payouts::record_payout;
 pub use queries::{admin_summary, earnings, owner_summary};
 pub use rules::create_rule;
-pub(crate) use settlement::settle_commission;
+pub(crate) use settlement::{
+    CorrectionCommission, recalculate_after_correction, settle_commission,
+};
 
 use crate::models::{AppointmentResponse, AuthUser, CommissionRuleType};
 use chrono::{DateTime, SecondsFormat, Utc};

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import "./owner-mobile.css";
 import {
   ArrowRightLeft,
@@ -41,9 +41,21 @@ import BarberDashboard from "./BarberDashboard";
 import { api, type AuthResponse } from "@/services/api";
 import { money, shopDate } from "@/lib/barber-schedule";
 import {
+  agendaStatus,
+  agendaStatusLabel,
+  agendaStatusLegend,
   ownerAgendaRows,
   noShowRate,
   ownerRange,
+  customRange,
+  paidSummaryRows,
+  periodBounds,
+  periodRangeLabel,
+  quickRangeDates,
+  quickRanges,
+  validateCustomRange,
+  type FinancePeriod,
+  type QuickRange,
   type OwnerScheduleInterval,
   type OwnerSummary,
 } from "@/lib/owner-dashboard";
@@ -55,12 +67,12 @@ const sections = [
   { value: "agenda-geral", label: "Agenda Geral", icon: Calendar },
   { value: "servicos", label: "Serviços", icon: Scissors },
 ];
-const statusLabel: Record<Appointment["status"], string> = {
-  confirmed: "Agendado",
-  completed: "Concluído",
-  "no-show": "Falta",
-  cancelled: "Cancelado",
-};
+const AGENDA_REFRESH_MS = 30_000;
+const blockLabel = (blockType: string) =>
+  blockType === "appointment" ? "Compromisso"
+    : blockType === "vacation" ? "Férias"
+      : blockType === "day_off" ? "Folga"
+        : blockType === "break" ? "Pausa" : "Bloqueado";
 const button = "min-h-10 rounded-xl px-3 text-xs! font-semibold!";
 export default function OwnerDashboard({
   path,
@@ -77,8 +89,13 @@ export default function OwnerDashboard({
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [schedules, setSchedules] = useState<OwnerScheduleInterval[]>([]);
   const [availabilityBlocks, setAvailabilityBlocks] = useState<Awaited<ReturnType<typeof api.listOwnerBlocks>>>([]);
-  const [period, setPeriod] = useState<"day" | "month">("month");
+  const [period, setPeriod] = useState<FinancePeriod>("month");
   const [reportDate, setReportDate] = useState(shopDate);
+  // Período personalizado: o rascunho dos campos só vale após "Aplicar filtro".
+  const [customDraft, setCustomDraft] = useState(() => quickRangeDates("thisMonth", shopDate()));
+  const [customApplied, setCustomApplied] = useState(() => quickRangeDates("thisMonth", shopDate()));
+  const [quickRange, setQuickRange] = useState<QuickRange | null>(null);
+  const [rangeError, setRangeError] = useState("");
   const [agendaDate, setAgendaDate] = useState(shopDate);
   const [barberFilter, setBarberFilter] = useState("all");
   const [selected, setSelected] = useState<string[]>([]);
@@ -99,6 +116,7 @@ export default function OwnerDashboard({
   const [recurringRules, setRecurringRules] = useState<Awaited<ReturnType<typeof api.listRecurringBlocks>>>([]);
   const sequence = useRef(0);
   const agendaSequence = useRef(0);
+  const agendaLoadingRef = useRef(false);
   const pending = useRef(false);
   const superAdmin = isSuperAdmin(session.user);
   const allowed = isManagement(session.user);
@@ -111,10 +129,31 @@ export default function OwnerDashboard({
   const activeSectionIndex = visibleSections.findIndex((section) => section.value === tab);
   const hybrid = superAdmin && path === "/gestao/minha-agenda";
   useAndroidReady(!hybrid && !loading && (tab !== "agenda-geral" || !agendaLoading));
+  // Dia e mês mantêm o cálculo anterior; período personalizado e filtros rápidos
+  // usam o mesmo intervalo [início do dia inicial, início do dia seguinte ao final).
   const range = useMemo(
-    () => ownerRange(reportDate, period),
-    [reportDate, period],
+    () => period === "custom"
+      ? customRange(customApplied.start, customApplied.end)
+      : ownerRange(reportDate, period),
+    [reportDate, period, customApplied.start, customApplied.end],
   );
+  const bounds = periodBounds(period, reportDate, customApplied);
+  function applyCustomRange() {
+    const problem = validateCustomRange(customDraft.start, customDraft.end);
+    setRangeError(problem ?? "");
+    if (problem) return;
+    setQuickRange(null);
+    setCustomApplied({ ...customDraft });
+  }
+  function applyQuickRange(value: QuickRange) {
+    // Hoje em Brasília, independentemente do fuso do computador.
+    const dates = quickRangeDates(value, shopDate());
+    setRangeError("");
+    setPeriod("custom");
+    setQuickRange(value);
+    setCustomDraft(dates);
+    setCustomApplied(dates);
+  }
   useEffect(() => {
     if (!superAdmin && (path === "/gestao/financeiro" || path === "/gestao/minha-agenda")) {
       onNavigate("/gestao/agenda-geral");
@@ -184,13 +223,18 @@ export default function OwnerDashboard({
       if (request === sequence.current) setLoading(false);
     }
   }, [allowed, range]);
-  const loadAgenda = useCallback(async () => {
+  const loadAgenda = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     if (!allowed) return;
+    // A atualização silenciosa nunca interrompe um carregamento completo em andamento.
+    if (silent && agendaLoadingRef.current) return;
     const request = ++agendaSequence.current;
-    setAgendaLoading(true);
-    setAgendaError("");
-    setAppointments([]);
-    setSchedules([]);
+    if (!silent) {
+      agendaLoadingRef.current = true;
+      setAgendaLoading(true);
+      setAgendaError("");
+      setAppointments([]);
+      setSchedules([]);
+    }
     try {
       const [data, daySchedules, blocks, rules] = await Promise.all([
         api.listAppointments(ownerRange(agendaDate, "day")),
@@ -203,8 +247,11 @@ export default function OwnerDashboard({
         setSchedules(daySchedules);
         setAvailabilityBlocks(blocks);
         setRecurringRules(rules);
+        if (silent) setAgendaError("");
       }
     } catch (failure) {
+      // Uma falha silenciosa mantém a última agenda válida na tela.
+      if (silent) return;
       if (request === agendaSequence.current) {
         setAppointments([]);
         setSchedules([]);
@@ -216,7 +263,10 @@ export default function OwnerDashboard({
         );
       }
     } finally {
-      if (request === agendaSequence.current) setAgendaLoading(false);
+      if (!silent && request === agendaSequence.current) {
+        agendaLoadingRef.current = false;
+        setAgendaLoading(false);
+      }
     }
   }, [allowed, agendaDate]);
   useEffect(() => {
@@ -231,6 +281,25 @@ export default function OwnerDashboard({
       agendaSequence.current++;
     };
   }, [tab, hybrid, loadAgenda]);
+  const editorOpen = editor !== null;
+  useEffect(() => {
+    // Inícios e conclusões acontecem no aplicativo do barbeiro. A Agenda Geral
+    // consulta o backend periodicamente e ao voltar para a janela, sem piscar a
+    // tela nem desfazer a seleção. Pausa enquanto um formulário está aberto.
+    if (tab !== "agenda-geral" || hybrid || editorOpen) return;
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== "visible" || pending.current) return;
+      void loadAgenda({ silent: true });
+    };
+    const timer = window.setInterval(refreshIfVisible, AGENDA_REFRESH_MS);
+    document.addEventListener("visibilitychange", refreshIfVisible);
+    window.addEventListener("focus", refreshIfVisible);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
+      window.removeEventListener("focus", refreshIfVisible);
+    };
+  }, [tab, hybrid, editorOpen, loadAgenda]);
   useEffect(() => {
     setSelected([]);
   }, [agendaDate, barberFilter]);
@@ -335,7 +404,7 @@ export default function OwnerDashboard({
   }).format(new Date());
   const [shopHour, shopMinute] = shopNow.split(":").map(Number);
   const currentMinute = shopHour * 60 + shopMinute;
-  const periodLabel = new Intl.DateTimeFormat("pt-BR", {
+  const periodLabel = period === "custom" ? "" : new Intl.DateTimeFormat("pt-BR", {
     timeZone: "America/Sao_Paulo",
     ...(period === "month"
       ? { month: "long", year: "numeric" }
@@ -345,7 +414,7 @@ export default function OwnerDashboard({
 
   return (
     <div className="owner-dashboard min-h-dvh bg-background text-foreground">
-      <div className="owner-container mx-auto max-w-6xl space-y-4 px-4 py-5 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]">
+      <div className={`owner-container${tab === "agenda-geral" ? " owner-container-agenda" : ""} mx-auto max-w-6xl space-y-4 px-4 py-5 pb-[calc(6rem+env(safe-area-inset-bottom,0px))]`}>
         <header className="owner-header flex flex-col justify-between gap-3 rounded-2xl border border-border/60 bg-white p-4 shadow-sm md:flex-row md:items-center">
           <div className="owner-heading min-w-0">
             <img src="/brand/optimized/logo-256.webp" alt="" width="256" height="256" className="owner-logo" />
@@ -447,48 +516,115 @@ export default function OwnerDashboard({
                 ))}
               </TabsList>
               {tab !== "agenda-geral" && tab !== "servicos" && (
-                <div className="owner-period-filters flex flex-wrap items-end gap-3">
-                  <div className="w-40">
+                <div className="space-y-2">
+                <div className={`owner-period-filters flex flex-wrap items-end gap-3${period === "custom" ? " owner-period-filters-custom" : ""}`}>
+                  <div className="w-52">
                     <OwnerSelect
                       label="Período"
                       value={period}
-                      onChange={(value) => setPeriod(value as "day" | "month")}
+                      onChange={(value) => {
+                        setPeriod(value as FinancePeriod);
+                        setQuickRange(null);
+                        setRangeError("");
+                        if (value === "custom") setCustomDraft({ ...customApplied });
+                      }}
                       options={[
-                        { value: "month", label: "Mês" },
                         { value: "day", label: "Dia" },
+                        { value: "month", label: "Mês" },
+                        { value: "custom", label: "Período personalizado" },
                       ]}
                     />
                   </div>
-                  <label className="min-w-0 space-y-1 text-xs font-semibold text-gray-600">
-                    {period === "month"
-                      ? "Mês de referência"
-                      : "Data de referência"}
-                    <Input
-                      type={period === "month" ? "month" : "date"}
-                      value={
-                        period === "month" ? reportDate.slice(0, 7) : reportDate
-                      }
-                      onChange={(e) => {
-                        if (e.target.value)
-                          setReportDate(
-                            period === "month"
-                              ? `${e.target.value}-01`
-                              : e.target.value,
-                          );
-                      }}
-                      className="h-11 rounded-xl bg-white"
-                    />
-                  </label>
+                  {period === "custom" ? (
+                    <>
+                      <label className="min-w-0 space-y-1 text-xs font-semibold text-gray-600">
+                        Data inicial
+                        <Input
+                          type="date"
+                          lang="pt-BR"
+                          value={customDraft.start}
+                          max={customDraft.end || undefined}
+                          aria-invalid={Boolean(rangeError)}
+                          onChange={(e) => setCustomDraft((draft) => ({ ...draft, start: e.target.value }))}
+                          className="h-11 rounded-xl bg-white"
+                        />
+                      </label>
+                      <label className="min-w-0 space-y-1 text-xs font-semibold text-gray-600">
+                        Data final
+                        <Input
+                          type="date"
+                          lang="pt-BR"
+                          value={customDraft.end}
+                          min={customDraft.start || undefined}
+                          aria-invalid={Boolean(rangeError)}
+                          onChange={(e) => setCustomDraft((draft) => ({ ...draft, end: e.target.value }))}
+                          className="h-11 rounded-xl bg-white"
+                        />
+                      </label>
+                      <Button
+                        type="button"
+                        disabled={loading || busy}
+                        onClick={applyCustomRange}
+                        className="h-11 rounded-xl px-4 text-xs! font-semibold!"
+                      >
+                        Aplicar filtro
+                      </Button>
+                    </>
+                  ) : (
+                    <label className="min-w-0 space-y-1 text-xs font-semibold text-gray-600">
+                      {period === "month"
+                        ? "Mês de referência"
+                        : "Data de referência"}
+                      <Input
+                        type={period === "month" ? "month" : "date"}
+                        value={
+                          period === "month" ? reportDate.slice(0, 7) : reportDate
+                        }
+                        onChange={(e) => {
+                          if (e.target.value)
+                            setReportDate(
+                              period === "month"
+                                ? `${e.target.value}-01`
+                                : e.target.value,
+                            );
+                        }}
+                        className="h-11 rounded-xl bg-white"
+                      />
+                    </label>
+                  )}
                   <Button
                     variant="outline"
-                    size="icon"
+                    size={period === "custom" ? "default" : "icon"}
                     disabled={loading || busy}
                     onClick={() => void refresh()}
                     aria-label="Atualizar gestão"
-                    className="size-11 rounded-xl bg-white"
+                    className={period === "custom" ? "h-11 gap-1.5 rounded-xl bg-white px-4 text-xs! font-semibold!" : "size-11 rounded-xl bg-white"}
                   >
                     <RefreshCw className="size-4" />
+                    {period === "custom" && "Atualizar"}
                   </Button>
+                </div>
+                <div role="group" aria-label="Filtros rápidos" className="owner-quick-ranges flex flex-wrap gap-2">
+                  {quickRanges.map((item) => (
+                    <button
+                      key={item.value}
+                      type="button"
+                      aria-pressed={quickRange === item.value}
+                      disabled={loading || busy}
+                      onClick={() => applyQuickRange(item.value)}
+                      className={`min-h-9 rounded-full border px-3 text-xs font-semibold transition-colors disabled:opacity-50 ${quickRange === item.value ? "border-primary/40 bg-[#eef8fc] text-primary" : "border-border bg-white text-gray-600 hover:bg-slate-50"}`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+                {rangeError && (
+                  <p role="alert" className="rounded-xl bg-red-50 p-3 text-xs text-red-700">{rangeError}</p>
+                )}
+                <p className="text-xs font-semibold text-[#062d40]" aria-live="polite">
+                  {periodRangeLabel(bounds.start, bounds.end)}
+                  {quickRange && <span className="font-normal text-muted-foreground"> · {quickRanges.find((item) => item.value === quickRange)?.label}</span>}
+                </p>
                 </div>
               )}
               {error && (
@@ -515,19 +651,30 @@ export default function OwnerDashboard({
                 </p>
               )}
               {superAdmin && <TabsContent value="financeiro">
-                <p className="text-xs capitalize text-muted-foreground">
-                  {periodLabel}
-                </p>
-                <div className="owner-metrics grid grid-cols-2 gap-3 lg:grid-cols-4">
+                {periodLabel && (
+                  <p className="text-xs capitalize text-muted-foreground">
+                    {periodLabel}
+                  </p>
+                )}
+                <div className="owner-metrics grid grid-cols-2 gap-3 lg:grid-cols-5">
                   <Metric
                     label="Faturamento total"
                     value={summary?.revenue_cents !== undefined ? money(summary.revenue_cents) : "—"}
                     description="Serviços concluídos no período"
                   />
                   <Metric
+                    label="Comissões do período"
+                    value={summary?.commission_cents !== undefined ? money(summary.commission_cents) : "—"}
+                    description={
+                      summary?.commission_paid_cents !== undefined && summary.commission_unpaid_cents !== undefined
+                        ? `Já repassadas: ${money(summary.commission_paid_cents)} · a repassar: ${money(summary.commission_unpaid_cents)}`
+                        : "Geradas pelos atendimentos concluídos no período"
+                    }
+                  />
+                  <Metric
                     label="Comissões a pagar"
                     value={summary?.outstanding_cents !== undefined ? money(summary.outstanding_cents) : "—"}
-                    description="Saldo acumulado ainda não repassado"
+                    description="Saldo total ainda não repassado (todos os períodos)"
                   />
                   <Metric
                     label="Lucro líquido"
@@ -565,11 +712,11 @@ export default function OwnerDashboard({
                 <Card className="rounded-2xl bg-white shadow-sm">
                   <CardHeader>
                     <CardTitle className="text-sm font-semibold">
-                      Resumo por forma de pagamento prevista
+                      Resumo por forma de pagamento
                     </CardTitle>
                     <p className="text-xs text-muted-foreground">
-                      Valores de serviços concluídos. As formas informadas ainda
-                      não comprovam recebimento.
+                      Pagamentos efetivamente registrados no fechamento dos
+                      atendimentos concluídos no período.
                     </p>
                   </CardHeader>
                   <CardContent className="px-0">
@@ -582,20 +729,14 @@ export default function OwnerDashboard({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {[
-                          "Pix",
-                          "Cartão",
-                          "Dinheiro",
-                          "Presencial",
-                          "Não informado",
-                        ].map((method) => {
+                        {paidSummaryRows.map(({ method, label }) => {
                           const rows =
                             summary?.payments?.filter(
                               (item) => item.method === method,
                             ) ?? [];
                           return (
                             <TableRow key={method}>
-                              <TableCell>{method}</TableCell>
+                              <TableCell>{label}</TableCell>
                               <TableCell>
                                 {summary
                                   ? rows.reduce((n, item) => n + item.count, 0)
@@ -616,6 +757,21 @@ export default function OwnerDashboard({
                         })}
                       </TableBody>
                     </Table>
+                    {!!summary?.planned_payments?.length && (
+                      <div className="space-y-1 border-t border-border/60 px-4 pt-3 text-xs">
+                        <p className="font-semibold text-muted-foreground">
+                          Pagamento previsto dos atendimentos sem pagamento registrado
+                        </p>
+                        <ul className="space-y-1">
+                          {summary.planned_payments.map((item) => (
+                            <li key={item.method} className="flex justify-between gap-3">
+                              <span>{item.method} · {item.count} atendimento(s) · previsto</span>
+                              <span className="tabular-nums">{money(item.amount_cents)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
                 <Card className="rounded-2xl bg-white shadow-sm">
@@ -919,11 +1075,20 @@ export default function OwnerDashboard({
                     Cancelar selecionados
                   </Button>
                 </div>
-                <Card className="rounded-2xl bg-white py-0 shadow-sm">
+                <Card className="gap-0 rounded-2xl bg-white py-0 shadow-sm">
+                  <ul className="owner-agenda-legend" aria-label="Legenda dos status da agenda">
+                    {agendaStatusLegend.map((entry) => (
+                      <li key={entry.key} className={`owner-status-${entry.key}`}>
+                        <span aria-hidden="true" className="owner-agenda-legend-dot" />
+                        {entry.label}
+                      </li>
+                    ))}
+                  </ul>
                   <div className="owner-agenda-grid-scroll overflow-x-auto">
                     <Table
                       className={`owner-agenda-grid${agendaBarbers.length === 1 ? " owner-agenda-grid-single" : ""}`}
                       role="table"
+                      style={{ "--owner-agenda-columns": Math.max(agendaBarbers.length, 1) } as CSSProperties}
                     >
                       <TableHeader>
                         <TableRow>
@@ -934,8 +1099,9 @@ export default function OwnerDashboard({
                             <TableHead
                               className="owner-agenda-barber text-center"
                               key={barber.id}
+                              title={barber.name}
                             >
-                              {barber.name}
+                              <span className="owner-agenda-barber-name">{barber.name}</span>
                             </TableHead>
                           ))}
                         </TableRow>
@@ -947,121 +1113,141 @@ export default function OwnerDashboard({
                               {row.time}
                             </TableCell>
                             {row.cells.map((cell) => {
-                              const selectedAppointmentIds =
-                                cell.appointments.filter((item) =>
-                                  selected.includes(item.id),
+                              const renderBooking = (item: (typeof cell.appointments)[number]) => {
+                                const canSelect =
+                                  item.status === "confirmed" &&
+                                  !item.executionStarted;
+                                const isSelected = canSelect && selected.includes(item.id);
+                                const status = agendaStatus(item);
+                                const label = agendaStatusLabel(item);
+                                const tooltip = [item.clientName, item.serviceName, label, item.clientNote && `Obs: ${item.clientNote}`]
+                                  .filter(Boolean)
+                                  .join(" · ");
+                                const details = (
+                                  <>
+                                    <span className="owner-agenda-booking-client">
+                                      {item.clientName}
+                                    </span>
+                                    {item.serviceName && (
+                                      <span className="owner-agenda-booking-service">
+                                        {item.serviceName}
+                                      </span>
+                                    )}
+                                    <span className="owner-agenda-status-badge">
+                                      {label}
+                                    </span>
+                                    {item.clientNote && (
+                                      <span className="owner-agenda-booking-note">
+                                        Obs: {item.clientNote}
+                                      </span>
+                                    )}
+                                    {superAdmin && item.status === "completed" && (
+                                      <span className="owner-agenda-card-link">Ver detalhes do atendimento</span>
+                                    )}
+                                  </>
                                 );
+                                const classes = `owner-agenda-booking owner-agenda-card owner-status-${status}${isSelected ? " owner-agenda-card-selected" : ""}`;
+                                return canSelect ? (
+                                  <button
+                                    key={item.id}
+                                    aria-label={`${isSelected ? "Desselecionar" : "Selecionar"} agendamento de ${item.clientName} às ${row.time}, ${label}`}
+                                    aria-pressed={isSelected}
+                                    className={classes}
+                                    disabled={busy}
+                                    onClick={() =>
+                                      setSelected((old) =>
+                                        isSelected
+                                          ? old.filter((id) => id !== item.id)
+                                          : [...old, item.id],
+                                      )
+                                    }
+                                    title={tooltip}
+                                    type="button"
+                                  >
+                                    {details}
+                                  </button>
+                                ) : superAdmin ? (
+                                  // Em atendimento, concluídos, faltas e cancelados abrem o modal
+                                  // para fechamento ou consulta; a seleção em lote segue igual.
+                                  <button
+                                    key={item.id}
+                                    aria-label={item.status === "completed"
+                                      ? `Ver detalhes do atendimento de ${item.clientName} às ${row.time}`
+                                      : `Abrir atendimento de ${item.clientName} às ${row.time}, ${label}`}
+                                    className={classes}
+                                    disabled={busy}
+                                    onClick={() => edit(item.status === "completed" ? { kind: "closing", item } : { kind: "appointment", item })}
+                                    title={tooltip}
+                                    type="button"
+                                  >
+                                    {details}
+                                  </button>
+                                ) : (
+                                  <div className={classes} key={item.id} title={tooltip}>
+                                    {details}
+                                  </div>
+                                );
+                              };
+                              const blocked = cell.recurringBlocked || cell.availabilityBlocks.length > 0;
+                              const blockBadges = (
+                                <>
+                                  {cell.recurringBlocked && <span className="owner-agenda-block-badge">{cell.appointments.length ? "Horário fechado" : "Fechado"}</span>}
+                                  {cell.availabilityBlocks.map((block) => <span key={block.id} className="owner-agenda-block-badge">{blockLabel(block.blockType)}</span>)}
+                                </>
+                              );
+                              const cancelledCards = cell.cancelledAppointments.map(renderBooking);
                               return (
                                 <TableCell
                                   className="owner-agenda-cell text-center"
                                   key={`${row.minute}-${cell.barberId}`}
                                 >
                                   {cell.appointments.length ? (
-                                    <div className="space-y-1">
-                                      {cell.recurringBlocked && <Badge className="border-0 bg-amber-50 text-[10px] text-amber-800">Horário fechado</Badge>}
-                                      {cell.availabilityBlocks.map((block) => <Badge key={block.id} className="border-0 bg-amber-50 text-[10px] text-amber-800">{block.blockType === "appointment" ? "Compromisso" : block.blockType === "vacation" ? "Férias" : block.blockType === "day_off" ? "Folga" : block.blockType === "break" ? "Pausa" : "Bloqueado"}</Badge>)}
-                                      {cell.appointments.map((item) => {
-                                        const canSelect =
-                                          item.status === "confirmed" &&
-                                          !item.executionStarted;
-                                        const isSelected =
-                                          selectedAppointmentIds.some(
-                                            (selectedItem) =>
-                                              selectedItem.id === item.id,
-                                          );
-                                        const details = (
-                                          <>
-                                            <span className="block text-sm font-semibold">
-                                              {item.clientName}
-                                            </span>
-                                            {item.serviceName && (
-                                              <span className="block text-xs text-muted-foreground">
-                                                {item.serviceName}
-                                              </span>
-                                            )}
-                                            <Badge className="mt-1 border-0 bg-blue-50 text-[10px] text-primary">
-                                              {item.status === "confirmed" &&
-                                              item.executionStarted
-                                                ? "Em atendimento"
-                                                : statusLabel[item.status]}
-                                            </Badge>
-                                            {item.clientNote && (
-                                              <span className="mt-1 block text-[11px] text-amber-700">
-                                                Obs: {item.clientNote}
-                                              </span>
-                                            )}
-                                          </>
-                                        );
-                                        return canSelect ? (
-                                          <div
-                                            className="relative"
-                                            key={item.id}
-                                          >
-                                            <button
-                                              aria-label={`${isSelected ? "Desselecionar" : "Selecionar"} agendamento de ${item.clientName} às ${row.time}`}
-                                              aria-pressed={isSelected}
-                                              className={`owner-agenda-booking w-full rounded-lg border p-2 text-left ${isSelected ? "border-primary bg-blue-50" : "border-border bg-white"}`}
-                                              disabled={busy}
-                                              onClick={() =>
-                                                setSelected((old) =>
-                                                  isSelected
-                                                    ? old.filter(
-                                                        (id) => id !== item.id,
-                                                      )
-                                                    : [...old, item.id],
-                                                )
-                                              }
-                                              type="button"
-                                            >
-                                              {details}
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <div
-                                            className="owner-agenda-booking rounded-lg border border-border p-2"
-                                            key={item.id}
-                                          >
-                                            {details}
-                                          </div>
-                                        );
-                                      })}
+                                    <div className="owner-agenda-stack">
+                                      {blockBadges}
+                                      {cell.appointments.map(renderBooking)}
+                                      {cancelledCards}
                                     </div>
-                                  ) : cell.recurringBlocked || cell.availabilityBlocks.length ? (
-                                    <div className="flex flex-col items-center gap-1">
-                                      {cell.recurringBlocked && <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-800">Fechado</span>}
-                                      {cell.availabilityBlocks.map((block) => <span key={block.id} className="inline-flex items-center rounded-full bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-800">{block.blockType === "appointment" ? "Compromisso" : block.blockType === "vacation" ? "Férias" : block.blockType === "day_off" ? "Folga" : block.blockType === "break" ? "Pausa" : "Bloqueado"}</span>)}
+                                  ) : blocked ? (
+                                    <div className="owner-agenda-stack items-center">
+                                      {blockBadges}
+                                      {cancelledCards}
                                     </div>
                                   ) : cell.inSchedule ? (
-                                    <button
-                                      aria-label={`Agendar às ${row.time} com ${agendaBarbers.find((item) => item.id === cell.barberId)?.name ?? "profissional"}`}
-                                      className="owner-agenda-booking owner-agenda-open-slot group w-full rounded-lg border border-dashed border-transparent p-1 text-sm text-muted-foreground transition-colors hover:border-primary hover:bg-blue-50 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-40"
-                                      disabled={
-                                        busy ||
-                                        agendaDate < shopDate() ||
-                                        (agendaDate === shopDate() &&
-                                          row.minute <= currentMinute)
-                                      }
-                                      onClick={() =>
-                                        edit({
-                                          kind: "new-appointment",
-                                          date: agendaDate,
-                                          time: row.time,
-                                          barberId: cell.barberId,
-                                        })
-                                      }
-                                      type="button"
-                                    >
-                                      <span
-                                        aria-hidden="true"
-                                        className="owner-agenda-open-slot-placeholder"
+                                    <div className="owner-agenda-stack">
+                                      {cancelledCards}
+                                      <button
+                                        aria-label={`Agendar às ${row.time} com ${agendaBarbers.find((item) => item.id === cell.barberId)?.name ?? "profissional"}`}
+                                        className="owner-agenda-booking owner-agenda-open-slot group w-full rounded-lg border border-dashed border-transparent p-1 text-sm text-muted-foreground transition-colors hover:border-primary hover:bg-blue-50 hover:text-primary focus-visible:outline-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-40"
+                                        disabled={
+                                          busy ||
+                                          agendaDate < shopDate() ||
+                                          (agendaDate === shopDate() &&
+                                            row.minute <= currentMinute)
+                                        }
+                                        onClick={() =>
+                                          edit({
+                                            kind: "new-appointment",
+                                            date: agendaDate,
+                                            time: row.time,
+                                            barberId: cell.barberId,
+                                          })
+                                        }
+                                        type="button"
                                       >
-                                        —
-                                      </span>
-                                      <span className="owner-agenda-open-slot-label items-center justify-center gap-1">
-                                        <Plus aria-hidden="true" className="size-3" />
-                                        Agendar
-                                      </span>
-                                    </button>
+                                        <span
+                                          aria-hidden="true"
+                                          className="owner-agenda-open-slot-placeholder"
+                                        >
+                                          —
+                                        </span>
+                                        <span className="owner-agenda-open-slot-label items-center justify-center gap-1">
+                                          <Plus aria-hidden="true" className="size-3" />
+                                          Agendar
+                                        </span>
+                                      </button>
+                                    </div>
+                                  ) : cancelledCards.length ? (
+                                    <div className="owner-agenda-stack">{cancelledCards}</div>
                                   ) : (
                                     <span className="text-sm text-muted-foreground">
                                       —
@@ -1179,6 +1365,7 @@ export default function OwnerDashboard({
             team={team}
             refresh={refresh}
             error={error}
+            canCheckout={superAdmin}
           />
         )}
       </div>

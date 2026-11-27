@@ -1,4 +1,4 @@
-import type { OwnerScheduleInterval, OwnerSummary } from '@/lib/owner-dashboard'
+import type { AppointmentCheckout, CorrectionRecord, OwnerScheduleInterval, OwnerSummary, PaidPaymentMethod } from '@/lib/owner-dashboard'
 import type { Appointment, Barber, Service, UserRole } from '../types'
 import { apiErrorMessage } from './api-errors'
 
@@ -103,6 +103,81 @@ function mapAppointment(appointment: AppointmentDto): Appointment {
     commissionCents: appointment.commission_cents ?? undefined,
     cancellationSource: appointment.cancellation_source ?? undefined,
     cancellationNoticeAckAt: appointment.cancellation_notice_ack_at ?? undefined,
+  }
+}
+
+interface CheckoutServiceDto { service_id: string; service_name: string; price_cents: number }
+interface CheckoutDto {
+  appointment_id: string
+  status: AppointmentDto['status']
+  execution_started: boolean
+  recorded: boolean
+  lines: (CheckoutServiceDto & { is_original: boolean })[]
+  total_cents: number
+  paid_payment_method?: PaidPaymentMethod | null
+  paid_at?: string | null
+  completed_at?: string | null
+  closed_by_name?: string | null
+  version?: number
+  can_correct?: boolean
+  corrections?: {
+    id: string
+    actor_name: string
+    created_at: string
+    reason: string
+    previous_total_cents: number
+    new_total_cents: number
+    previous_payment_method?: string | null
+    new_payment_method: string
+    previous_services: CheckoutServiceDto[] | null
+    new_services: CheckoutServiceDto[] | null
+    added_services: CheckoutServiceDto[] | null
+    removed_services: CheckoutServiceDto[] | null
+    previous_commission_cents?: number | null
+    new_commission_cents?: number | null
+    commission_treatment: CorrectionRecord['commissionTreatment']
+  }[]
+}
+
+const mapServices = (items: CheckoutServiceDto[] | null) =>
+  (items ?? []).map((item) => ({ serviceId: item.service_id, serviceName: item.service_name, priceCents: item.price_cents }))
+
+function mapCheckout(result: CheckoutDto): AppointmentCheckout {
+  return {
+    appointmentId: result.appointment_id,
+    status: result.status === 'no_show' ? 'no-show' : result.status,
+    executionStarted: result.execution_started,
+    recorded: result.recorded,
+    lines: result.lines.map((line) => ({
+      serviceId: line.service_id,
+      serviceName: line.service_name,
+      priceCents: line.price_cents,
+      isOriginal: line.is_original,
+    })),
+    totalCents: result.total_cents,
+    paidPaymentMethod: result.paid_payment_method ?? undefined,
+    paidAt: result.paid_at ?? undefined,
+    completedAt: result.completed_at ?? undefined,
+    closedByName: result.closed_by_name ?? undefined,
+    version: result.version ?? 0,
+    canCorrect: result.can_correct ?? false,
+    corrections: (result.corrections ?? []).map((item) => ({
+      id: item.id,
+      actorName: item.actor_name,
+      createdAt: item.created_at,
+      reason: item.reason,
+      previousTotalCents: item.previous_total_cents,
+      newTotalCents: item.new_total_cents,
+      previousPaymentMethod: item.previous_payment_method ?? undefined,
+      newPaymentMethod: item.new_payment_method,
+      previousServices: mapServices(item.previous_services),
+      newServices: mapServices(item.new_services),
+      addedServices: mapServices(item.added_services),
+      removedServices: mapServices(item.removed_services),
+      previousCommissionCents: item.previous_commission_cents ?? undefined,
+      newCommissionCents: item.new_commission_cents ?? undefined,
+      commissionTreatment: item.commission_treatment,
+    })),
   }
 }
 
@@ -447,6 +522,42 @@ class ApiService {
     })
     return mapAppointment(result)
   }
+  /** Serviços realizados, total e pagamento registrado. Somente leitura (gestão ou barbeiro do atendimento). */
+  async getAppointmentCheckout(id: string): Promise<AppointmentCheckout> {
+    return mapCheckout(await this.request<CheckoutDto>(`/appointments/${encodeURIComponent(id)}/services`))
+  }
+
+  /** Correção administrativa de um atendimento concluído; devolve o fechamento atualizado com o histórico. */
+  async correctAppointmentClosing(id: string, input: {
+    lines: { serviceId: string; priceCents: number }[]
+    paymentMethod: PaidPaymentMethod
+    reason: string
+    expectedVersion: number
+  }): Promise<AppointmentCheckout> {
+    return mapCheckout(await this.request<CheckoutDto>(`/admin/appointments/${encodeURIComponent(id)}/corrections`, {
+      method: 'POST',
+      body: JSON.stringify({
+        lines: input.lines.map((line) => ({ service_id: line.serviceId, price_cents: line.priceCents })),
+        payment_method: input.paymentMethod,
+        reason: input.reason,
+        expected_version: input.expectedVersion,
+      }),
+    }))
+  }
+
+  /** Conclui pelo mesmo endpoint de conclusão, registrando serviços extras e pagamento recebido. */
+  async completeAppointmentCheckout(id: string, input: { extraServiceIds: string[]; paymentMethod: PaidPaymentMethod; expectedTotalCents: number }): Promise<Appointment> {
+    const result = await this.request<AppointmentDto>(`/appointments/${encodeURIComponent(id)}/complete`, {
+      method: 'POST',
+      body: JSON.stringify({
+        extra_service_ids: input.extraServiceIds,
+        payment_method: input.paymentMethod,
+        expected_total_cents: input.expectedTotalCents,
+      }),
+    })
+    return mapAppointment(result)
+  }
+
   async editOwnerAppointment(id: string, input: { service_id: string; barber_user_id: string; starts_at: string }): Promise<Appointment> {
     const result = await this.request<AppointmentDto>(`/admin/appointments/${encodeURIComponent(id)}`, {
       method: 'PATCH',

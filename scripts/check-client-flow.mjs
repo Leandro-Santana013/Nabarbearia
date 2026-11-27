@@ -81,8 +81,25 @@ try {
   await clickSelector(`button[aria-label=${JSON.stringify(bookedDateLabel)}]`)
   await waitText('Cliente Integração')
   await click('Iniciar Atendimento'); await waitText('Em Atendimento')
-  await click('Concluir Serviço'); await waitText('Serviço concluído com sucesso.')
+  // O modal não conclui sozinho: cancelar mantém o atendimento em andamento.
+  await click('Concluir Serviço'); await waitText('Finalizar atendimento')
+  await click('Cancelar')
+  await until(async () => !(await text()).includes('Finalizar atendimento'), 'modal fechado')
+  assert.equal((await appointments()).find(item => item.id === first.id).status, 'confirmed')
+  await waitText('Em Atendimento')
+  // Sem forma de pagamento a conclusão é recusada na própria tela.
+  await click('Concluir Serviço'); await waitText('Finalizar atendimento')
+  await click('Confirmar conclusão'); await waitText('Escolha a forma de pagamento para concluir o atendimento.')
+  assert.equal((await appointments()).find(item => item.id === first.id).status, 'confirmed')
+  await clickSelector('input[name="paid-payment-method"][value="pix"]')
+  await click('Confirmar conclusão'); await waitText('Serviço concluído com sucesso.')
   assert.equal((await appointments()).find(item => item.id === first.id).status, 'completed')
+  // Consulta somente leitura do fechamento registrado.
+  await evaluate(`[...document.querySelectorAll('summary')].find(el => el.textContent.includes('Atendimentos Concluídos')).click()`)
+  await click('Ver serviços e pagamento'); await waitText('Atendimento concluído'); await waitText('Pix')
+  assert.equal(await evaluate('Boolean(document.querySelector(\'input[name="paid-payment-method"]\'))'), false)
+  await click('Fechar')
+  await until(async () => !(await text()).includes('Consulta dos serviços realizados'), 'consulta fechada')
   await click('Perfil'); await click('Sair da conta')
   await navigate('/login'); await waitText('Bem-vindo de volta!')
   await fill('input[name="email"]', 'client@client-flow.test'); await fill('input[name="password"]', password)
@@ -114,7 +131,11 @@ try {
   await navigate('/barbeiro'); await waitText('Bem-vindo de volta!')
   await fill('input[name="email"]', 'barber@client-flow.test'); await fill('input[name="password"]', password)
   await click('Entrar'); await waitText('Olá, Sorriso!')
-  const selectProfessionalDate = () => clickSelector(`button[aria-label=${JSON.stringify(dateLabel)}]`)
+  const selectProfessionalDate = async () => {
+    const selector = `button[aria-label=${JSON.stringify(dateLabel)}]`
+    await clickSelector(selector)
+    await until(() => evaluate(`document.querySelector(${JSON.stringify(selector)})?.getAttribute('aria-pressed') === 'true'`), `selecionar ${dateLabel}`)
+  }
   await selectProfessionalDate(); await waitText('Agenda do Dia')
   const formField = async (label, value, select = false) => evaluate(`(() => {
     const label = [...document.querySelectorAll('label')].find(el => el.firstChild?.textContent.trim() === ${JSON.stringify(label)});
@@ -156,7 +177,9 @@ try {
   assert(activeLayout.heroTop >= 0 && activeLayout.datesBottom <= activeLayout.heroTop && activeLayout.actionBottom <= activeLayout.navigationTop, JSON.stringify(activeLayout))
   writeFileSync(join(temp, 'barber-active.png'), Buffer.from((await send('Page.captureScreenshot', { format: 'png' })).data, 'base64'))
   await send('Page.reload'); await waitText('Olá, Sorriso!'); await selectProfessionalDate(); await waitText('Em Atendimento')
-  await click('Concluir Serviço'); await waitText('Serviço concluído com sucesso.')
+  await click('Concluir Serviço'); await waitText('Finalizar atendimento')
+  await clickSelector('input[name="paid-payment-method"][value="cash"]')
+  await click('Confirmar conclusão'); await waitText('Serviço concluído com sucesso.')
   assert.equal((await appointments()).find(item => item.id === walkin.id).status, 'completed')
   assert.equal((await appointments()).find(item => item.id === walkin.id).commission_cents, 4500)
   assert(!(await text()).includes('Sua comissão'))
